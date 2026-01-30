@@ -4,7 +4,9 @@
  * Agents learn from failures. Deja remembers.
  */
 
-export interface Env {
+import { cleanup } from './cleanup';
+
+interface Env {
   DB: D1Database;
   VECTORIZE: VectorizeIndex;
   AI: Ai;
@@ -378,3 +380,9 @@ async function handleDeleteLearning(
     { headers }
   );
 }
+
+// Cron trigger for daily cleanup
+export const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env) => {
+  const result = await cleanup(env);
+  console.log(`Cleanup: deleted ${result.deleted} entries`, result.reasons);
+};
