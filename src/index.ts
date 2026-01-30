@@ -75,6 +75,7 @@ export default {
             'POST /secret': 'Store a secret (auth required for read AND write)',
             'GET /secret/:name': 'Retrieve a secret (auth required)',
             'DELETE /secret/:name': 'Delete a secret (auth required)',
+            'POST /evaluate': 'AI-evaluate a proposed action against stored failures',
           }
         }), { headers: corsHeaders });
       }
@@ -97,6 +98,11 @@ export default {
       // Gate: stats-endpoint
       if (path === '/stats' && request.method === 'GET') {
         return await handleStats(env, corsHeaders);
+      }
+
+      // Gate: evaluate-endpoint - AI-based action evaluation
+      if (path === '/evaluate' && request.method === 'POST') {
+        return await handleEvaluate(request, env, corsHeaders);
       }
 
       // GET /learnings - list all (paginated)
@@ -501,6 +507,125 @@ async function handleDeleteSecret(
     JSON.stringify({ status: 'deleted', name }),
     { headers }
   );
+}
+
+async function handleEvaluate(
+  request: Request,
+  env: Env,
+  headers: Record<string, string>
+): Promise<Response> {
+  const body: any = await request.json();
+
+  if (!body.action) {
+    return new Response(
+      JSON.stringify({ error: 'action is required' }),
+      { status: 400, headers }
+    );
+  }
+
+  const action = body.action;
+
+  // Query memory for relevant failures
+  const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
+    text: action,
+  });
+  const embedding = embeddingResult.data[0];
+
+  const matches = await env.VECTORIZE.query(embedding, {
+    topK: 5,
+    returnMetadata: 'all',
+  });
+
+  const ids = matches.matches.map((m) => m.id);
+  let learnings: any[] = [];
+  
+  if (ids.length > 0) {
+    const placeholders = ids.map(() => '?').join(',');
+    const results = await env.DB.prepare(
+      `SELECT * FROM learnings WHERE id IN (${placeholders})`
+    ).bind(...ids).all();
+    
+    const scoreMap = new Map(matches.matches.map((m) => [m.id, m.score]));
+    learnings = results.results
+      .map((r: any) => ({ ...r, score: scoreMap.get(r.id) ?? 0 }))
+      .filter((l: any) => l.score > 0.5) // Only high relevance
+      .sort((a: any, b: any) => b.score - a.score);
+  }
+
+  // Build context for AI evaluation
+  const memoryContext = learnings.length > 0
+    ? learnings.map(l => `- ${l.trigger}: ${l.learning}`).join('\n')
+    : 'No relevant past failures found.';
+
+  // Use AI to evaluate
+  const prompt = `You are a code review critic. Evaluate this proposed action against past failures.
+
+PROPOSED ACTION: ${action}
+
+RELEVANT PAST FAILURES/LEARNINGS:
+${memoryContext}
+
+Respond with ONLY valid JSON (no markdown, no explanation):
+{
+  "verdict": "STOP" | "CAUTION" | "PROCEED",
+  "confidence": 0.0-1.0,
+  "reasons": ["reason1", "reason2"],
+  "suggestions": ["suggestion1"]
+}
+
+STOP = high risk of repeating a past failure
+CAUTION = some risk, proceed carefully
+PROCEED = no obvious risks detected`;
+
+  try {
+    const aiResult = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      prompt,
+      max_tokens: 300,
+    });
+
+    // Parse AI response
+    const responseText = (aiResult as any).response || '';
+    
+    // Extract JSON from response (handle markdown code blocks)
+    let jsonStr = responseText;
+    const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
+                      responseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1] || jsonMatch[0];
+    }
+    
+    const evaluation = JSON.parse(jsonStr.trim());
+    
+    return new Response(JSON.stringify({
+      action: action.slice(0, 100),
+      verdict: evaluation.verdict || 'PROCEED',
+      confidence: evaluation.confidence || 0.5,
+      reasons: evaluation.reasons || [],
+      suggestions: evaluation.suggestions || [],
+      memory_matches: learnings.length,
+    }), { headers });
+    
+  } catch (parseErr) {
+    // If AI response can't be parsed, fall back to simple heuristics
+    const hasFailureMatch = learnings.some(l => 
+      l.learning.toLowerCase().includes('failure') ||
+      l.learning.toLowerCase().includes('prevention')
+    );
+    
+    return new Response(JSON.stringify({
+      action: action.slice(0, 100),
+      verdict: hasFailureMatch ? 'CAUTION' : 'PROCEED',
+      confidence: 0.5,
+      reasons: hasFailureMatch 
+        ? ['Found relevant past failures in memory']
+        : ['No relevant failures found'],
+      suggestions: hasFailureMatch
+        ? ['Review the memory matches before proceeding']
+        : [],
+      memory_matches: learnings.length,
+      fallback: true,
+    }), { headers });
+  }
 }
 
 // Cron trigger for daily cleanup
