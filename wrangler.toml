@@ -26,3 +26,6 @@ binding = "AI"
 
 [triggers]
 crons = ["0 0 * * *"]
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "deja-embeddings"
