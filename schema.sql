@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS learnings (
   confidence REAL DEFAULT 1.0,
   source TEXT,
   scope TEXT NOT NULL, -- Added for scope support
+  embedding TEXT, -- Vector embedding as JSON string
   created_at TEXT NOT NULL
 );
 
