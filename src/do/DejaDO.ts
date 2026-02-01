@@ -123,7 +123,7 @@ export class DejaDO extends DurableObject {
     
     // For now, we'll implement a simple query without Vectorize
     // In a full implementation, we would use the AI embedding and Vectorize
-    const results: typeof schema.learnings.$inferSelect[] = await db.select().from(schema.learnings)
+    const results = await db.select().from(schema.learnings)
       .where(
         and(
           eq(schema.learnings.scope, sortedScopes[0])
@@ -147,7 +147,7 @@ export class DejaDO extends DurableObject {
       query = query.where(eq(schema.learnings.scope, filter.scope));
     }
     
-    const results: typeof schema.learnings.$inferSelect[] = await query.orderBy(desc(schema.learnings.createdAt));
+    const results = await query.orderBy(desc(schema.learnings.createdAt));
     
     return { learnings: results };
   }
@@ -159,7 +159,7 @@ export class DejaDO extends DurableObject {
     const db = await this.initDB();
     
     // Check if exists
-    const existing: typeof schema.learnings.$inferSelect[] = await db.select().from(schema.learnings)
+    const existing = await db.select().from(schema.learnings)
       .where(eq(schema.learnings.id, id));
 
     if (existing.length === 0) {
@@ -232,7 +232,7 @@ export class DejaDO extends DurableObject {
   async deleteSecret(scope: string, name: string) {
     const db = await this.initDB();
     
-    const existing: typeof schema.secrets.$inferSelect[] = await db.select().from(schema.secrets)
+    const existing = await db.select().from(schema.secrets)
       .where(
         and(
           eq(schema.secrets.name, name),
