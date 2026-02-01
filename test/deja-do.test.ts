@@ -51,7 +51,8 @@ describe('DejaDO', () => {
       delete: jest.fn().mockReturnThis(),
       eq: jest.fn(),
       and: jest.fn(),
-      inArray: jest.fn()
+      inArray: jest.fn(),
+      groupBy: jest.fn().mockReturnThis()
     });
   });
 
@@ -226,7 +227,7 @@ describe('DejaDO', () => {
       sql: jest.fn()
     };
     
-    // Mock count queries
+    // Mock count queries to return proper results
     mockDb.select.mockImplementation(() => ({
       from: () => [{
         count: 5
