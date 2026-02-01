@@ -51,7 +51,7 @@ describe('secrets', () => {
   test('GET /secret/:name retrieves with auth', async () => {
     const res = await fetch(`${BASE_URL}/secret/${testName}`, { headers });
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.name).toBe(testName);
     expect(data.value).toBe(testValue);
   });
@@ -80,7 +80,7 @@ describe('secrets', () => {
     expect(res.status).toBe(200);
 
     const get = await fetch(`${BASE_URL}/secret/${testName}`, { headers });
-    const data = await get.json();
+    const data: any = await get.json();
     expect(data.value).toBe(newValue);
   });
 
