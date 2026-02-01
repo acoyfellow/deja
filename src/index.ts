@@ -71,5 +71,7 @@ export default {
 function getUserIdFromApiKey(apiKey: string | undefined, authHeader: string | null): string {
   if (!apiKey || !authHeader) return 'anonymous';
   const providedKey = authHeader?.replace('Bearer ', '');
-  return providedKey === apiKey ? 'user' : 'anonymous';
+  // If API key is provided and matches, use it as the user ID for isolation
+  // Otherwise, use 'anonymous'
+  return providedKey === apiKey ? providedKey : 'anonymous';
 }
