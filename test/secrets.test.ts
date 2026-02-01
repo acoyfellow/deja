@@ -36,7 +36,7 @@ describe('secrets', () => {
       body: JSON.stringify({ name: testName, value: testValue }),
     });
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.status).toBe('stored');
     expect(data.name).toBe(testName);
   });
