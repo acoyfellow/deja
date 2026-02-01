@@ -13,13 +13,14 @@ Agents may consult deja. They are never required to.
 - **Post-run recall** — derived from artifacts and outcomes
 - **Addressable and scoped** — by user, agent, or session
 - **Designed to persist** — longer than any single agent session
+- **Self-hosted** — runs on your Cloudflare account
 
 ## What deja is not
 
+- A shared service
 - Conversation history
 - Implicit context
 - Hidden state
-- Live cognition
 
 ## Why deja exists
 
@@ -31,6 +32,7 @@ deja captures what mattered after execution, so future runs can begin informed r
 
 All entries in deja are:
 
+- Stored in your Cloudflare account
 - Traceable to a source run
 - Auditable
 - Removable
@@ -40,13 +42,85 @@ Memory persists by choice, not by accident.
 
 ---
 
-## Quick Start
+## Deploy
+
+### Prerequisites
+
+- Cloudflare account
+- Wrangler CLI (`npm install -g wrangler`)
+- Node.js 18+ or Bun
+
+### Setup
+
+```bash
+# Clone
+git clone https://github.com/acoyfellow/deja
+cd deja
+
+# Install dependencies
+bun install  # or npm install
+
+# Login to Cloudflare
+wrangler login
+
+# Create vectorize index for semantic search
+wrangler vectorize create deja-embeddings --dimensions 384 --metric cosine
+
+# Set your API key (you'll use this to authenticate requests)
+wrangler secret put API_KEY
+# Enter a secure random string when prompted
+
+# Deploy
+bun run deploy  # or npm run deploy
+```
+
+After deploy, wrangler outputs your worker URL:
+```
+Published deja (1.0.0)
+  https://deja.<your-subdomain>.workers.dev
+```
+
+### Configuration
+
+Edit `wrangler.toml` before deploying:
+
+```toml
+name = "deja"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Your Cloudflare account ID
+account_id = "your-account-id"
+
+[durable_objects]
+bindings = [
+  { name = "DEJA", class_name = "DejaDO" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DejaDO"]
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "deja-embeddings"
+
+[ai]
+binding = "AI"
+```
+
+---
+
+## Usage
+
+Replace `$DEJA_URL` with your deployed worker URL.  
+Replace `$API_KEY` with the key you set during setup.
 
 ### Store an entry
 
 ```bash
-curl -X POST https://deja.coey.dev/learn \
-  -H "Authorization: Bearer $DEJA_API_KEY" \
+curl -X POST $DEJA_URL/learn \
+  -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "trigger": "when deploying to cloudflare",
@@ -58,7 +132,8 @@ curl -X POST https://deja.coey.dev/learn \
 ### Retrieve relevant entries
 
 ```bash
-curl -X POST https://deja.coey.dev/inject \
+curl -X POST $DEJA_URL/inject \
+  -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "context": "deploying a cloudflare worker",
@@ -75,14 +150,10 @@ Returns entries semantically relevant to the context.
 
 **Durable Object per user.** Each user gets isolated storage. Isolation by architecture, not access control.
 
-**Two interfaces:**
-- **RPC** (service binding) — direct method calls, no auth needed
-- **HTTP** (CLI/standalone) — API key auth
-
 ```
-service binding          HTTP + API key
-      │                        │
-      ▼                        ▼
+Your infrastructure
+│
+▼
 ┌──────────────────────────────────────┐
 │            DejaDO                    │
 │  ┌────────────────────────────────┐  │
@@ -111,17 +182,15 @@ Callers declare which scopes they can access. deja filters accordingly.
 
 ---
 
-## HTTP API
-
-Base URL: `https://deja.coey.dev`
+## API Reference
 
 ### POST /learn
 
 Store an entry.
 
 ```bash
-curl -X POST /learn \
-  -H "Authorization: Bearer $KEY" \
+curl -X POST $DEJA_URL/learn \
+  -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "trigger": "when this is relevant",
@@ -136,11 +205,12 @@ curl -X POST /learn \
 Retrieve relevant entries for a context. Tracks hits.
 
 ```bash
-curl -X POST /inject \
+curl -X POST $DEJA_URL/inject \
+  -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "context": "describe the task",
-    "scopes": ["shared", "agent:ralph"],
+    "scopes": ["shared", "agent:myagent"],
     "limit": 5,
     "format": "prompt"
   }'
@@ -151,8 +221,9 @@ curl -X POST /inject \
 Search entries without tracking hits.
 
 ```bash
-curl -X POST /query \
-  -H "Authorization: Bearer $KEY" \
+curl -X POST $DEJA_URL/query \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
   -d '{"text": "search term", "limit": 10}'
 ```
 
@@ -161,8 +232,8 @@ curl -X POST /query \
 List entries with optional filters.
 
 ```bash
-curl -H "Authorization: Bearer $KEY" \
-  "/learnings?scope=shared&limit=20"
+curl "$DEJA_URL/learnings?scope=shared&limit=20" \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 ### DELETE /learning/:id
@@ -170,8 +241,8 @@ curl -H "Authorization: Bearer $KEY" \
 Remove an entry.
 
 ```bash
-curl -X DELETE /learning/<id> \
-  -H "Authorization: Bearer $KEY"
+curl -X DELETE $DEJA_URL/learning/<id> \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 ### GET /stats
@@ -179,7 +250,8 @@ curl -X DELETE /learning/<id> \
 Get memory statistics.
 
 ```bash
-curl -H "Authorization: Bearer $KEY" /stats
+curl $DEJA_URL/stats \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 ---
@@ -191,99 +263,56 @@ deja also stores secrets, scoped the same way as entries.
 ### POST /secret
 
 ```bash
-curl -X POST /secret \
-  -H "Authorization: Bearer $KEY" \
-  -d '{"name": "API_KEY", "value": "sk-...", "scope": "agent:ralph"}'
+curl -X POST $DEJA_URL/secret \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "OPENAI_KEY", "value": "sk-...", "scope": "shared"}'
 ```
 
 ### GET /secret/:name
 
 ```bash
-curl -H "Authorization: Bearer $KEY" /secret/API_KEY
+curl $DEJA_URL/secret/OPENAI_KEY \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 ### DELETE /secret/:name
 
 ```bash
-curl -X DELETE /secret/API_KEY \
-  -H "Authorization: Bearer $KEY"
+curl -X DELETE $DEJA_URL/secret/OPENAI_KEY \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 ---
 
-## RPC (service binding)
+## Service Binding (RPC)
 
-For internal callers (filepath, orchestrators):
+If you're building on Cloudflare and want direct access without HTTP:
 
 ```typescript
+// In your wrangler.toml
+[services]
+bindings = [
+  { binding = "DEJA", service = "deja", entrypoint = "DejaDO" }
+]
+
+// In your code
 const deja = env.DEJA.get(env.DEJA.idFromName(userId));
 
 // Entries
-await deja.inject(scopes, context, limit);  // retrieve relevant
+await deja.inject(scopes, context, limit);
 await deja.learn(scope, trigger, learning, confidence, source);
-await deja.query(scopes, text, limit);      // search without tracking
+await deja.query(scopes, text, limit);
 await deja.getLearnings(filter);
 await deja.deleteLearning(id);
 
 // Secrets
-await deja.getSecret(scopes, name);         // first match wins
+await deja.getSecret(scopes, name);
 await deja.setSecret(scope, name, value);
 await deja.deleteSecret(scope, name);
 
 // Stats
 await deja.getStats();
-```
-
----
-
-## Self-hosting
-
-### Prerequisites
-
-- Cloudflare account
-- Wrangler CLI
-- Vectorize index (for semantic search)
-
-### Setup
-
-```bash
-git clone https://github.com/acoyfellow/deja
-cd deja
-bun install
-
-# Create vectorize index
-wrangler vectorize create deja-embeddings --dimensions 384 --metric cosine
-
-# Set API key secret
-wrangler secret put API_KEY
-
-# Deploy
-bun run deploy
-```
-
-### Configuration
-
-Edit `wrangler.toml`:
-
-```toml
-name = "deja"
-main = "src/index.ts"
-
-[durable_objects]
-bindings = [
-  { name = "DEJA", class_name = "DejaDO" }
-]
-
-[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["DejaDO"]
-
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "deja-embeddings"
-
-[ai]
-binding = "AI"
 ```
 
 ---
