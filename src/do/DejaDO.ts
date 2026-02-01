@@ -348,7 +348,11 @@ export class DejaDO extends DurableObject<Env> {
       avg_confidence: result[0]?.avgConfidence ?? 0 
     };
   }
-}
+  /**
+   * Handle HTTP requests to the Durable Object
+   */
+
+
   /**
    * Handle HTTP requests to the Durable Object
    */
@@ -359,7 +363,7 @@ export class DejaDO extends DurableObject<Env> {
 
     try {
       if (path === '/learn' && method === 'POST') {
-        const body = await request.json();
+        const body: any = await request.json();
         const result = await this.learn(body.scope || 'shared', body.trigger, body.learning, body.confidence, body.reason, body.source);
         return new Response(JSON.stringify(result), {
           headers: { 'Content-Type': 'application/json' },
@@ -367,7 +371,7 @@ export class DejaDO extends DurableObject<Env> {
       }
 
       if (path === '/query' && method === 'POST') {
-        const body = await request.json();
+        const body: any = await request.json();
         const result = await this.query(body.scopes || ['shared'], body.text, body.limit);
         return new Response(JSON.stringify(result), {
           headers: { 'Content-Type': 'application/json' },
@@ -375,7 +379,7 @@ export class DejaDO extends DurableObject<Env> {
       }
 
       if (path === '/inject' && method === 'POST') {
-        const body = await request.json();
+        const body: any = await request.json();
         const result = await this.inject(body.scopes || ['shared'], body.context, body.limit, body.format);
         return new Response(JSON.stringify(result), {
           headers: { 'Content-Type': 'application/json' },
@@ -407,7 +411,7 @@ export class DejaDO extends DurableObject<Env> {
       }
 
       if (path === '/secret' && method === 'POST') {
-        const body = await request.json();
+        const body: any = await request.json();
         const result = await this.setSecret(body.scope || 'shared', body.name, body.value);
         return new Response(JSON.stringify(result), {
           headers: { 'Content-Type': 'application/json' },
