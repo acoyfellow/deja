@@ -6,7 +6,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '../schema';
-import { eq, and, like, desc, sql } from 'drizzle-orm';
+import { eq, and, like, desc, sql, inArray } from 'drizzle-orm';
 
 interface Env {
   VECTORIZE: VectorizeIndex;
@@ -82,21 +82,16 @@ export class DejaDO extends DurableObject<Env> {
     
     // Get the learning IDs from vector results
     const learningIds = vectorResults.matches.map(match => match.id);
-    
     let results: typeof schema.learnings.$inferSelect[] = [];
     
     if (learningIds.length > 0) {
-      // Get the full learning details from SQLite
-      // For now, we'll fetch all learnings with matching IDs and filter by scope
-      const placeholders = learningIds.map(() => '?').join(',');
       const allResults = await db.select().from(schema.learnings)
-        .where(sql`id IN (${placeholders})`, ...learningIds)
+        .where(inArray(schema.learnings.id, learningIds))
         .orderBy(desc(schema.learnings.createdAt));
       
       // Filter by scope
-      results = allResults.filter(l => l.scope === scopes[0]).slice(0, limit);
+      results = allResults.filter((l: typeof schema.learnings.$inferSelect) => l.scope === scopes[0]).slice(0, limit);
     } else {
-      // Fallback to simple query if no vector results
       const sortedScopes = this.filterByScopePriority(scopes);
       results = await db.select().from(schema.learnings)
         .where(
@@ -188,14 +183,12 @@ export class DejaDO extends DurableObject<Env> {
     
     if (learningIds.length > 0) {
       // Get the full learning details from SQLite
-      // For now, we'll fetch all learnings with matching IDs and filter by scope
-      const placeholders = learningIds.map(() => '?').join(',');
       const allResults = await db.select().from(schema.learnings)
-        .where(sql`id IN (${placeholders})`, ...learningIds)
+        .where(inArray(schema.learnings.id, learningIds))
         .orderBy(desc(schema.learnings.createdAt));
       
       // Filter by scope
-      results = allResults.filter(l => l.scope === scopes[0]).slice(0, limit);
+      results = allResults.filter((l: typeof schema.learnings.$inferSelect) => l.scope === scopes[0]).slice(0, limit);
     } else {
       // Fallback to simple query if no vector results
       const sortedScopes = this.filterByScopePriority(scopes);
