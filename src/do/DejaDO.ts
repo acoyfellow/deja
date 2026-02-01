@@ -16,11 +16,9 @@ interface Env {
 
 export class DejaDO extends DurableObject {
   private db: ReturnType<typeof drizzle> | null = null;
-  private env: Env;
 
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
-    this.env = env;
   }
 
   /**
@@ -263,9 +261,9 @@ export class DejaDO extends DurableObject {
   async getStats() {
     const db = await this.initDB();
     
-    const result = await db.select({
+    const result: { count: number; avgConfidence: number | null }[] = await db.select({
       count: sql<number>`COUNT(*)`,
-      avgConfidence: sql<number>`AVG(confidence)`
+      avgConfidence: sql<number | null>`AVG(confidence)`
     }).from(schema.learnings);
 
     return { 
