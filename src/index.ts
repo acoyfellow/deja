@@ -4,14 +4,14 @@
  * Agents learn from failures. Deja remembers.
  */
 
-import { cleanup } from './cleanup';
+import { DejaDO } from './do/DejaDO';
 
 interface Env {
-  DB: D1Database;
-  VECTORIZE: VectorizeIndex;
-  AI: Ai;
+  DEJA: DurableObjectNamespace;
   API_KEY?: string;
 }
+
+export { DejaDO };
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -59,6 +59,10 @@ export default {
       }
     }
 
+    // Get user ID from API key or use 'anonymous'
+    const userId = getUserIdFromApiKey(env.API_KEY, request.headers.get('Authorization'));
+    const stub = env.DEJA.get(env.DEJA.idFromName(userId));
+
     try {
       // Gate: api-health - root responds with service info
       if (path === '/' && request.method === 'GET') {
@@ -78,66 +82,104 @@ export default {
             'POST /secret': 'Store a secret (auth required for read AND write)',
             'GET /secret/:name': 'Retrieve a secret (auth required)',
             'DELETE /secret/:name': 'Delete a secret (auth required)',
-            'POST /evaluate': 'AI-evaluate a proposed action against stored failures',
           }
         }), { headers: corsHeaders });
       }
 
       // Gate: learn-endpoint
       if (path === '/learn' && request.method === 'POST') {
-        return await handleLearn(request, env, corsHeaders);
+        const body: any = await request.json();
+        const scope = body.scope || 'shared';
+        const result = await stub.learn(scope, body.trigger, body.learning, body.confidence, body.reason, body.source);
+        return new Response(JSON.stringify(result), { headers: corsHeaders });
       }
 
       // Gate: query-endpoint
       if (path === '/query' && request.method === 'POST') {
-        return await handleQuery(request, env, corsHeaders);
+        const body: any = await request.json();
+        const scopes = body.scopes || ['shared'];
+        const result = await stub.query(scopes, body.context, body.limit);
+        return new Response(JSON.stringify(result), { headers: corsHeaders });
       }
 
       // Gate: inject-endpoint
       if (path === '/inject' && request.method === 'POST') {
-        return await handleInject(request, env, corsHeaders);
+        const body: any = await request.json();
+        const scopes = body.scopes || ['shared'];
+        const format = body.format || 'structured';
+        const result = await stub.inject(scopes, body.context, body.limit, format);
+        return new Response(JSON.stringify(result), { headers: corsHeaders });
       }
 
       // Gate: stats-endpoint
       if (path === '/stats' && request.method === 'GET') {
-        return await handleStats(env, corsHeaders);
-      }
-
-      // Gate: evaluate-endpoint - AI-based action evaluation
-      if (path === '/evaluate' && request.method === 'POST') {
-        return await handleEvaluate(request, env, corsHeaders);
+        const result = await stub.getStats();
+        return new Response(JSON.stringify(result), { headers: corsHeaders });
       }
 
       // GET /learnings - list all (paginated)
       if (path === '/learnings' && request.method === 'GET') {
-        return await handleListLearnings(url, env, corsHeaders);
+        const scope = url.searchParams.get('scope') || undefined;
+        const result = await stub.getLearnings({ scope });
+        return new Response(JSON.stringify(result), { headers: corsHeaders });
       }
 
       // GET /learning/:id - retrieve by ID (for testability)
       const learningMatch = path.match(/^\/learning\/([a-f0-9-]+)$/);
       if (learningMatch && request.method === 'GET') {
-        return await handleGetLearning(learningMatch[1], env, corsHeaders);
+        // This would need to be implemented differently since we don't have direct access to the DO's data
+        // For now, we'll return not found
+        return new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404,
+          headers: corsHeaders,
+        });
       }
 
       // DELETE /learning/:id - delete a learning
       if (learningMatch && request.method === 'DELETE') {
-        return await handleDeleteLearning(learningMatch[1], env, corsHeaders);
+        const result = await stub.deleteLearning(learningMatch[1]);
+        if (result.error) {
+          return new Response(JSON.stringify({ error: result.error }), {
+            status: 404,
+            headers: corsHeaders,
+          });
+        }
+        return new Response(JSON.stringify(result), { headers: corsHeaders });
       }
 
       // POST /secret - store a secret (auth required)
       if (path === '/secret' && request.method === 'POST') {
-        return await handleStoreSecret(request, env, corsHeaders);
+        const body: any = await request.json();
+        const scope = body.scope || 'shared';
+        const result = await stub.setSecret(scope, body.name, body.value);
+        return new Response(JSON.stringify(result), { headers: corsHeaders });
       }
 
       // GET /secret/:name - retrieve a secret (auth required)
       const secretMatch = path.match(/^\/secret\/([\w-]+)$/);
       if (secretMatch && request.method === 'GET') {
-        return await handleGetSecret(secretMatch[1], env, corsHeaders);
+        const scopes = ['shared']; // Default scope, would be determined by user context
+        const result = await stub.getSecret(scopes, secretMatch[1]);
+        if (!result) {
+          return new Response(JSON.stringify({ error: 'not found' }), {
+            status: 404,
+            headers: corsHeaders,
+          });
+        }
+        return new Response(JSON.stringify(result), { headers: corsHeaders });
       }
 
       // DELETE /secret/:name - delete a secret (auth required)
       if (secretMatch && request.method === 'DELETE') {
-        return await handleDeleteSecret(secretMatch[1], env, corsHeaders);
+        const scope = 'shared'; // Default scope, would be determined by user context
+        const result = await stub.deleteSecret(scope, secretMatch[1]);
+        if (result.error) {
+          return new Response(JSON.stringify({ error: result.error }), {
+            status: 404,
+            headers: corsHeaders,
+          });
+        }
+        return new Response(JSON.stringify(result), { headers: corsHeaders });
       }
 
       return new Response(JSON.stringify({ error: 'not found' }), {
@@ -156,483 +198,8 @@ export default {
   },
 };
 
-async function handleLearn(
-  request: Request,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const body: any = await request.json();
-
-  if (!body.trigger || !body.learning) {
-    return new Response(
-      JSON.stringify({ error: 'trigger and learning are required' }),
-      { status: 400, headers }
-    );
-  }
-
-  const id = crypto.randomUUID();
-  let confidence = body.confidence ?? 1.0;
-  
-  // Validate confidence bounds
-  if (typeof confidence !== 'number' || confidence < 0 || confidence > 1) {
-    return new Response(
-      JSON.stringify({ error: 'confidence must be a number between 0 and 1' }),
-      { status: 400, headers }
-    );
-  }
-  const now = new Date().toISOString();
-
-  const textToEmbed = `${body.trigger}: ${body.learning}`;
-  const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
-    text: textToEmbed,
-  });
-  const embedding = (embeddingResult as { data: number[][] }).data[0];
-
-  await env.DB.prepare(
-    `INSERT INTO learnings (id, trigger, learning, reason, confidence, source, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(id, body.trigger, body.learning, body.reason ?? null, confidence, body.source ?? null, now)
-    .run();
-
-  await env.VECTORIZE.upsert([
-    {
-      id,
-      values: embedding,
-      metadata: {
-        trigger: body.trigger,
-        learning: body.learning,
-        confidence,
-      },
-    },
-  ]);
-
-  return new Response(
-    JSON.stringify({ id, status: 'stored' }),
-    { headers }
-  );
+function getUserIdFromApiKey(apiKey: string | undefined, authHeader: string | null): string {
+  if (!apiKey || !authHeader) return 'anonymous';
+  const providedKey = authHeader?.replace('Bearer ', '');
+  return providedKey === apiKey ? 'user' : 'anonymous';
 }
-
-async function handleQuery(
-  request: Request,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const body: any = await request.json();
-
-  if (!body.context) {
-    return new Response(
-      JSON.stringify({ error: 'context is required' }),
-      { status: 400, headers }
-    );
-  }
-
-  const limit = body.limit ?? 5;
-  const minConfidence = body.min_confidence ?? 0;
-
-  const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
-    text: body.context,
-  });
-  const embedding = (embeddingResult as { data: number[][] }).data[0];
-
-  const matches = await env.VECTORIZE.query(embedding, {
-    topK: limit,
-    returnMetadata: 'all',
-  });
-
-  const ids = matches.matches.map((m) => m.id);
-  if (ids.length === 0) {
-    return new Response(JSON.stringify({ learnings: [] }), { headers });
-  }
-
-  const placeholders = ids.map(() => '?').join(',');
-  const results = await env.DB.prepare(
-    `SELECT * FROM learnings WHERE id IN (${placeholders}) AND confidence >= ?`
-  )
-    .bind(...ids, minConfidence)
-    .all();
-
-  const scoreMap = new Map(matches.matches.map((m) => [m.id, m.score]));
-  const learnings = results.results
-    .map((r: any) => ({ ...r, score: scoreMap.get(r.id) ?? 0 }))
-    .sort((a: any, b: any) => b.score - a.score);
-
-  return new Response(JSON.stringify({ learnings }), { headers });
-}
-
-async function handleInject(
-  request: Request,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const body: any = await request.json();
-
-  if (!body.context) {
-    return new Response(
-      JSON.stringify({ error: 'context is required' }),
-      { status: 400, headers }
-    );
-  }
-
-  const limit = body.limit ?? 5;
-  const format = body.format ?? 'structured';
-
-  const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
-    text: body.context,
-  });
-  const embedding = (embeddingResult as { data: number[][] }).data[0];
-
-  const matches = await env.VECTORIZE.query(embedding, {
-    topK: limit,
-    returnMetadata: 'all',
-  });
-
-  const ids = matches.matches.map((m) => m.id);
-  if (ids.length === 0) {
-    if (format === 'prompt') {
-      return new Response(JSON.stringify({ injection: '' }), { headers });
-    }
-    return new Response(JSON.stringify({ injection: [] }), { headers });
-  }
-
-  const placeholders = ids.map(() => '?').join(',');
-  const results = await env.DB.prepare(
-    `SELECT * FROM learnings WHERE id IN (${placeholders})`
-  )
-    .bind(...ids)
-    .all();
-
-  const scoreMap = new Map(matches.matches.map((m) => [m.id, m.score]));
-  const learnings = results.results
-    .map((r: any) => ({ ...r, score: scoreMap.get(r.id) ?? 0 }))
-    .sort((a: any, b: any) => b.score - a.score);
-
-  if (format === 'prompt') {
-    const lines = learnings.map(
-      (l: any) =>
-        `- ${l.trigger}: ${l.learning}${l.reason ? ` (${l.reason})` : ''}`
-    );
-    const injection = learnings.length > 0
-      ? `## Relevant learnings from previous work:\n${lines.join('\n')}`
-      : '';
-    return new Response(JSON.stringify({ injection }), { headers });
-  }
-
-  return new Response(
-    JSON.stringify({
-      injection: learnings.map((l: any) => ({
-        trigger: l.trigger,
-        learning: l.learning,
-        reason: l.reason,
-        confidence: l.confidence,
-      })),
-    }),
-    { headers }
-  );
-}
-
-async function handleStats(
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const result = await env.DB.prepare(
-    `SELECT COUNT(*) as count, AVG(confidence) as avg_confidence FROM learnings`
-  ).first();
-
-  return new Response(
-    JSON.stringify({
-      total_learnings: result?.count ?? 0,
-      avg_confidence: result?.avg_confidence ?? 0,
-    }),
-    { headers }
-  );
-}
-
-async function handleGetLearning(
-  id: string,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const result = await env.DB.prepare(
-    `SELECT * FROM learnings WHERE id = ?`
-  ).bind(id).first();
-
-  if (!result) {
-    return new Response(
-      JSON.stringify({ error: 'not found' }),
-      { status: 404, headers }
-    );
-  }
-
-  return new Response(JSON.stringify(result), { headers });
-}
-
-async function handleListLearnings(
-  url: URL,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const limit = parseInt(url.searchParams.get('limit') ?? '50');
-  const offset = parseInt(url.searchParams.get('offset') ?? '0');
-
-  const results = await env.DB.prepare(
-    `SELECT id, trigger, learning, confidence, created_at FROM learnings 
-     ORDER BY created_at DESC LIMIT ? OFFSET ?`
-  ).bind(limit, offset).all();
-
-  const countResult = await env.DB.prepare(
-    `SELECT COUNT(*) as total FROM learnings`
-  ).first();
-
-  return new Response(JSON.stringify({
-    learnings: results.results,
-    total: countResult?.total ?? 0,
-    limit,
-    offset
-  }), { headers });
-}
-
-async function handleDeleteLearning(
-  id: string,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  // Check if exists
-  const existing = await env.DB.prepare(
-    `SELECT id FROM learnings WHERE id = ?`
-  ).bind(id).first();
-
-  if (!existing) {
-    return new Response(
-      JSON.stringify({ error: 'not found' }),
-      { status: 404, headers }
-    );
-  }
-
-  // Delete from D1
-  await env.DB.prepare(
-    `DELETE FROM learnings WHERE id = ?`
-  ).bind(id).run();
-
-  // Delete from Vectorize
-  await env.VECTORIZE.deleteByIds([id]);
-
-  return new Response(
-    JSON.stringify({ status: 'deleted', id }),
-    { headers }
-  );
-}
-
-// --- Secret handlers (authenticated read/write) ---
-
-async function handleStoreSecret(
-  request: Request,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const body: any = await request.json();
-
-  if (!body.name || !body.value) {
-    return new Response(
-      JSON.stringify({ error: 'name and value are required' }),
-      { status: 400, headers }
-    );
-  }
-
-  // Validate name format (alphanumeric, dashes, underscores)
-  if (!/^[\w-]+$/.test(body.name)) {
-    return new Response(
-      JSON.stringify({ error: 'name must be alphanumeric with dashes/underscores only' }),
-      { status: 400, headers }
-    );
-  }
-
-  const now = new Date().toISOString();
-
-  // Upsert the secret
-  await env.DB.prepare(
-    `INSERT INTO secrets (name, value, created_at, updated_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(name) DO UPDATE SET value = ?, updated_at = ?`
-  )
-    .bind(body.name, body.value, now, now, body.value, now)
-    .run();
-
-  return new Response(
-    JSON.stringify({ name: body.name, status: 'stored' }),
-    { headers }
-  );
-}
-
-async function handleGetSecret(
-  name: string,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const result = await env.DB.prepare(
-    `SELECT * FROM secrets WHERE name = ?`
-  ).bind(name).first();
-
-  if (!result) {
-    return new Response(
-      JSON.stringify({ error: 'not found' }),
-      { status: 404, headers }
-    );
-  }
-
-  return new Response(
-    JSON.stringify({ name: result.name, value: result.value }),
-    { headers }
-  );
-}
-
-async function handleDeleteSecret(
-  name: string,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const existing = await env.DB.prepare(
-    `SELECT name FROM secrets WHERE name = ?`
-  ).bind(name).first();
-
-  if (!existing) {
-    return new Response(
-      JSON.stringify({ error: 'not found' }),
-      { status: 404, headers }
-    );
-  }
-
-  await env.DB.prepare(
-    `DELETE FROM secrets WHERE name = ?`
-  ).bind(name).run();
-
-  return new Response(
-    JSON.stringify({ status: 'deleted', name }),
-    { headers }
-  );
-}
-
-async function handleEvaluate(
-  request: Request,
-  env: Env,
-  headers: Record<string, string>
-): Promise<Response> {
-  const body: any = await request.json();
-
-  if (!body.action) {
-    return new Response(
-      JSON.stringify({ error: 'action is required' }),
-      { status: 400, headers }
-    );
-  }
-
-  const action = body.action;
-
-  // Query memory for relevant failures
-  const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
-    text: action,
-  });
-  const embedding = (embeddingResult as { data: number[][] }).data[0];
-
-  const matches = await env.VECTORIZE.query(embedding, {
-    topK: 5,
-    returnMetadata: 'all',
-  });
-
-  const ids = matches.matches.map((m) => m.id);
-  let learnings: any[] = [];
-  
-  if (ids.length > 0) {
-    const placeholders = ids.map(() => '?').join(',');
-    const results = await env.DB.prepare(
-      `SELECT * FROM learnings WHERE id IN (${placeholders})`
-    ).bind(...ids).all();
-    
-    const scoreMap = new Map(matches.matches.map((m) => [m.id, m.score]));
-    learnings = results.results
-      .map((r: any) => ({ ...r, score: scoreMap.get(r.id) ?? 0 }))
-      .filter((l: any) => l.score > 0.5) // Only high relevance
-      .sort((a: any, b: any) => b.score - a.score);
-  }
-
-  // Build context for AI evaluation
-  const memoryContext = learnings.length > 0
-    ? learnings.map(l => `- ${l.trigger}: ${l.learning}`).join('\n')
-    : 'No relevant past failures found.';
-
-  // Use AI to evaluate
-  const prompt = `You are a code review critic. Evaluate this proposed action against past failures.
-
-PROPOSED ACTION: ${action}
-
-RELEVANT PAST FAILURES/LEARNINGS:
-${memoryContext}
-
-Respond with ONLY valid JSON (no markdown, no explanation):
-{
-  "verdict": "STOP" | "CAUTION" | "PROCEED",
-  "confidence": 0.0-1.0,
-  "reasons": ["reason1", "reason2"],
-  "suggestions": ["suggestion1"]
-}
-
-STOP = high risk of repeating a past failure
-CAUTION = some risk, proceed carefully
-PROCEED = no obvious risks detected`;
-
-  try {
-    const aiResult = await env.AI.run('@cf/meta/llama-2-7b-chat-int8', {
-      prompt,
-      max_tokens: 300,
-    });
-
-    // Parse AI response
-    const responseText = (aiResult as any).response || '';
-    
-    // Extract JSON from response (handle markdown code blocks)
-    let jsonStr = responseText;
-    const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
-                      responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1] || jsonMatch[0];
-    }
-    
-    const evaluation = JSON.parse(jsonStr.trim());
-    
-    return new Response(JSON.stringify({
-      action: action.slice(0, 100),
-      verdict: evaluation.verdict || 'PROCEED',
-      confidence: evaluation.confidence || 0.5,
-      reasons: evaluation.reasons || [],
-      suggestions: evaluation.suggestions || [],
-      memory_matches: learnings.length,
-    }), { headers });
-    
-  } catch (parseErr) {
-    // If AI response can't be parsed, fall back to simple heuristics
-    const hasFailureMatch = learnings.some(l => 
-      l.learning.toLowerCase().includes('failure') ||
-      l.learning.toLowerCase().includes('prevention')
-    );
-    
-    return new Response(JSON.stringify({
-      action: action.slice(0, 100),
-      verdict: hasFailureMatch ? 'CAUTION' : 'PROCEED',
-      confidence: 0.5,
-      reasons: hasFailureMatch 
-        ? ['Found relevant past failures in memory']
-        : ['No relevant failures found'],
-      suggestions: hasFailureMatch
-        ? ['Review the memory matches before proceeding']
-        : [],
-      memory_matches: learnings.length,
-      fallback: true,
-    }), { headers });
-  }
-}
-
-// Cron trigger for daily cleanup
-export const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env) => {
-  const result = await cleanup(env);
-  console.log(`Cleanup: deleted ${result.deleted} entries`, result.reasons);
-};
