@@ -7,8 +7,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:init": "wrangler d1 execute deja-db --file=schema.sql --remote",
-    "test": "bun test",
-    "test:do": "bun test test/deja-do.test.ts",
+    "test": "jest",
+  "test:do": "jest test/deja-do.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
@@ -24,6 +24,8 @@
     "@cloudflare/workers-types": "^4.20260131.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.1.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.4.0",
     "wrangler": "^3.50.0"
   },
