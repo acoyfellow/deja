@@ -512,15 +512,20 @@ export class DejaDO extends DurableObject<Env> {
       // Build scopes object
       const scopes: Record<string, { learnings: number; secrets: number }> = {};
       
-      learningByScope.forEach(row => {
-        if (!scopes[row.scope]) scopes[row.scope] = { learnings: 0, secrets: 0 };
-        scopes[row.scope].learnings = row.count;
-      });
+      // Handle case where groupBy might not be supported in all environments
+      if (Array.isArray(learningByScope)) {
+        learningByScope.forEach((row: any) => {
+          if (!scopes[row.scope]) scopes[row.scope] = { learnings: 0, secrets: 0 };
+          scopes[row.scope].learnings = row.count;
+        });
+      }
       
-      secretsByScope.forEach(row => {
-        if (!scopes[row.scope]) scopes[row.scope] = { learnings: 0, secrets: 0 };
-        scopes[row.scope].secrets = row.count;
-      });
+      if (Array.isArray(secretsByScope)) {
+        secretsByScope.forEach((row: any) => {
+          if (!scopes[row.scope]) scopes[row.scope] = { learnings: 0, secrets: 0 };
+          scopes[row.scope].secrets = row.count;
+        });
+      }
       
       return {
         totalLearnings: learningCount,
