@@ -44,6 +44,10 @@ Memory persists by choice, not by accident.
 
 ## Deploy
 
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/acoyfellow/deja)
+
+Or deploy manually:
+
 ### Prerequisites
 
 - Cloudflare account
@@ -82,31 +86,29 @@ Published deja (1.0.0)
 
 ### Configuration
 
-Edit `wrangler.toml` before deploying:
+Edit `wrangler.json` before deploying:
 
-```toml
-name = "deja"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
-
-# Your Cloudflare account ID
-account_id = "your-account-id"
-
-[durable_objects]
-bindings = [
-  { name = "DEJA", class_name = "DejaDO" }
-]
-
-[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["DejaDO"]
-
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "deja-embeddings"
-
-[ai]
-binding = "AI"
+```json
+{
+  "name": "deja",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01",
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      { "name": "DEJA", "class_name": "DejaDO" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["DejaDO"] }
+  ],
+  "vectorize": [
+    { "binding": "VECTORIZE", "index_name": "deja-embeddings" }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
+}
 ```
 
 ---
@@ -290,10 +292,9 @@ curl -X DELETE $DEJA_URL/secret/OPENAI_KEY \
 If you're building on Cloudflare and want direct access without HTTP:
 
 ```typescript
-// In your wrangler.toml
-[services]
-bindings = [
-  { binding = "DEJA", service = "deja", entrypoint = "DejaDO" }
+// In your wrangler.json, add:
+"services": [
+  { "binding": "DEJA", "service": "deja", "entrypoint": "DejaDO" }
 ]
 
 // In your code
