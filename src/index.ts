@@ -5,13 +5,24 @@
  */
 
 import { DejaDO } from './do/DejaDO';
+import { cleanup } from './cleanup';
 
 interface Env {
   DEJA: DurableObjectNamespace;
   API_KEY?: string;
+  VECTORIZE: VectorizeIndex;
+  AI: any;
 }
 
 export { DejaDO };
+
+function getUserIdFromApiKey(apiKey: string | undefined, authHeader: string | null): string {
+  if (!apiKey || !authHeader) return 'anonymous';
+  const providedKey = authHeader?.replace('Bearer ', '');
+  // If API key is provided and matches, use it as the user ID for isolation
+  // Otherwise, use 'anonymous'
+  return providedKey === apiKey ? providedKey : 'anonymous';
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -66,12 +77,14 @@ export default {
     // Forward all requests to the Durable Object
     return await stub.fetch(request);
   },
-};
 
-function getUserIdFromApiKey(apiKey: string | undefined, authHeader: string | null): string {
-  if (!apiKey || !authHeader) return 'anonymous';
-  const providedKey = authHeader?.replace('Bearer ', '');
-  // If API key is provided and matches, use it as the user ID for isolation
-  // Otherwise, use 'anonymous'
-  return providedKey === apiKey ? providedKey : 'anonymous';
-}
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    // Run cleanup daily
+    try {
+      const result = await cleanup(env);
+      console.log(`Cleanup completed: ${result.deleted} entries deleted`, result.reasons);
+    } catch (error) {
+      console.error('Cleanup failed:', error);
+    }
+  },
+};

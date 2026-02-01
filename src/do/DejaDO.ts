@@ -135,6 +135,66 @@ export class DejaDO extends DurableObject<Env> {
   }
 
   /**
+   * Cleanup method for scheduled tasks
+   * Delete stale session entries and low confidence entries
+   */
+  async cleanup(): Promise<{ deleted: number; reasons: string[] }> {
+    const db = await this.initDB();
+    const reasons: string[] = [];
+    let deleted = 0;
+
+    try {
+      // 1. Delete session:* entries older than 7 days
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      
+      // First get the entries to delete (we need their IDs for Vectorize)
+      const staleEntries = await db.select().from(schema.learnings)
+        .where(and(
+          like(schema.learnings.scope, 'session:%'),
+          sql`${schema.learnings.createdAt} < ${weekAgo}`
+        ));
+      
+      if (staleEntries.length > 0) {
+        deleted += staleEntries.length;
+        reasons.push(`${staleEntries.length} stale session entries`);
+        
+        // Delete from DB
+        await db.delete(schema.learnings)
+          .where(and(
+            like(schema.learnings.scope, 'session:%'),
+            sql`${schema.learnings.createdAt} < ${weekAgo}`
+          ));
+        
+        // Also delete from vectorize
+        const ids = staleEntries.map(entry => entry.id);
+        await this.env.VECTORIZE.deleteByIds(ids);
+      }
+
+      // 2. Delete low confidence (< 0.3) entries
+      const lowConfEntries = await db.select().from(schema.learnings)
+        .where(sql`${schema.learnings.confidence} < 0.3`);
+      
+      if (lowConfEntries.length > 0) {
+        deleted += lowConfEntries.length;
+        reasons.push(`${lowConfEntries.length} low confidence entries`);
+        
+        // Delete from DB
+        await db.delete(schema.learnings)
+          .where(sql`${schema.learnings.confidence} < 0.3`);
+        
+        // Also delete from vectorize
+        const ids = lowConfEntries.map(entry => entry.id);
+        await this.env.VECTORIZE.deleteByIds(ids);
+      }
+
+      return { deleted, reasons };
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      return { deleted: 0, reasons: ['Cleanup failed with error'] };
+    }
+  }
+
+  /**
    * RPC METHODS - Direct method calls for service binding
    */
 
@@ -646,6 +706,12 @@ export class DejaDO extends DurableObject<Env> {
         console.error('Get secrets error:', error);
         return c.json({ error: 'Failed to get secrets' }, 500);
       }
+    });
+    
+    // Cleanup endpoint
+    app.post('/cleanup', async (c) => {
+      const result = await this.cleanup();
+      return c.json(result);
     });
     
     // 404 handler

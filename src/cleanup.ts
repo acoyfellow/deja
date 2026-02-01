@@ -3,37 +3,30 @@
  * Runs daily via Cloudflare Cron Trigger
  */
 
-export async function cleanup(env: any): Promise<{ deleted: number; reasons: string[] }> {
+import { DejaDO } from './do/DejaDO';
+
+interface Env {
+  DEJA: DurableObjectNamespace;
+  VECTORIZE: VectorizeIndex;
+  AI: any;
+}
+
+export async function cleanup(env: Env): Promise<{ deleted: number; reasons: string[] }> {
   const reasons: string[] = [];
   let deleted = 0;
 
-  // 1. Delete session:* entries older than 7 days
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const stale = await env.DB.prepare(
-    `DELETE FROM learnings WHERE trigger LIKE 'session:%' AND created_at < ? RETURNING id`
-  ).bind(weekAgo).all();
+  // For cleanup, we'll use a special 'cleanup' user ID
+  const stub = env.DEJA.get(env.DEJA.idFromName('cleanup'));
   
-  if (stale.results?.length) {
-    deleted += stale.results.length;
-    reasons.push(`${stale.results.length} stale session entries`);
-    
-    // Also delete from vectorize
-    const ids = stale.results.map((r: any) => r.id);
-    await env.VECTORIZE.deleteByIds(ids);
-  }
-
-  // 2. Delete low confidence (< 0.3) entries
-  const lowConf = await env.DB.prepare(
-    `DELETE FROM learnings WHERE confidence < 0.3 RETURNING id`
-  ).all();
+  // We need to implement cleanup logic in the DO itself since we can't directly access the DB
+  // For now, we'll create a special endpoint in the DO for cleanup
   
-  if (lowConf.results?.length) {
-    deleted += lowConf.results.length;
-    reasons.push(`${lowConf.results.length} low confidence entries`);
-    
-    const ids = lowConf.results.map((r: any) => r.id);
-    await env.VECTORIZE.deleteByIds(ids);
+  try {
+    const response = await stub.fetch(new Request('http://deja/cleanup', { method: 'POST' }));
+    const result = await response.json() as { deleted: number; reasons: string[] };
+    return result;
+  } catch (error) {
+    console.error('Cleanup failed:', error);
+    return { deleted: 0, reasons: ['Failed to execute cleanup'] };
   }
-
-  return { deleted, reasons };
 }
