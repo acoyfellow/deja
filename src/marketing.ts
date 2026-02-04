@@ -297,14 +297,20 @@ export const marketingPage = `<!DOCTYPE html>
         border-radius: 1px;
         padding: 16px;
         font-family: "JetBrains Mono", monospace;
-        font-size: 13px;
+        font-size: 12px;
+        line-height: 1.6;
         color: var(--chrome-dark);
         overflow-x: auto;
-        white-space: pre-wrap;
+        white-space: pre;
         box-shadow: 
           inset 0 1px 3px rgba(0, 0, 0, 0.8),
           inset 0 0 0 1px rgba(201, 169, 97, 0.05);
       }
+      
+      .code-block .cmd { color: #8ab4f8; }
+      .code-block .flag { color: var(--brass); }
+      .code-block .string { color: #9ece6a; }
+      .code-block .var { color: var(--brass-light); }
 
       .progress {
         display: grid;
@@ -480,12 +486,10 @@ export const marketingPage = `<!DOCTYPE html>
           <div class="card">
             <h3>"Hey agent — install deja. What do you think?"</h3>
             <p>Agents want frictionless memory. Deja gives you a single endpoint to learn, inject, and query.</p>
-            <div class="code-block">
-              curl -X POST $DEJA_URL/learn
-              -H "Authorization: Bearer $API_KEY"
-              -H "Content-Type: application/json"
-              -d '{"trigger":"deploying","learning":"run wrangler deploy --dry-run","confidence":0.9}'
-            </div>
+            <div class="code-block"><span class="cmd">curl</span> <span class="flag">-X</span> POST <span class="var">$DEJA_URL</span>/learn \
+  <span class="flag">-H</span> <span class="string">"Authorization: Bearer $API_KEY"</span> \
+  <span class="flag">-H</span> <span class="string">"Content-Type: application/json"</span> \
+  <span class="flag">-d</span> <span class="string">'{"trigger":"deploying","learning":"run wrangler deploy --dry-run","confidence":0.9}'</span></div>
             <ul>
               <li>Post-run recall only — no hidden context.</li>
               <li>Scoped memories by agent, session, or shared.</li>
@@ -495,13 +499,11 @@ export const marketingPage = `<!DOCTYPE html>
           <div class="card">
             <h3>"I'm a human. I want deja on my Cloudflare account."</h3>
             <p>Humans need ownership. Deja deploys into your account with clear rails and auditable storage.</p>
-            <div class="code-block">
-              npm install -g wrangler
-              wrangler login
-              wrangler vectorize create deja-embeddings --dimensions 384 --metric cosine
-              wrangler secret put API_KEY
-              wrangler deploy
-            </div>
+            <div class="code-block"><span class="cmd">npm</span> install -g wrangler
+<span class="cmd">wrangler</span> login
+<span class="cmd">wrangler</span> vectorize create deja-embeddings <span class="flag">--dimensions</span> 384 <span class="flag">--metric</span> cosine
+<span class="cmd">wrangler</span> secret put API_KEY
+<span class="cmd">wrangler</span> deploy</div>
             <ul>
               <li>Cloudflare Worker + Durable Objects + Vectorize.</li>
               <li>One worker per user, isolation by architecture.</li>
@@ -568,12 +570,10 @@ export const marketingPage = `<!DOCTYPE html>
           <div class="card">
             <h3>Deploy like it’s 2026</h3>
             <p>Use Wrangler for control, or ship it with Alchemy when you want a modern workflow.</p>
-            <div class="code-block">
-              npm install -g wrangler
-              wrangler deploy
-              # or push with Alchemy
-              alchemy deploy
-            </div>
+            <div class="code-block"><span class="cmd">npm</span> install -g wrangler
+<span class="cmd">wrangler</span> deploy
+<span style="color: var(--muted); opacity: 0.6;"># or push with Alchemy</span>
+<span class="cmd">alchemy</span> deploy</div>
             <p class="subtitle" style="margin:12px 0 0;">Completion should feel like unlocking something, not finishing a task.</p>
           </div>
         </div>
