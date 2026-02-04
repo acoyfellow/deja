@@ -205,6 +205,7 @@ export const marketingPage = `<!DOCTYPE html>
         font-size: 13px;
         color: #d8e0ff;
         overflow-x: auto;
+        white-space: pre-wrap;
       }
 
       .progress {
@@ -334,9 +335,9 @@ export const marketingPage = `<!DOCTYPE html>
             <h3>"Hey agent — install deja. What do you think?"</h3>
             <p>Agents want frictionless memory. Deja gives you a single endpoint to learn, inject, and query.</p>
             <div class="code-block">
-              curl -X POST $DEJA_URL/learn \\ 
-              -H "Authorization: Bearer $API_KEY" \\ 
-              -H "Content-Type: application/json" \\ 
+              curl -X POST $DEJA_URL/learn
+              -H "Authorization: Bearer $API_KEY"
+              -H "Content-Type: application/json"
               -d '{"trigger":"deploying","learning":"run wrangler deploy --dry-run","confidence":0.9}'
             </div>
             <ul>
