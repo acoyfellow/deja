@@ -11,26 +11,34 @@ export const marketingPage = `<!DOCTYPE html>
     <style>
       :root {
         color-scheme: dark;
-        --bg: #0a0c12;
-        --bg-elevated: #111623;
-        --bg-glass: rgba(17, 22, 35, 0.6);
-        --text: #f6f7fb;
-        --muted: #b8c0d9;
-        --accent: #7c8fff;
-        --accent-strong: #9db0ff;
-        --border: rgba(255, 255, 255, 0.08);
-        --glow: rgba(124, 143, 255, 0.32);
+        --space-indigo: #1b1b3a;
+        --velvet-purple: #693668;
+        --berry-blush: #a74482;
+        --deep-pink: #f84aa7;
+        --hot-fuchsia: #ff3562;
+        
+        --bg: #1b1b3a;
+        --bg-elevated: rgba(105, 54, 104, 0.2);
+        --bg-glass: rgba(105, 54, 104, 0.3);
+        --text: #ffffff;
+        --muted: #e5c9e4;
+        --accent: #f84aa7;
+        --accent-strong: #ff3562;
+        --border: rgba(248, 74, 167, 0.15);
+        --glow: rgba(248, 74, 167, 0.4);
       }
 
       * {
         box-sizing: border-box;
       }
 
+      @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Lora:wght@400;600&display=swap');
+
       body {
         margin: 0;
-        font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: radial-gradient(1200px 600px at 20% 10%, rgba(124, 143, 255, 0.12), transparent 60%),
-          radial-gradient(900px 500px at 90% 0%, rgba(255, 255, 255, 0.08), transparent 70%),
+        font-family: "Lora", Georgia, serif;
+        background: radial-gradient(1200px 600px at 20% 10%, rgba(248, 74, 167, 0.15), transparent 60%),
+          radial-gradient(900px 500px at 90% 0%, rgba(167, 68, 130, 0.1), transparent 70%),
           var(--bg);
         color: var(--text);
         line-height: 1.6;
@@ -53,7 +61,7 @@ export const marketingPage = `<!DOCTYPE html>
         top: 0;
         z-index: 10;
         backdrop-filter: blur(14px);
-        background: rgba(10, 12, 18, 0.86);
+        background: rgba(27, 27, 58, 0.86);
         border-bottom: 1px solid var(--border);
       }
 
@@ -65,6 +73,7 @@ export const marketingPage = `<!DOCTYPE html>
       }
 
       .logo {
+        font-family: "Poppins", sans-serif;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.32em;
@@ -85,10 +94,10 @@ export const marketingPage = `<!DOCTYPE html>
 
       .title-card {
         border: 1px solid var(--border);
-        background: linear-gradient(135deg, rgba(17, 22, 35, 0.95), rgba(7, 9, 16, 0.95));
+        background: linear-gradient(135deg, rgba(105, 54, 104, 0.4), rgba(27, 27, 58, 0.95));
         border-radius: 24px;
         padding: 48px;
-        box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55);
+        box-shadow: 0 40px 120px rgba(248, 74, 167, 0.2);
         position: relative;
         overflow: hidden;
       }
@@ -97,8 +106,8 @@ export const marketingPage = `<!DOCTYPE html>
         content: "";
         position: absolute;
         inset: 0;
-        background: radial-gradient(500px 200px at 20% 0%, rgba(124, 143, 255, 0.4), transparent 70%),
-          radial-gradient(600px 400px at 80% 30%, rgba(255, 255, 255, 0.08), transparent 70%);
+        background: radial-gradient(500px 200px at 20% 0%, rgba(248, 74, 167, 0.3), transparent 70%),
+          radial-gradient(600px 400px at 80% 30%, rgba(167, 68, 130, 0.2), transparent 70%);
         opacity: 0.6;
       }
 
@@ -108,7 +117,9 @@ export const marketingPage = `<!DOCTYPE html>
       }
 
       .title {
+        font-family: "Poppins", sans-serif;
         font-size: clamp(40px, 5vw, 72px);
+        font-weight: 700;
         letter-spacing: -0.02em;
         margin: 0 0 12px;
       }
@@ -132,11 +143,12 @@ export const marketingPage = `<!DOCTYPE html>
       }
 
       .button {
+        font-family: "Poppins", sans-serif;
         padding: 12px 20px;
         border-radius: 999px;
         font-weight: 600;
         border: 1px solid var(--accent);
-        background: linear-gradient(120deg, rgba(124, 143, 255, 0.25), rgba(124, 143, 255, 0.05));
+        background: linear-gradient(120deg, rgba(248, 74, 167, 0.4), rgba(248, 74, 167, 0.1));
         box-shadow: 0 0 30px var(--glow);
       }
 
@@ -152,7 +164,9 @@ export const marketingPage = `<!DOCTYPE html>
       }
 
       .section-title {
+        font-family: "Poppins", sans-serif;
         font-size: 20px;
+        font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.28em;
         color: var(--muted);
@@ -181,6 +195,8 @@ export const marketingPage = `<!DOCTYPE html>
       }
 
       .card h3 {
+        font-family: "Poppins", sans-serif;
+        font-weight: 600;
         margin: 0 0 12px;
         font-size: 20px;
       }
@@ -219,8 +235,8 @@ export const marketingPage = `<!DOCTYPE html>
         gap: 16px;
         padding: 12px 18px;
         border-radius: 14px;
-        background: rgba(124, 143, 255, 0.08);
-        border: 1px solid rgba(124, 143, 255, 0.2);
+        background: rgba(248, 74, 167, 0.08);
+        border: 1px solid rgba(248, 74, 167, 0.2);
       }
 
       .level span {
@@ -231,7 +247,7 @@ export const marketingPage = `<!DOCTYPE html>
       .progress-bar {
         position: relative;
         height: 4px;
-        background: rgba(124, 143, 255, 0.15);
+        background: rgba(248, 74, 167, 0.15);
         border-radius: 999px;
         overflow: hidden;
         margin-top: 18px;
@@ -242,7 +258,7 @@ export const marketingPage = `<!DOCTYPE html>
         position: absolute;
         inset: 0;
         width: 45%;
-        background: linear-gradient(90deg, rgba(124, 143, 255, 0.2), rgba(124, 143, 255, 0.9));
+        background: linear-gradient(90deg, rgba(248, 74, 167, 0.3), rgba(255, 53, 98, 0.9));
         animation: glide 6s ease-in-out infinite;
       }
 
@@ -260,14 +276,24 @@ export const marketingPage = `<!DOCTYPE html>
         text-align: center;
         padding: 64px 24px;
         border-radius: 26px;
-        background: linear-gradient(160deg, rgba(124, 143, 255, 0.16), rgba(7, 10, 19, 0.96));
+        background: linear-gradient(160deg, rgba(248, 74, 167, 0.2), rgba(27, 27, 58, 0.96));
         border: 1px solid var(--border);
-        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 30px 90px rgba(248, 74, 167, 0.3);
       }
 
       .title-moment h2 {
+        font-family: "Poppins", sans-serif;
+        font-weight: 700;
         margin: 0 0 12px;
         font-size: clamp(32px, 4vw, 52px);
+      }
+      
+      .title-moment .cta-row {
+        justify-content: center;
+      }
+      
+      .title-moment .subtitle {
+        margin: 0 auto 32px;
       }
 
       footer {
@@ -438,7 +464,7 @@ export const marketingPage = `<!DOCTYPE html>
         <p class="subtitle">
           The peak moment is a title card: a new run begins, and everything it needs is already waiting.
         </p>
-        <div class="cta-row" style="justify-content:center;">
+        <div class="cta-row">
           <a class="button" href="https://deploy.workers.cloudflare.com/?url=https://github.com/acoyfellow/deja" target="_blank" rel="noreferrer">
             Level up with deja
           </a>
@@ -447,7 +473,6 @@ export const marketingPage = `<!DOCTYPE html>
 
       <footer>
         <div>Open source. MIT licensed. Built for Cloudflare Workers.</div>
-        <div>Precision of Stripe · Boot cadence of a PS5 · Tactile click of a luxury door.</div>
       </footer>
     </main>
   </body>
