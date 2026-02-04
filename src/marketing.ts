@@ -32,12 +32,11 @@ export const marketingPage = `<!DOCTYPE html>
         box-sizing: border-box;
       }
 
-      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
-      @import url('https://api.fontshare.com/v2/css?f[]=gambetta@400,700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Playfair+Display:wght@400;700;900&display=swap');
 
       body {
         margin: 0;
-        font-family: "Gambetta", Georgia, serif;
+        font-family: "Playfair Display", Georgia, serif;
         background: radial-gradient(1200px 600px at 20% 10%, rgba(248, 74, 167, 0.15), transparent 60%),
           radial-gradient(900px 500px at 90% 0%, rgba(167, 68, 130, 0.1), transparent 70%),
           var(--bg);
@@ -118,7 +117,7 @@ export const marketingPage = `<!DOCTYPE html>
       }
 
       .title {
-        font-family: "Gambetta", serif;
+        font-family: "Playfair Display", serif;
         font-size: clamp(40px, 5vw, 72px);
         font-weight: 700;
         letter-spacing: -0.02em;
@@ -196,7 +195,7 @@ export const marketingPage = `<!DOCTYPE html>
       }
 
       .card h3 {
-        font-family: "Gambetta", serif;
+        font-family: "Playfair Display", serif;
         font-weight: 700;
         margin: 0 0 12px;
         font-size: 20px;
@@ -283,7 +282,7 @@ export const marketingPage = `<!DOCTYPE html>
       }
 
       .title-moment h2 {
-        font-family: "Gambetta", serif;
+        font-family: "Playfair Display", serif;
         font-weight: 700;
         margin: 0 0 12px;
         font-size: clamp(32px, 4vw, 52px);
