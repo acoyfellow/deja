@@ -4,7 +4,7 @@
  * Each user gets their own isolated DejaDO instance with SQLite storage.
  */
 import { DurableObject } from 'cloudflare:workers';
-import { drizzle } from 'drizzle-orm/d1';
+import { drizzle } from 'drizzle-orm/durable-sqlite';
 import * as schema from '../schema';
 import { eq, and, like, desc, sql, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -68,8 +68,8 @@ export class DejaDO extends DurableObject<Env> {
     if (this.db) return this.db;
     
     try {
-      // @ts-ignore - Cloudflare types
-      this.db = drizzle(this.ctx.storage.sql, { schema });
+      // Use durable-sqlite driver for DO storage
+      this.db = drizzle(this.ctx.storage, { schema });
       return this.db;
     } catch (error) {
       console.error('Database initialization error:', error);
@@ -83,7 +83,8 @@ export class DejaDO extends DurableObject<Env> {
   private async createEmbedding(text: string): Promise<number[]> {
     try {
       // @ts-ignore - Cloudflare types
-      const response: any = await this.env.AI.run('@cf/baai/bge-large-en-v1.5', { text });
+      // bge-small outputs 384 dims to match our Vectorize index
+      const response: any = await this.env.AI.run('@cf/baai/bge-small-en-v1.5', { text });
       // Check if it's a direct response or async response
       if (response.data && response.data[0]) {
         return response.data[0];
