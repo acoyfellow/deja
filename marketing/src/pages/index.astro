@@ -718,6 +718,33 @@ const integrationCategories = [
     </section>
   )}
 
+  <!-- FAQ -->
+  <section class="mt-18">
+    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Honest answers</div>
+    <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Why not just use a database?"</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">You could. But then you're building semantic search, scoping, confidence decay, and cleanup yourself. deja is that layer, already wired to Cloudflare's vector and AI stack.</p>
+      </div>
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Another AI tool?"</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">It's 1 Worker, 2 endpoints. No SDK required. <code class="font-mono text-[11px] text-chrome-dark/80">curl</code> works. The whole thing is ~500 lines of TypeScript.</p>
+      </div>
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Vendor lock-in?"</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">Your Cloudflare account, your data, MIT license. It's a single Worker with a Durable Object and a Vectorize index. Fork it if we disappear.</p>
+      </div>
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Will this actually get maintained?"</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">It's the tool we use daily. But it's also open source — so it doesn't depend on us. The architecture is intentionally simple enough to understand in an afternoon.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- CTA -->
   <div class="relative mt-20">
     <div
