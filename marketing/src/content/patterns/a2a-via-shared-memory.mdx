@@ -1,0 +1,227 @@
+---
+title: "Agent-to-Agent via Shared Memory"
+description: "Enable asynchronous agent-to-agent communication through shared deja memory. Agent A learns, Agent B injects -- no direct messaging required."
+keywords: "a2a, agent-to-agent, asynchronous communication, shared memory, knowledge transfer"
+tags: ["advanced", "multi-agent", "a2a", "asynchronous"]
+publishedAt: "2026-02-07"
+agentSummary: "The agent-to-agent via shared memory pattern enables asynchronous communication between agents without direct messaging. Agent A stores knowledge using learn() and Agent B discovers it later via inject(). This decouples agents temporally and architecturally -- they do not need to be online simultaneously or know about each other. The shared deja instance acts as a knowledge bus where agents publish and subscribe to relevant memories based on semantic similarity."
+order: 4
+category: "multi-agent"
+difficulty: "advanced"
+relatedPatterns: ["multi-agent-shared-memory", "inner-loop-steering", "incident-response-automation"]
+relatedIntegrations: []
+---
+
+# Agent-to-Agent via Shared Memory
+
+Most multi-agent systems use direct messaging: Agent A sends a request to Agent B, Agent B responds. This creates tight coupling and requires both agents to be online.
+
+Deja enables a different model: agents communicate indirectly through shared memory. Agent A stores a learning, and Agent B discovers it later when the context is relevant. No message bus. No API contracts between agents. Just memory.
+
+## The Pattern
+
+```
+Timeline
+========
+
+t=0   Agent A encounters a problem
+      |
+t=1   Agent A solves it and stores the learning
+      |
+      |   await mem.learn(
+      |     "Stripe webhook signature fails in staging",
+      |     "staging uses a different webhook signing secret than production...",
+      |     { scope: "shared", confidence: 0.9, source: "agent:billing" }
+      |   )
+      |
+      |   ... hours or days pass ...
+      |
+t=N   Agent B gets a related task
+      |
+t=N+1 Agent B injects context before starting
+      |
+      |   const { prompt } = await mem.inject(
+      |     "debugging Stripe webhook 400 errors in staging",
+      |     { scopes: ["shared"], limit: 5 }
+      |   )
+      |
+      |   // prompt contains Agent A's learning about the signing secret
+      |
+t=N+2 Agent B solves the problem faster using Agent A's knowledge
+```
+
+The key insight: Agent A and Agent B never communicate directly. They don't know each other exists. Deja's semantic search connects them through the relevance of their knowledge.
+
+## Implementation
+
+### The Publishing Agent
+
+```typescript
+import { deja } from "deja-client";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+// Agent A: The billing agent
+async function billingAgentTask(task: string) {
+  // Do the work...
+  const result = await executeBillingTask(task);
+
+  // Store learnings for anyone who might need them
+  if (result.hadIssue) {
+    await mem.learn(
+      result.issueDescription,
+      result.resolution,
+      {
+        confidence: 0.9,
+        scope: "shared",
+        source: "agent:billing",
+        reason: result.rootCause,
+      }
+    );
+  }
+
+  // Also store successful patterns
+  if (result.wasNovel) {
+    await mem.learn(
+      `handling ${result.taskType} in billing`,
+      result.approach,
+      {
+        confidence: 0.85,
+        scope: "shared",
+        source: "agent:billing",
+      }
+    );
+  }
+}
+```
+
+### The Subscribing Agent
+
+```typescript
+// Agent B: The support agent (doesn't know Agent A exists)
+async function supportAgentTask(customerIssue: string) {
+  // Inject before handling the ticket
+  const { prompt: relevantKnowledge, learnings } = await mem.inject(
+    customerIssue,
+    {
+      scopes: ["agent:support", "shared"],
+      limit: 8,
+    }
+  );
+
+  // The agent now has billing agent's knowledge in its context
+  const systemPrompt = `You are a customer support agent.
+
+## Knowledge from past experience
+${relevantKnowledge}
+
+Use the above knowledge to help resolve the customer's issue.
+If the knowledge directly addresses their problem, apply it.
+If not, troubleshoot from first principles.`;
+
+  const response = await callLLM(systemPrompt, customerIssue);
+
+  // Support agent may store its own learnings too
+  // creating a growing cross-agent knowledge base
+  await mem.learn(
+    `customer reported: ${customerIssue.slice(0, 100)}`,
+    `resolution: ${response.slice(0, 200)}`,
+    {
+      confidence: 0.8,
+      scope: "shared",
+      source: "agent:support",
+    }
+  );
+
+  return response;
+}
+```
+
+### Communication Flow Diagram
+
+```
+ Agent: billing         deja (shared scope)        Agent: support
+ ==============         ==================         ==============
+
+ Solves webhook
+ signing issue
+       |
+       |--- learn() --->  Stores: "Stripe webhook
+       |                  signature fails in staging
+       |                  -> use staging signing secret"
+       |
+       |                          ...
+       |                    (time passes)
+       |                          ...
+       |
+       |                                    <--- inject() ---|
+       |                  Matches: webhook                   |
+       |                  signing issue                      |
+       |                  (semantic match)                   |
+       |                                    --- memories --->|
+       |                                                     |
+       |                                          Resolves ticket
+       |                                          using billing
+       |                                          agent's knowledge
+       |                                                     |
+       |                  Stores: "customer fix  <-- learn() |
+       |                  for webhook errors..."
+```
+
+### Multiple Agents, Emergent Knowledge Graph
+
+```typescript
+// Over time, agents build a rich knowledge graph without coordination
+
+// Agent: coder stores
+await mem.learn(
+  "the payments service uses idempotency keys",
+  "always include Idempotency-Key header when calling POST /charges",
+  { scope: "shared", source: "agent:coder" }
+);
+
+// Agent: tester stores
+await mem.learn(
+  "testing payment flows",
+  "use Stripe test clock API to simulate subscription renewals instead of waiting",
+  { scope: "shared", source: "agent:tester" }
+);
+
+// Agent: deployer stores
+await mem.learn(
+  "deploying the payments service",
+  "must run database migrations before deploying since the new charge table has NOT NULL constraints",
+  { scope: "shared", source: "agent:deployer" }
+);
+
+// Now ANY agent working on payments gets all three learnings:
+const { prompt } = await mem.inject("working on the payments service", {
+  scopes: ["shared"],
+  limit: 10,
+});
+// prompt includes knowledge from coder, tester, AND deployer
+```
+
+## When to Use This Pattern
+
+- Agents work on different aspects of the same system (billing, support, ops)
+- Agents run at different times (nightly batch agents, on-demand agents, cron agents)
+- You want to avoid tight coupling between agent implementations
+- Knowledge should flow organically based on relevance, not explicit routing
+- One agent's output is another agent's input, but not in a synchronous pipeline
+
+## When NOT to Use This Pattern
+
+- **You need guaranteed delivery** -- if Agent B must act on Agent A's output, use a task queue or direct API call. Deja's inject is best-effort semantic matching, not guaranteed message delivery.
+- **Real-time coordination** -- if agents need to coordinate within milliseconds, use a message broker. Deja adds latency from embedding generation and vector search.
+- **Sensitive cross-agent data** -- if Agent A's learnings are sensitive, storing them in `shared` scope makes them visible to all agents. Use `agent:<name>` scopes and have the consuming agent explicitly request access.
+- **Ordering matters** -- deja returns memories by semantic relevance, not chronological order. If the sequence of events matters, encode timestamps in your learnings.
+
+## Tips
+
+- **Use the `source` field religiously.** Tag every learning with its originating agent. This lets you trace knowledge provenance and debug cross-agent issues.
+- **Confidence signals reliability.** When Agent B injects a learning from Agent A, the confidence score indicates how sure Agent A was. Teach your agents to weight high-confidence memories more heavily.
+- **Watch for echo chambers.** If Agent A stores a learning, Agent B injects it, then Agent B stores a similar learning based on it -- you can get circular reinforcement. Use the source field to detect and break these cycles.
+- **Semantic overlap is your friend.** You don't need to standardize terminology across agents. If one agent says "webhook signing error" and another asks about "webhook 400 failures," deja's vector search will still match them.

@@ -1,0 +1,209 @@
+---
+title: "Incident Response"
+description: "Use deja to capture postmortem learnings and inject them before the next on-call handoff. Every incident makes the next response faster."
+keywords: "incident response, postmortem, on-call, devops memory, runbook, pagerduty"
+tags: ["devops", "incident-response", "postmortem", "on-call", "operations"]
+agentSummary: "Walkthrough of using deja for incident response. Covers the incident lifecycle: detection, triage (inject past learnings), resolution, and postmortem (learn from the outcome). Shows how on-call agents get context from previous incidents, how postmortem learnings are stored, and how steering memories can mark known issues. Includes curl and deja-client code examples."
+featured: true
+order: 1
+industry: "DevOps"
+---
+
+When an incident hits at 3am, your on-call agent should not be starting from zero. deja lets you capture the hard-won knowledge from every incident and surface it automatically when similar problems arise.
+
+## The problem
+
+Incident response knowledge lives in three places: Slack threads, postmortem docs, and the heads of engineers who have seen it before. None of these are accessible to an agent at triage time.
+
+The result:
+- Agents repeat the same debugging steps every time
+- On-call handoffs lose context
+- Postmortem action items get written but never wired into agent behavior
+
+## The deja approach
+
+Use memory as the bridge between postmortems and future incidents. The cycle:
+
+1. **Incident detected** — agent runs triage
+2. **Inject** — agent checks deja for relevant past incidents
+3. **Resolve** — agent acts on the combined knowledge
+4. **Learn** — agent stores what worked (and what did not)
+
+## Walkthrough: database connection storm
+
+### The incident
+
+Your monitoring fires an alert: database connections are maxed out. An on-call agent picks it up.
+
+### Step 1: Inject before triage
+
+The agent's first action is to check memory:
+
+```bash
+curl -X POST https://deja.example.com/inject \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "context": "database connection pool exhausted, connections maxed out at 100",
+    "scopes": ["agent:incident-responder", "shared"],
+    "limit": 5
+  }'
+```
+
+Response from a previous incident:
+
+```json
+{
+  "prompt": "When database connections are exhausted, check for long-running queries first — last time it was a missing index on the orders table causing full table scans. Run: SELECT pid, query, state, age(clock_timestamp(), query_start) FROM pg_stat_activity WHERE state != 'idle' ORDER BY query_start;",
+  "learnings": [
+    {
+      "trigger": "database connection pool exhausted",
+      "learning": "check for long-running queries first — last time it was a missing index on the orders table causing full table scans",
+      "confidence": 0.92,
+      "scope": "shared"
+    }
+  ]
+}
+```
+
+The agent immediately knows where to look — instead of running through a generic runbook, it starts with the most likely cause based on past incidents.
+
+### Step 2: Investigate with context
+
+The agent checks for long-running queries and finds a new one: a recently deployed feature is doing an unindexed join on the `user_sessions` table.
+
+### Step 3: Resolve
+
+The agent kills the long-running queries and adds an index:
+
+```sql
+CREATE INDEX CONCURRENTLY idx_user_sessions_user_id
+ON user_sessions(user_id);
+```
+
+### Step 4: Learn from the resolution
+
+After the incident is resolved, the agent records what happened:
+
+```bash
+curl -X POST https://deja.example.com/learn \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "database connection pool exhausted after a new feature deploy",
+    "learning": "check user_sessions table for missing indexes — the feature deploy on 2024-03-15 added a query that joins user_sessions without an index on user_id. Fix: CREATE INDEX CONCURRENTLY on the join column. Also check pg_stat_activity for queries older than 30 seconds.",
+    "confidence": 0.93,
+    "scope": "shared",
+    "reason": "INC-2024-0315: connection storm caused by unindexed join in new feature",
+    "source": "incident-responder"
+  }'
+```
+
+### The next incident
+
+Two weeks later, a different team deploys a feature that also queries `user_sessions` without the right index. The on-call agent injects memory:
+
+```typescript
+const memories = await mem.inject(
+  "database connections spiking after deploy of user preferences feature"
+);
+
+// Returns the learning from the previous incident:
+// "check user_sessions table for missing indexes..."
+```
+
+Resolution time drops from 45 minutes to 8 minutes because the agent already knows the pattern.
+
+## Building the incident memory over time
+
+Each incident adds to the knowledge base. After several months, your deja instance contains:
+
+```bash
+# Check what incident knowledge has accumulated
+curl https://deja.example.com/learnings?scope=shared \
+  -H "Authorization: Bearer $DEJA_API_KEY" | jq '.[] | .trigger'
+```
+
+```
+"database connection pool exhausted after a new feature deploy"
+"API response times spike above 2 seconds"
+"worker memory usage exceeds 128MB limit"
+"SSL certificate expiration warning"
+"Redis cluster failover"
+"deployment rollback needed"
+"CDN cache not invalidating"
+```
+
+Each of these triggers has a detailed learning with the exact steps that resolved it.
+
+## Marking known issues with steering
+
+If there is an active known issue, use a high-confidence steering memory:
+
+```bash
+curl -X POST https://deja.example.com/learn \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "errors from the payment service",
+    "learning": "KNOWN ISSUE (INC-2024-0412): The payment service is experiencing intermittent 503s. Vendor has acknowledged the issue, ETA for fix is 2024-04-15. Do not escalate — route payment failures to the retry queue and notify the user of a delay.",
+    "confidence": 0.99,
+    "scope": "shared",
+    "reason": "Active vendor incident, avoid unnecessary escalation",
+    "source": "operator"
+  }'
+```
+
+Every agent that encounters payment errors will immediately see this context instead of running through a full triage cycle.
+
+## Integrating with your on-call workflow
+
+### PagerDuty / Opsgenie webhook
+
+When an alert fires, have your webhook handler inject memories before the agent starts:
+
+```typescript
+// Webhook handler for PagerDuty alerts
+app.post("/webhook/pagerduty", async (req) => {
+  const alert = req.body;
+  const context = `${alert.title}: ${alert.description}`;
+
+  // Pre-fetch relevant memories
+  const memories = await mem.inject(context, {
+    scopes: ["agent:incident-responder", "shared"],
+    limit: 5,
+  });
+
+  // Pass memories to the agent along with the alert
+  await startIncidentAgent({
+    alert,
+    priorKnowledge: memories.prompt,
+  });
+});
+```
+
+### Post-incident automation
+
+After an incident is marked resolved, automatically prompt the agent to store learnings:
+
+```typescript
+// After incident resolution
+await mem.learn(
+  incident.title,
+  `Root cause: ${incident.rootCause}. Resolution: ${incident.resolution}. Duration: ${incident.duration}min.`,
+  {
+    confidence: 0.9,
+    scope: "shared",
+    reason: `Postmortem for ${incident.id}`,
+    source: "incident-responder",
+  }
+);
+```
+
+## Metrics
+
+Teams using deja for incident response typically see:
+
+- **Mean time to triage** drops because the agent starts with relevant context instead of from scratch
+- **Repeat incidents** resolve faster because the resolution steps are already in memory
+- **On-call handoff quality** improves because knowledge transfers through deja, not Slack threads

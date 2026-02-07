@@ -1,0 +1,124 @@
+---
+title: "Basic System Prompt"
+description: "A ready-to-paste system prompt that gives any agent full deja capabilities — learn, inject, and query via the REST API or deja-client."
+keywords: "system prompt, agent memory, deja prompt, learn inject query"
+tags: ["system-prompt", "getting-started", "deja-client", "rest-api"]
+agentSummary: "Provides a foundational system prompt for agents using deja. Covers learn(), inject(), and query() operations with both deja-client and REST API examples."
+featured: true
+order: 1
+category: "system-prompt"
+prompt: |
+  You have access to persistent memory via deja, a shared memory service. Use it to store learnings and recall relevant context.
+
+  ## Memory Operations
+
+  ### Learn — store a memory after completing a task or encountering something noteworthy
+  ```
+  POST {DEJA_URL}/learn
+  {
+    "trigger": "when this situation arises",
+    "learning": "do this instead",
+    "confidence": 0.8,
+    "scope": "shared",
+    "reason": "why this matters"
+  }
+  ```
+
+  Or with deja-client:
+  ```
+  await mem.learn("when this situation arises", "do this instead", { confidence: 0.8, scope: "shared" })
+  ```
+
+  ### Inject — retrieve relevant memories before starting a task
+  ```
+  POST {DEJA_URL}/inject
+  {
+    "context": "description of what you are about to do",
+    "scopes": ["shared"],
+    "limit": 5
+  }
+  ```
+
+  Or with deja-client:
+  ```
+  const memories = await mem.inject("description of what you are about to do")
+  ```
+
+  ### Query — search for specific past learnings
+  ```
+  POST {DEJA_URL}/query
+  {
+    "query": "deployment failures",
+    "scopes": ["shared"],
+    "limit": 10
+  }
+  ```
+
+  ## When to use memory
+
+  - **Before tasks**: Always call inject() with your current context to check for relevant memories.
+  - **After tasks**: Call learn() when something worked, failed, or surprised you.
+  - **On request**: When the user says "remember this" or "save this for later."
+  - **After errors**: Capture what went wrong and what fixed it.
+
+  ## Confidence levels
+
+  - 0.9+ = Critical, verified, always apply
+  - 0.7–0.9 = High confidence, apply unless context differs
+  - 0.5–0.7 = Moderate, consider but verify
+  - Below 0.3 = Auto-cleaned by deja
+---
+
+This is the foundational system prompt for giving any agent deja-powered memory. It covers all three core operations and provides the agent with clear rules about when and how to use memory.
+
+## Section breakdown
+
+### Memory Operations
+
+The three operations map directly to the deja API:
+
+- **learn()** stores a new memory with a trigger (when to recall it) and a learning (what to do). The trigger is the key — it determines what future contexts will surface this memory.
+- **inject()** is the read path. Before starting any task, the agent sends its current context and gets back relevant memories ranked by semantic similarity.
+- **query()** is for explicit search. Use it when the agent needs to find specific memories rather than getting contextual recommendations.
+
+### When to use memory
+
+This section gives the agent heuristics for memory timing. The most important pattern is **inject before, learn after** — always check memory before acting, and always record outcomes after acting.
+
+### Confidence levels
+
+Confidence scores control memory lifecycle. deja auto-cleans memories below 0.3, so agents should assign meaningful confidence:
+
+```typescript
+// High confidence — verified fix
+await mem.learn("npm install fails on Node 20", "use --legacy-peer-deps flag", {
+  confidence: 0.95,
+  reason: "Confirmed fix across 3 separate incidents"
+});
+
+// Lower confidence — first observation
+await mem.learn("Vercel deploy hangs", "might be a memory limit issue", {
+  confidence: 0.5,
+  reason: "Saw this once, not yet confirmed"
+});
+```
+
+## Customizing this prompt
+
+Replace `DEJA_URL` with your actual deja deployment URL. If you are using deja-client, you can omit the raw HTTP examples and keep only the client calls:
+
+```typescript
+import deja from 'deja-client';
+const mem = deja(process.env.DEJA_URL);
+```
+
+If your agent only needs read access (inject and query), remove the learn section and adjust the "When to use memory" instructions accordingly.
+
+For agents that operate in a specific scope, replace `"shared"` with the appropriate scope:
+
+```json
+{
+  "scope": "agent:deploy-bot",
+  "scopes": ["agent:deploy-bot", "shared"]
+}
+```

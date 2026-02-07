@@ -1,0 +1,216 @@
+---
+title: "Multi-Agent Shared Memory"
+description: "Connect multiple AI agents through a single deja instance using scope isolation. Shared scope for cross-agent knowledge, agent-specific scopes for specialization."
+keywords: "multi-agent, shared memory, scope isolation, agent collaboration, knowledge sharing"
+tags: ["intermediate", "multi-agent", "scopes", "collaboration"]
+publishedAt: "2026-02-07"
+agentSummary: "The multi-agent shared memory pattern connects multiple AI agents through a single deja instance by leveraging scope isolation. Agents write to their own agent:<name> scope for private learnings and to the shared scope for cross-agent knowledge. Each agent injects from both its own scope and shared, giving it specialized knowledge plus collective intelligence."
+featured: true
+order: 2
+category: "multi-agent"
+difficulty: "intermediate"
+relatedPatterns: ["single-agent-recall", "a2a-via-shared-memory", "inner-loop-steering"]
+relatedIntegrations: []
+---
+
+# Multi-Agent Shared Memory
+
+When you have multiple agents working in the same domain, they should benefit from each other's experience. This pattern uses deja's scope system to give each agent private memory while sharing a collective knowledge base.
+
+## Architecture
+
+```
+                        +-----------------------+
+                        |       deja instance   |
+                        |                       |
+  Agent: Coder -------->|  scope: agent:coder   |
+    learn() / inject()  |                       |
+                        |  scope: agent:reviewer|
+  Agent: Reviewer ----->|                       |
+    learn() / inject()  |  scope: agent:deployer|
+                        |                       |
+  Agent: Deployer ----->|  scope: shared        |
+    learn() / inject()  |  (all agents r/w)     |
+                        +-----------------------+
+```
+
+**Scope isolation rules:**
+
+| Scope | Who writes | Who reads |
+|-------|-----------|-----------|
+| `shared` | Any agent | All agents |
+| `agent:coder` | Coder only | Coder only |
+| `agent:reviewer` | Reviewer only | Reviewer only |
+| `agent:deployer` | Deployer only | Deployer only |
+
+## Implementation
+
+### Setting Up the Agents
+
+```typescript
+import { deja } from "deja-client";
+
+// All agents share one deja instance
+const DEJA_URL = "https://deja.your-subdomain.workers.dev";
+
+function createAgent(agentName: string) {
+  const mem = deja(DEJA_URL, { apiKey: process.env.DEJA_API_KEY });
+  const agentScope = `agent:${agentName}`;
+
+  return {
+    /**
+     * Inject memories from both agent-specific and shared scopes.
+     * deja returns the most specific scope matches first.
+     */
+    async recall(context: string) {
+      const { prompt, learnings } = await mem.inject(context, {
+        scopes: [agentScope, "shared"],
+        limit: 10,
+      });
+      return { prompt, learnings };
+    },
+
+    /**
+     * Store a learning in the agent's private scope
+     */
+    async learnPrivate(trigger: string, learning: string, confidence = 0.8) {
+      return mem.learn(trigger, learning, {
+        confidence,
+        scope: agentScope,
+        source: agentName,
+      });
+    },
+
+    /**
+     * Store a learning in the shared scope for all agents
+     */
+    async learnShared(trigger: string, learning: string, confidence = 0.8) {
+      return mem.learn(trigger, learning, {
+        confidence,
+        scope: "shared",
+        source: agentName,
+      });
+    },
+  };
+}
+
+// Create the agents
+const coder = createAgent("coder");
+const reviewer = createAgent("reviewer");
+const deployer = createAgent("deployer");
+```
+
+### Agent Collaboration in Practice
+
+```typescript
+// === Coder agent finishes a task ===
+// Private learning: specific to how this agent writes code
+await coder.learnPrivate(
+  "implementing pagination in this codebase",
+  "use cursor-based pagination with the Cursor<T> utility from src/lib/cursor.ts"
+);
+
+// Shared learning: useful for all agents
+await coder.learnShared(
+  "the users table schema changed",
+  "users.email is now users.email_address as of migration 047"
+);
+
+// === Reviewer agent picks up a PR ===
+// Recall gets BOTH agent:reviewer learnings AND shared learnings
+const { prompt } = await reviewer.recall("reviewing a PR that touches the users table");
+// prompt will include the schema change learning from the coder agent
+
+// Reviewer stores its own insight
+await reviewer.learnShared(
+  "PRs touching database migrations",
+  "always verify that the down migration actually reverses the up migration"
+);
+
+// === Deployer agent runs a deployment ===
+// Gets shared learnings from both coder and reviewer
+const { prompt: deployContext } = await deployer.recall("deploying database migration changes");
+// deployContext includes both the schema change AND the migration review advice
+```
+
+### Using the REST API
+
+```bash
+# Coder stores a shared learning
+curl -X POST https://deja.your-subdomain.workers.dev/learn \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "the users table schema changed",
+    "learning": "users.email is now users.email_address as of migration 047",
+    "confidence": 0.9,
+    "scope": "shared",
+    "source": "coder"
+  }'
+
+# Reviewer injects from both its own scope and shared
+curl -X POST https://deja.your-subdomain.workers.dev/inject \
+  -H "Content-Type: application/json" \
+  -d '{
+    "context": "reviewing a PR that touches the users table",
+    "scopes": ["agent:reviewer", "shared"],
+    "limit": 10
+  }'
+```
+
+## Scope Strategy Guide
+
+Deciding what goes into `shared` vs. `agent:<name>` is the key design decision.
+
+**Put in `shared`:**
+- Facts about the codebase, infrastructure, or domain
+- Decisions made by the team (e.g., "we use pnpm, not npm")
+- Incidents and postmortems
+- Anything an agent learned that is not specific to its own workflow
+
+**Put in `agent:<name>`:**
+- Agent-specific preferences and heuristics
+- Workflow-specific shortcuts (e.g., a code agent's preferred patterns)
+- Learnings that would confuse other agents if injected into their context
+
+**Session scopes (`session:<id>`):**
+- Temporary context for a single conversation or task
+- Automatically cleaned up by deja's memory hygiene (see [Memory Hygiene](/patterns/memory-hygiene))
+
+## When to Use This Pattern
+
+- You run 2+ agents that operate in the same domain or codebase
+- Agents perform different roles (coder, reviewer, deployer, tester, etc.)
+- You want collective intelligence without coupling agents together
+- Knowledge from one agent's work should inform other agents
+
+## When NOT to Use This Pattern
+
+- **Single agent** -- just use the [Single Agent Recall](/patterns/single-agent-recall) pattern with `shared` scope
+- **Agents in completely unrelated domains** -- separate deja instances are cleaner
+- **You need synchronous agent-to-agent messaging** -- deja is a memory store, not a message bus. Use a proper orchestration layer for real-time coordination
+- **Sensitive data isolation** -- if agent A should never see agent B's data under any circumstances, use separate deja instances rather than relying on scope conventions
+
+## Tips
+
+- **Use the `source` field** to tag which agent created each learning. This makes it easy to audit shared knowledge.
+- **Start with everything in `shared`** and move to agent-specific scopes only when you see cross-contamination (learnings that confuse agents with different roles).
+- **Limit inject results.** When injecting from multiple scopes, set a reasonable limit (5-10). deja returns the most semantically relevant results, but too many memories dilute the agent's focus.
+- **Monitor with `/stats`.** Check the scope breakdown regularly to ensure no single agent is flooding shared memory.
+
+```bash
+# Check memory distribution across scopes
+curl https://deja.your-subdomain.workers.dev/stats \
+  -H "Authorization: Bearer $DEJA_API_KEY"
+
+# Response:
+# {
+#   "totalLearnings": 247,
+#   "totalSecrets": 3,
+#   "scopes": {
+#     "shared": { "learnings": 89, "secrets": 2 },
+#     "agent:coder": { "learnings": 102, "secrets": 1 },
+#     "agent:reviewer": { "learnings": 34, "secrets": 0 },
+#     "agent:deployer": { "learnings": 22, "secrets": 0 }
+#   }
+# }
+```

@@ -1,0 +1,173 @@
+---
+title: "Learn-Act-Inject Loop"
+description: "A prompt template for agents that follow a continuous learn-act-inject cycle. The agent checks memory before every action and records outcomes after."
+keywords: "agent loop, learn act inject, memory loop, continuous learning, agent pattern"
+tags: ["loop-template", "pattern", "continuous-learning", "agent-loop"]
+agentSummary: "Provides a loop template prompt where agents follow a learn-act-inject cycle: inject before every task, act on the task, then learn from the outcome. Includes the base prompt, variations for different loop speeds, and examples of loop execution."
+featured: false
+order: 4
+category: "loop-template"
+prompt: |
+  You operate on a continuous learn-act-inject loop. Follow this cycle for every task:
+
+  ## 1. INJECT (before acting)
+
+  Before starting any task, retrieve relevant memories:
+
+  ```
+  POST {DEJA_URL}/inject
+  {
+    "context": "[describe what you are about to do]",
+    "scopes": ["shared", "agent:{AGENT_NAME}"],
+    "limit": 5
+  }
+  ```
+
+  Read the returned memories carefully. Apply any relevant learnings to your approach.
+
+  ## 2. ACT (execute the task)
+
+  Perform the task with the benefit of injected memories. If a memory tells you to avoid something, avoid it. If a memory suggests a better approach, use it.
+
+  ## 3. LEARN (after acting)
+
+  After completing the task, record what happened:
+
+  **If the task succeeded:**
+  ```
+  POST {DEJA_URL}/learn
+  {
+    "trigger": "[what you were doing]",
+    "learning": "[what worked and why]",
+    "confidence": 0.8,
+    "scope": "shared"
+  }
+  ```
+
+  **If the task failed:**
+  ```
+  POST {DEJA_URL}/learn
+  {
+    "trigger": "[what you were doing]",
+    "learning": "[what went wrong and the fix]",
+    "confidence": 0.9,
+    "scope": "shared",
+    "reason": "[root cause if known]"
+  }
+  ```
+
+  **If nothing noteworthy happened:** Skip the learn step. Not every action produces a learning.
+
+  ## Loop rules
+
+  - Never skip the INJECT step. Even if you think you know what to do, check memory first.
+  - Only LEARN when there is a genuine insight. Avoid storing obvious or trivial information.
+  - Failed tasks get higher confidence (0.9) because failures are more instructive.
+  - Include the reason field when learning from failures — future agents need the "why."
+---
+
+The learn-act-inject loop is the core pattern for agents that improve over time. Each cycle makes the next one better because the agent accumulates institutional knowledge.
+
+## The loop explained
+
+### Step 1: Inject
+
+The loop always starts with a memory check. This is the most commonly skipped step, and the most important one. Without it, the agent approaches every task from scratch.
+
+```typescript
+import deja from 'deja-client';
+const mem = deja(process.env.DEJA_URL);
+
+// Before deploying
+const memories = await mem.inject("deploying to production");
+// memories.prompt might contain:
+// "When deploying to production, always run dry-run first"
+// "When deploying to production, check that wrangler.toml has the correct account_id"
+```
+
+The agent reads these memories and adjusts its plan before touching anything.
+
+### Step 2: Act
+
+The agent performs the task. Nothing special here — the key is that its behavior is now informed by accumulated experience.
+
+### Step 3: Learn
+
+After acting, the agent decides whether the outcome was noteworthy. The key heuristic: **would this help a future agent doing the same task?**
+
+Good learnings:
+- "When running migrations, always back up first — migration 47 corrupted the users table"
+- "When deploying on Friday, the CDN cache takes 15 minutes to clear"
+
+Bad learnings (too obvious or too specific):
+- "When writing code, make sure it compiles"
+- "When running the tests, test 347 passed"
+
+## Variations
+
+### Fast loop (every action)
+
+The prompt above runs the full loop on every task. This is ideal for agents doing high-stakes work where every action could produce a learning:
+
+- Deployment agents
+- Incident response bots
+- Database migration runners
+
+### Slow loop (periodic)
+
+For agents doing routine work, inject at the start of a session and learn at the end:
+
+```
+At the start of each session:
+  1. Call inject() with a summary of today's planned work
+  2. Read and apply relevant memories
+
+At the end of each session:
+  1. Reflect on what happened
+  2. Call learn() for any notable outcomes
+```
+
+This reduces API calls while still building institutional memory.
+
+### Batch loop (aggregated)
+
+For high-throughput agents processing many items, batch the learn step:
+
+```
+Process items in batches of N:
+  1. inject() once at batch start
+  2. Process all N items
+  3. learn() once with aggregated observations
+
+Example learning:
+  trigger: "processing customer support tickets"
+  learning: "batch of 50 tickets: 12 were about billing API timeout — likely a systemic issue"
+  confidence: 0.85
+```
+
+## Loop execution example
+
+Here is a concrete example of one full loop cycle for a code review agent:
+
+```typescript
+// INJECT
+const memories = await mem.inject("reviewing a pull request that changes the auth module");
+// Returns: "When reviewing auth changes, check that refresh token rotation is preserved"
+
+// ACT
+// Agent reviews the PR, finds that refresh token rotation was accidentally removed
+// Agent leaves a review comment flagging the issue
+
+// LEARN
+await mem.learn(
+  "reviewing auth module pull requests",
+  "the refresh_token rotation logic in auth/tokens.ts is fragile — changes to this file frequently break it",
+  {
+    confidence: 0.9,
+    scope: "shared",
+    reason: "Third PR in a row that accidentally removed rotation logic"
+  }
+);
+```
+
+The next time any agent reviews an auth PR, they will be warned about the fragile rotation logic before they even open the diff.

@@ -1,0 +1,151 @@
+---
+title: "Multi-Agent System Prompt"
+description: "System prompt for multi-agent setups with scope isolation. Each agent reads from shared memory but writes to its own scope."
+keywords: "multi-agent, scope isolation, agent memory, shared memory, agent scoping"
+tags: ["system-prompt", "multi-agent", "scoping", "isolation"]
+agentSummary: "Provides a system prompt for multi-agent environments using deja. Explains scope isolation with shared, agent-specific, and session scopes. Agents write to their own scope but read from multiple scopes with priority ordering."
+featured: false
+order: 2
+category: "system-prompt"
+prompt: |
+  You have access to persistent memory via deja. You are one of multiple agents sharing this memory system.
+
+  ## Your identity
+
+  Your agent name is: {AGENT_NAME}
+  Your agent scope is: agent:{AGENT_NAME}
+
+  ## Scope rules
+
+  Memory is organized into scopes that control isolation and visibility:
+
+  - **shared** — Global memories all agents can read. Write here only for learnings that benefit every agent.
+  - **agent:{AGENT_NAME}** — Your private scope. Write here for agent-specific learnings.
+  - **session:{SESSION_ID}** — Temporary scope for this conversation. Auto-expires after 7 days.
+
+  ## Reading memories (inject/query)
+
+  Always search multiple scopes, from most specific to least:
+
+  ```
+  POST {DEJA_URL}/inject
+  {
+    "context": "your current task description",
+    "scopes": ["session:{SESSION_ID}", "agent:{AGENT_NAME}", "shared"],
+    "limit": 5
+  }
+  ```
+
+  Deja returns the highest-priority match. If a session memory exists, it takes precedence over agent-specific, which takes precedence over shared.
+
+  ## Writing memories (learn)
+
+  Choose your scope carefully:
+
+  - Learned something only you need? → `"scope": "agent:{AGENT_NAME}"`
+  - Learned something all agents should know? → `"scope": "shared"`
+  - Temporary context for this session? → `"scope": "session:{SESSION_ID}"`
+
+  ```
+  POST {DEJA_URL}/learn
+  {
+    "trigger": "when this comes up",
+    "learning": "do this",
+    "confidence": 0.8,
+    "scope": "agent:{AGENT_NAME}",
+    "source": "{AGENT_NAME}"
+  }
+  ```
+
+  ## Conflict resolution
+
+  If you find a shared memory that contradicts your agent-specific memory, your agent-specific memory wins. If you believe the shared memory is wrong, update it:
+
+  1. Learn the correction in shared scope with higher confidence.
+  2. Optionally forget the outdated shared memory if you have its ID.
+
+  ## Do NOT
+
+  - Write to another agent's scope (e.g., agent:other-bot).
+  - Store sensitive credentials in memory — use deja's secrets API for that.
+  - Flood shared scope with agent-specific noise.
+---
+
+This prompt template is designed for environments where multiple agents share a single deja instance. The key principle: **write narrow, read wide**.
+
+## How scoping works
+
+Deja scopes follow a priority hierarchy. When an agent calls `inject()` or `query()` with multiple scopes, deja resolves them in this order:
+
+1. **session:\{id\}** — Most specific. Temporary context for a single conversation thread.
+2. **agent:\{name\}** — Agent-specific learnings. Only this agent writes here.
+3. **shared** — Global. Every agent reads from shared; only write here for cross-cutting learnings.
+
+This means if two memories match the same context — one in `agent:deploy-bot` and one in `shared` — the agent-specific memory is returned first.
+
+## Examples of scope naming
+
+Pick scope names that are stable and descriptive:
+
+```
+# Agent scopes — name after the agent's role
+agent:deploy-bot
+agent:code-reviewer
+agent:incident-responder
+agent:onboarding-agent
+
+# Session scopes — use a unique session or thread ID
+session:conv-abc123
+session:pr-review-456
+session:incident-2024-03-15
+
+# Shared — always just "shared"
+shared
+```
+
+## Write narrow, read wide
+
+The golden rule for multi-agent memory:
+
+```typescript
+// WRITING: be specific — scope to your agent
+await mem.learn("CI fails on Node 20", "pin to Node 18 in workflow", {
+  scope: "agent:ci-bot",
+  confidence: 0.9,
+  source: "ci-bot"
+});
+
+// READING: be broad — check all relevant scopes
+const memories = await mem.inject("setting up CI pipeline", {
+  scopes: ["session:pr-789", "agent:ci-bot", "shared"],
+  limit: 5
+});
+```
+
+This way, each agent builds its own knowledge base while still benefiting from the shared pool. The `source` field on learn calls helps trace where a memory originated.
+
+## When to promote to shared
+
+An agent should write to `shared` scope when:
+
+- The learning applies to **any** agent, not just itself
+- Multiple agents have independently learned the same thing
+- A human explicitly says "all agents should know this"
+
+```typescript
+// This applies to everyone — shared scope
+await mem.learn("production DB is read-only on weekends", "skip migrations on Saturday/Sunday", {
+  scope: "shared",
+  confidence: 0.95,
+  source: "deploy-bot",
+  reason: "Confirmed by ops team, applies to all agents"
+});
+```
+
+## Preventing scope pollution
+
+Without discipline, shared scope becomes noisy. The prompt includes explicit rules:
+
+- **Do NOT write to another agent's scope** — agents should only write to `shared` or `agent:\{their-own-name\}`
+- **Do NOT flood shared with noise** — agent-specific learnings stay in agent scope
+- **Use session scope for ephemeral context** — it auto-expires in 7 days

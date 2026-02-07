@@ -1,0 +1,30 @@
+---
+interface RelatedItem {
+  slug: string;
+  title: string;
+  collection: string;
+}
+
+interface Props {
+  items: RelatedItem[];
+}
+
+const { items } = Astro.props;
+---
+
+{items.length > 0 && (
+  <section class="mt-12">
+    <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass/60 mb-3">Related</div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {items.map((item) => (
+        <a
+          href={`/${item.collection}/${item.slug}`}
+          class="block p-3 rounded-sm border border-brass/10 bg-steel/50 hover:border-brass/30 hover:bg-steel transition-colors group"
+        >
+          <span class="font-mono text-[10px] text-chrome-dark/40 uppercase tracking-wider">{item.collection}</span>
+          <span class="block font-serif text-sm text-chrome-dark group-hover:text-brass transition-colors mt-0.5">{item.title}</span>
+        </a>
+      ))}
+    </div>
+  </section>
+)}

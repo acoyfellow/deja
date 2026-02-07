@@ -1,0 +1,288 @@
+---
+title: "Inner Loop Steering"
+description: "Use inject() at the start of every agent loop iteration to continuously steer behavior with relevant memories. Pre-task injection guides decisions in real time."
+keywords: "inner loop, steering, injection, agent loop, real-time guidance, behavior control"
+tags: ["intermediate", "steering", "agent-loop", "real-time"]
+publishedAt: "2026-02-07"
+agentSummary: "The inner loop steering pattern calls inject() at the start of every iteration in an agent's task loop, not just once before the entire task. This gives the agent continuously updated context as the nature of the work shifts during multi-step tasks. Each iteration gets memories relevant to that specific step, preventing the agent from drifting away from known best practices mid-task."
+order: 5
+category: "steering"
+difficulty: "intermediate"
+relatedPatterns: ["single-agent-recall", "multi-agent-shared-memory", "incident-response-automation"]
+relatedIntegrations: []
+---
+
+# Inner Loop Steering
+
+The basic recall pattern injects memories once before a task starts. But many agent tasks involve multiple steps where the context shifts. Inner loop steering calls `inject()` at every iteration, giving the agent fresh, relevant memories for each step.
+
+## The Problem
+
+Consider an agent handling a deployment:
+
+1. Step 1: Build the project
+2. Step 2: Run migrations
+3. Step 3: Deploy to staging
+4. Step 4: Run smoke tests
+5. Step 5: Promote to production
+
+If you inject only at step 1, the agent gets memories about "building projects." But by step 3, it needs memories about "deploying to staging" -- completely different context. A single injection at the start misses this.
+
+## The Pattern
+
+```
+Agent Task Loop
+===============
+
+for each step in task:
+    |
+    +-- inject(step.description) -----> deja
+    |                                     |
+    |   <-- relevant memories -----------+
+    |
+    +-- Execute step with memories in context
+    |
+    +-- learn(step.outcome) ----------> deja  (optional)
+    |
+    next step
+```
+
+## Implementation
+
+### The Core Loop Pattern
+
+```typescript
+import { deja } from "deja-client";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+interface TaskStep {
+  description: string;
+  execute: (context: string) => Promise<StepResult>;
+}
+
+interface StepResult {
+  success: boolean;
+  output: string;
+  learning?: { trigger: string; learning: string };
+}
+
+async function executeWithSteering(steps: TaskStep[]) {
+  const results: StepResult[] = [];
+
+  for (const step of steps) {
+    // Inject memories relevant to THIS specific step
+    const { prompt: memories } = await mem.inject(step.description, {
+      scopes: ["shared", "agent:deployer"],
+      limit: 5,
+    });
+
+    // Build step-specific context
+    const context = memories
+      ? `## Relevant knowledge for this step\n${memories}\n\n## Task\n${step.description}`
+      : step.description;
+
+    // Execute the step with steering context
+    const result = await step.execute(context);
+    results.push(result);
+
+    // Optionally store learnings from this step
+    if (result.learning) {
+      await mem.learn(result.learning.trigger, result.learning.learning, {
+        confidence: 0.8,
+        scope: "shared",
+        source: "inner-loop",
+      });
+    }
+
+    // Bail on failure
+    if (!result.success) {
+      break;
+    }
+  }
+
+  return results;
+}
+```
+
+### Deployment Example
+
+```typescript
+const deploymentSteps: TaskStep[] = [
+  {
+    description: "building the Next.js project with pnpm",
+    async execute(context) {
+      // The agent sees memories like:
+      // "When building with pnpm, run pnpm install --frozen-lockfile first"
+      // "When building Next.js, set NODE_ENV=production"
+      const output = await runBuild(context);
+      return { success: output.exitCode === 0, output: output.stdout };
+    },
+  },
+  {
+    description: "running database migrations on the staging database",
+    async execute(context) {
+      // Now the agent sees different memories:
+      // "When running migrations, always take a snapshot first"
+      // "When migrating staging, use DATABASE_URL_STAGING not DATABASE_URL"
+      const output = await runMigrations(context);
+      return {
+        success: output.exitCode === 0,
+        output: output.stdout,
+        learning: output.exitCode !== 0
+          ? {
+              trigger: "running database migrations on staging",
+              learning: `migration failed: ${output.stderr.slice(0, 200)}`,
+            }
+          : undefined,
+      };
+    },
+  },
+  {
+    description: "deploying to Cloudflare Pages staging environment",
+    async execute(context) {
+      // Fresh memories:
+      // "When deploying to CF Pages, ensure wrangler.toml has compatibility_date set"
+      // "When deploying staging, use --env staging flag"
+      const output = await deployToStaging(context);
+      return { success: output.exitCode === 0, output: output.stdout };
+    },
+  },
+  {
+    description: "running smoke tests against staging URL",
+    async execute(context) {
+      // "When smoke testing staging, wait 30s for DNS propagation"
+      // "When testing, check /api/health first"
+      const output = await runSmokeTests(context);
+      return { success: output.allPassed, output: output.summary };
+    },
+  },
+  {
+    description: "promoting staging deployment to production",
+    async execute(context) {
+      // "When promoting to production, never do this on Fridays"
+      // "When promoting, tag the git commit with the deploy timestamp"
+      const output = await promoteToProduction(context);
+      return { success: output.exitCode === 0, output: output.stdout };
+    },
+  },
+];
+
+// Run the full deployment with per-step steering
+const results = await executeWithSteering(deploymentSteps);
+```
+
+### ReAct Agent Loop with Steering
+
+```typescript
+// For ReAct-style agents that choose their own actions
+async function reactLoop(task: string, maxIterations = 10) {
+  let observation = `Task: ${task}`;
+  const history: string[] = [];
+
+  for (let i = 0; i < maxIterations; i++) {
+    // Inject memories based on current observation
+    const { prompt: memories } = await mem.inject(observation, {
+      scopes: ["shared"],
+      limit: 3,
+    });
+
+    const prompt = `${memories ? `## Memories\n${memories}\n\n` : ""}## History
+${history.join("\n")}
+
+## Current observation
+${observation}
+
+Choose an action: [search, execute, answer]
+Respond with your reasoning and chosen action.`;
+
+    const { action, reasoning } = await callLLM(prompt);
+    history.push(`Step ${i + 1}: ${reasoning} -> ${action}`);
+
+    if (action.type === "answer") {
+      // Store the overall task learning
+      await mem.learn(
+        `handling task: ${task.slice(0, 100)}`,
+        `approach: ${history.slice(-3).join("; ")}`,
+        { confidence: 0.7, scope: "shared" }
+      );
+      return action.value;
+    }
+
+    // Execute the action and get the new observation
+    observation = await executeAction(action);
+  }
+
+  return "Max iterations reached";
+}
+```
+
+### Using the REST API in a Shell Script
+
+```bash
+#!/bin/bash
+# deploy.sh - Deployment script with per-step memory injection
+
+DEJA_URL="https://deja.your-subdomain.workers.dev"
+AUTH="Authorization: Bearer $DEJA_API_KEY"
+
+inject_step() {
+  local description="$1"
+  curl -s -X POST "$DEJA_URL/inject" \
+    -H "Content-Type: application/json" \
+    -H "$AUTH" \
+    -d "{\"context\": \"$description\", \"scopes\": [\"shared\"], \"limit\": 3}" \
+    | jq -r '.prompt'
+}
+
+learn_step() {
+  local trigger="$1"
+  local learning="$2"
+  curl -s -X POST "$DEJA_URL/learn" \
+    -H "Content-Type: application/json" \
+    -H "$AUTH" \
+    -d "{\"trigger\": \"$trigger\", \"learning\": \"$learning\", \"confidence\": 0.85, \"scope\": \"shared\"}"
+}
+
+# Step 1: Build
+echo "=== Building ==="
+memories=$(inject_step "building the project with pnpm")
+echo "Memories: $memories"
+pnpm build || { learn_step "building the project" "build failed: check node version"; exit 1; }
+
+# Step 2: Migrate
+echo "=== Migrating ==="
+memories=$(inject_step "running database migrations")
+echo "Memories: $memories"
+pnpm db:migrate || { learn_step "running migrations" "migration failed: check schema diff"; exit 1; }
+
+# Step 3: Deploy
+echo "=== Deploying ==="
+memories=$(inject_step "deploying to production")
+echo "Memories: $memories"
+wrangler deploy || { learn_step "deploying with wrangler" "deploy failed: check wrangler.toml"; exit 1; }
+
+echo "=== Done ==="
+```
+
+## When to Use This Pattern
+
+- Multi-step tasks where context shifts between steps
+- Long-running agent loops (ReAct, AutoGPT-style)
+- Deployment pipelines, CI/CD automation
+- Any task where step N needs different knowledge than step 1
+
+## When NOT to Use This Pattern
+
+- **Simple, single-step tasks** -- one inject at the start is enough. Use [Single Agent Recall](/patterns/single-agent-recall).
+- **Latency-critical paths** -- each inject adds an API call (~50-200ms). If your loop runs thousands of iterations, this adds up.
+- **Identical steps** -- if every loop iteration has the same context (e.g., processing items from a queue), inject once before the loop, not inside it.
+
+## Tips
+
+- **Keep inject limits low per step (3-5).** Each step only needs the most relevant memories for that specific action. Too many memories dilute focus.
+- **Use step descriptions, not task descriptions.** Inject with "running database migrations on staging" not "deploying the app." Specificity gets better semantic matches.
+- **Learn from failures, not just successes.** When a step fails, store the failure as a learning. The next time the agent hits that step, it will have the failure context.
+- **Consider caching.** If consecutive steps have similar descriptions, you may get duplicate memories. Either deduplicate or make step descriptions more distinct.

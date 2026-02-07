@@ -1,0 +1,47 @@
+---
+interface NavItem {
+  slug: string;
+  title: string;
+}
+
+interface Props {
+  prev?: NavItem;
+  next?: NavItem;
+  collection: string;
+}
+
+const { prev, next, collection } = Astro.props;
+---
+
+{(prev || next) && (
+  <nav class="grid grid-cols-2 gap-4 mt-12 pt-8 border-t border-brass/10" aria-label="Previous and next pages">
+    {prev ? (
+      <a
+        href={`/${collection}/${prev.slug}`}
+        class="group flex flex-col items-start p-4 rounded-sm border border-brass/10 bg-steel/50 hover:border-brass/30 hover:bg-steel transition-colors"
+      >
+        <span class="font-mono text-[10px] text-chrome-dark/40 uppercase tracking-wider mb-1 flex items-center gap-1">
+          <svg class="w-3 h-3 group-hover:text-brass transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+          Previous
+        </span>
+        <span class="font-serif text-sm text-chrome-dark group-hover:text-brass transition-colors">{prev.title}</span>
+      </a>
+    ) : (
+      <div />
+    )}
+    {next ? (
+      <a
+        href={`/${collection}/${next.slug}`}
+        class="group flex flex-col items-end text-right p-4 rounded-sm border border-brass/10 bg-steel/50 hover:border-brass/30 hover:bg-steel transition-colors"
+      >
+        <span class="font-mono text-[10px] text-chrome-dark/40 uppercase tracking-wider mb-1 flex items-center gap-1">
+          Next
+          <svg class="w-3 h-3 group-hover:text-brass transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
+        <span class="font-serif text-sm text-chrome-dark group-hover:text-brass transition-colors">{next.title}</span>
+      </a>
+    ) : (
+      <div />
+    )}
+  </nav>
+)}

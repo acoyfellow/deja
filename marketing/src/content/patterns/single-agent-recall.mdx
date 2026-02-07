@@ -1,0 +1,185 @@
+---
+title: "Single Agent Recall"
+description: "Give a single AI agent persistent memory by storing learnings after tasks and injecting relevant memories before new ones. The foundational deja pattern."
+keywords: "single agent, memory, recall, learn inject loop, persistent memory"
+tags: ["beginner", "core", "single-agent", "recall"]
+publishedAt: "2026-02-07"
+agentSummary: "The single-agent recall pattern stores learnings after task completion using learn() and retrieves relevant memories before new tasks using inject(). This is the foundational deja usage pattern — a learn-then-inject loop that gives any AI agent persistent, growing memory without requiring multi-agent infrastructure."
+featured: true
+order: 1
+category: "recall"
+difficulty: "beginner"
+relatedPatterns: ["inner-loop-steering", "human-in-loop-teaching", "memory-hygiene"]
+relatedIntegrations: []
+---
+
+# Single Agent Recall
+
+The simplest and most powerful deja pattern: teach your agent to learn from experience and recall that knowledge when it matters.
+
+## The Pattern
+
+Every agent interaction follows a two-phase cycle:
+
+1. **Before a task** -- inject relevant memories into the agent's context
+2. **After a task** -- store what the agent learned for future use
+
+This creates a feedback loop where the agent gets smarter with every interaction.
+
+## Architecture
+
+```
+User Request
+     |
+     v
+ +-----------+
+ | inject()  |  <-- Retrieve relevant memories
+ +-----------+
+     |
+     v
+ +-----------+
+ | Agent     |  <-- Agent works with memories in context
+ | executes  |
+ | task      |
+ +-----------+
+     |
+     v
+ +-----------+
+ | learn()   |  <-- Store new learnings
+ +-----------+
+     |
+     v
+ Response to User
+```
+
+## Implementation
+
+### Using the deja-client
+
+```typescript
+import { deja } from "deja-client";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+async function handleTask(userRequest: string) {
+  // Phase 1: Recall relevant memories
+  const { prompt: memories } = await mem.inject(userRequest, {
+    scopes: ["shared"],
+    limit: 5,
+  });
+
+  // Phase 2: Build the prompt with injected memories
+  const systemPrompt = `You are a helpful assistant.
+
+${memories ? `## Relevant memories from past experience\n${memories}` : ""}
+
+Complete the user's request. After completing the task, summarize any
+new insights worth remembering in a JSON block:
+\`\`\`json
+{ "trigger": "when this situation arises", "learning": "do this" }
+\`\`\``;
+
+  // Phase 3: Execute the task with your LLM
+  const response = await callLLM(systemPrompt, userRequest);
+
+  // Phase 4: Extract and store any learnings
+  const learnings = extractLearnings(response);
+  for (const l of learnings) {
+    await mem.learn(l.trigger, l.learning, {
+      confidence: 0.8,
+      scope: "shared",
+      source: "task-completion",
+    });
+  }
+
+  return response;
+}
+```
+
+### Using the REST API directly
+
+```bash
+# Step 1: Inject memories before a task
+curl -X POST https://deja.your-subdomain.workers.dev/inject \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -d '{
+    "context": "deploying a Next.js app to Cloudflare Pages",
+    "scopes": ["shared"],
+    "limit": 5
+  }'
+
+# Response:
+# {
+#   "prompt": "When deploying Next.js to Cloudflare, use @cloudflare/next-on-pages\nWhen configuring build, set nodejs_compat flag in wrangler.toml",
+#   "learnings": [...]
+# }
+```
+
+```bash
+# Step 2: Store a learning after the task
+curl -X POST https://deja.your-subdomain.workers.dev/learn \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -d '{
+    "trigger": "deploying Next.js with API routes to Cloudflare",
+    "learning": "API routes must be converted to edge functions. Add export const runtime = edge to each route.",
+    "confidence": 0.9,
+    "scope": "shared",
+    "source": "deploy-task-2026-02"
+  }'
+```
+
+### Helper: Extracting Learnings from LLM Output
+
+```typescript
+interface RawLearning {
+  trigger: string;
+  learning: string;
+}
+
+function extractLearnings(llmResponse: string): RawLearning[] {
+  const jsonBlockRegex = /```json\s*([\s\S]*?)```/g;
+  const learnings: RawLearning[] = [];
+
+  let match;
+  while ((match = jsonBlockRegex.exec(llmResponse)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (parsed.trigger && parsed.learning) {
+        learnings.push({
+          trigger: parsed.trigger,
+          learning: parsed.learning,
+        });
+      }
+    } catch {
+      // Skip malformed JSON blocks
+    }
+  }
+
+  return learnings;
+}
+```
+
+## When to Use This Pattern
+
+- A single agent handles recurring tasks (deployments, code reviews, support tickets)
+- You want the agent to improve over time without retraining
+- The agent encounters edge cases that should inform future behavior
+- You need a simple "get started" pattern before scaling to multi-agent setups
+
+## When NOT to Use This Pattern
+
+- **Multiple agents need to share knowledge** -- use the [Multi-Agent Shared Memory](/patterns/multi-agent-shared-memory) pattern instead
+- **You need real-time steering within a single task** -- use the [Inner Loop Steering](/patterns/inner-loop-steering) pattern
+- **Memory is growing uncontrolled** -- pair this with the [Memory Hygiene](/patterns/memory-hygiene) pattern
+- **Learnings are domain-specific and should be scoped** -- add `agent:<name>` scopes rather than always using `shared`
+
+## Tips
+
+- **Start with high confidence thresholds.** Set confidence to `0.8` or `0.9` for learnings the agent is sure about. Lower values (0.5-0.7) for uncertain learnings.
+- **Use meaningful triggers.** The trigger is what deja uses for semantic matching. Make it descriptive: "deploying Python apps with Poetry" is better than "deployment."
+- **Inject before, learn after.** Never reverse the order. If you learn before injecting, the agent may immediately recall its own just-stored learning without validating it.
+- **Add a source field.** Tagging learnings with a source (e.g., `"postmortem-2026-02"` or `"user-feedback"`) makes debugging and pruning much easier later.

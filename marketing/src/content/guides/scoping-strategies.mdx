@@ -1,0 +1,254 @@
+---
+title: "Scoping Strategies"
+description: "Deep dive on scope design in deja: shared vs agent-specific vs session. Naming conventions, isolation patterns, and multi-tenant architectures."
+keywords: "deja scopes, memory scoping, agent isolation, multi-tenant, scope naming, shared memory"
+tags: ["architecture", "scoping", "multi-agent", "isolation", "multi-tenant"]
+agentSummary: "Comprehensive guide to deja scope design. Covers the three scope types (shared, agent:<name>, session:<id>), their priority ordering, naming conventions, isolation patterns, and strategies for multi-agent and multi-tenant setups. Includes concrete examples for CI/CD, code review, incident response, and product teams."
+featured: false
+order: 3
+category: "architecture"
+difficulty: "intermediate"
+estimatedReadTime: "8 min"
+---
+
+Scopes are how deja organizes and isolates memories. Getting scope design right is the difference between a useful memory system and a noisy one.
+
+## The three scope types
+
+### `shared`
+
+The global scope. Every agent can read from it, and any agent can write to it.
+
+**Use for:**
+- Team-wide knowledge ("production DB is read-only on weekends")
+- Cross-cutting patterns ("always validate input before calling external APIs")
+- Organizational policies ("no deploys on Fridays without approval")
+
+**Lifecycle:** Shared memories persist indefinitely unless manually deleted or their confidence drops below 0.3.
+
+### `agent:<name>`
+
+A scope tied to a specific agent. Only that agent should write to it, though other agents can read from it if they explicitly include it in their scope list.
+
+**Use for:**
+- Agent-specific quirks ("when I review Python code, I should check for type hints")
+- Tool-specific learnings ("the GitHub API rate-limits at 5000 req/hour for this token")
+- Role-specific knowledge ("as the deploy bot, I need to check the release branch name format")
+
+**Lifecycle:** Agent memories are cleaned up after 30 days by the scheduled cleanup task.
+
+### `session:<id>`
+
+A temporary scope for a single conversation, task run, or session. Auto-expires after 7 days.
+
+**Use for:**
+- Context that only matters for this specific task
+- Intermediate results during a multi-step workflow
+- User preferences stated during a conversation ("the user prefers TypeScript over JavaScript")
+
+**Lifecycle:** 7-day TTL, automatically cleaned up.
+
+## Priority ordering
+
+When an agent calls `inject()` or `query()` with multiple scopes, deja resolves them in priority order:
+
+```
+session:<id>  →  agent:<name>  →  shared
+  (highest)                      (lowest)
+```
+
+This means:
+
+1. If a `session:abc` memory matches the context, it wins
+2. If no session memory matches but an `agent:deploy-bot` memory does, that wins
+3. If nothing more specific matches, `shared` memories are returned
+
+This priority system lets you override general knowledge with specific context:
+
+```typescript
+// Shared memory says: "deploy to us-east-1"
+// Session memory says: "for this task, deploy to eu-west-1"
+// → inject() returns the session memory
+```
+
+## Naming conventions
+
+### Agent scopes
+
+Name agent scopes after the agent's role, not its instance ID:
+
+```
+# Good — stable, descriptive
+agent:deploy-bot
+agent:code-reviewer
+agent:incident-responder
+agent:support-triage
+
+# Bad — unstable, opaque
+agent:bot-12345
+agent:instance-abc
+agent:a1b2c3
+```
+
+If you have multiple instances of the same agent role, they should share the same scope so they accumulate knowledge together.
+
+### Session scopes
+
+Session IDs should be unique and traceable:
+
+```
+# Good — traceable to a specific conversation or task
+session:pr-review-456
+session:incident-2024-03-15-db-outage
+session:chat-conv-abc123
+session:ci-run-main-789
+
+# Bad — not traceable
+session:123
+session:temp
+```
+
+Include enough context in the session ID to identify it later in logs or debugging.
+
+## Patterns
+
+### Pattern 1: Read wide, write narrow
+
+The most common and recommended pattern. Agents read from multiple scopes but write to the most specific relevant scope.
+
+```typescript
+// Reading — cast a wide net
+const memories = await mem.inject("deploying the billing service", {
+  scopes: ["session:deploy-run-42", "agent:deploy-bot", "shared"],
+  limit: 5,
+});
+
+// Writing — be specific
+await mem.learn("billing service deploy requires Node 18", "pin to Node 18 in workflow", {
+  scope: "agent:deploy-bot",  // Only the deploy bot needs this
+  confidence: 0.9,
+});
+```
+
+### Pattern 2: Promote on validation
+
+Start memories in a narrow scope. Promote to shared once validated.
+
+```typescript
+// First observation — low confidence, agent-specific
+await mem.learn("esbuild breaks on Node 20", "might need --legacy-peer-deps", {
+  scope: "agent:ci-bot",
+  confidence: 0.6,
+});
+
+// After confirming across multiple runs — promote to shared
+await mem.learn("esbuild breaks on Node 20", "use --legacy-peer-deps flag, confirmed across 5 builds", {
+  scope: "shared",
+  confidence: 0.95,
+  reason: "Promoted from agent:ci-bot after 5 confirmations",
+});
+```
+
+### Pattern 3: Session as scratchpad
+
+Use session scope for working memory during a complex task:
+
+```typescript
+const sessionId = `session:migration-${Date.now()}`;
+
+// Step 1: Record the starting state
+await mem.learn("migration starting state", "users table has 2.3M rows, last migration was #46", {
+  scope: sessionId,
+  confidence: 1.0,
+});
+
+// Step 2: Record intermediate results
+await mem.learn("migration step 1 complete", "added column email_verified, backfill running", {
+  scope: sessionId,
+  confidence: 1.0,
+});
+
+// Step 3: Final outcome — promote the important part to shared
+await mem.learn("running migration #47 on users table", "backfill takes ~15 minutes for 2.3M rows, do not interrupt", {
+  scope: "shared",
+  confidence: 0.9,
+  reason: "Timed during migration run",
+});
+```
+
+The session memories expire in 7 days. The shared learning persists.
+
+### Pattern 4: Scope per team
+
+In larger organizations, you can use agent scopes as team scopes:
+
+```
+agent:team-platform     # Platform engineering learnings
+agent:team-product      # Product team learnings
+agent:team-security     # Security team learnings
+agent:team-data         # Data engineering learnings
+```
+
+Agents on the platform team read from `["agent:team-platform", "shared"]`. This creates team-level knowledge silos that can optionally be cross-pollinated.
+
+## Multi-tenant architecture
+
+If you run deja for multiple tenants (e.g., different customers in a SaaS product), isolation happens at the Durable Object level, not the scope level.
+
+Each API key maps to a separate Durable Object with its own SQLite database. Tenants cannot see each other's memories regardless of scope naming:
+
+```
+API Key: tenant-a-key  →  DO Instance A  →  SQLite A
+API Key: tenant-b-key  →  DO Instance B  →  SQLite B
+```
+
+Within a single tenant, scopes provide logical separation. Across tenants, Durable Objects provide physical separation.
+
+### Multi-tenant scope design
+
+```
+Tenant A (API key: tenant-a)
+  └── shared                    # All of Tenant A's agents
+  └── agent:tenant-a-deploy     # Tenant A's deploy bot
+  └── agent:tenant-a-reviewer   # Tenant A's code reviewer
+
+Tenant B (API key: tenant-b)
+  └── shared                    # All of Tenant B's agents
+  └── agent:tenant-b-deploy     # Tenant B's deploy bot
+  └── agent:tenant-b-support    # Tenant B's support bot
+```
+
+The `shared` scope in Tenant A is completely separate from the `shared` scope in Tenant B because they live in different Durable Objects.
+
+## Common mistakes
+
+### Too many scopes
+
+If every agent, every task, and every user gets its own scope, memory becomes fragmented. Memories never get reused because no two contexts share the same scope.
+
+**Fix:** Start with just `shared`. Add `agent:*` scopes only when an agent genuinely has learnings that would confuse other agents.
+
+### Writing everything to shared
+
+If every agent dumps every observation into shared scope, it becomes noisy. Inject calls return irrelevant memories from other domains.
+
+**Fix:** Apply the "would this help a different agent?" test. If the answer is no, use an agent-specific scope.
+
+### Not reading from shared
+
+An agent that only reads from its own scope misses valuable cross-cutting knowledge.
+
+**Fix:** Always include `shared` in the scopes list when calling inject or query:
+
+```typescript
+// Always include shared as a fallback
+const memories = await mem.inject("task description", {
+  scopes: ["agent:my-agent", "shared"],
+});
+```
+
+### Session scope for permanent knowledge
+
+Session memories expire in 7 days. If you store important long-term learnings in a session scope, they disappear.
+
+**Fix:** Use session scope only for ephemeral context. Promote anything important to agent or shared scope before the session ends.

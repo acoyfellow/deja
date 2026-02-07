@@ -1,0 +1,218 @@
+---
+title: "Quickstart"
+description: "Deploy deja to Cloudflare, connect it to your agent, and make your first learn/inject calls in under 5 minutes."
+keywords: "quickstart, getting started, deploy deja, first memory, setup guide"
+tags: ["getting-started", "deploy", "tutorial", "beginner"]
+agentSummary: "Step-by-step quickstart for deja: deploy to Cloudflare Workers, create Vectorize index, set API key, configure MCP or use REST API, store first memory with learn(), retrieve it with inject(). Includes commands for wrangler CLI, curl examples, and deja-client TypeScript usage."
+featured: true
+order: 1
+category: "getting-started"
+difficulty: "beginner"
+estimatedReadTime: "5 min"
+---
+
+Get deja running and store your first memory. This guide covers deployment, authentication, and your first learn/inject calls.
+
+## Prerequisites
+
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier works)
+- [Node.js](https://nodejs.org/) 18+ installed
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) installed: `npm install -g wrangler`
+
+## Step 1: Deploy
+
+The fastest path is the one-click deploy button. This clones the repo and deploys to your Cloudflare account:
+
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/acoyfellow/deja)
+
+Or deploy manually:
+
+```bash
+# Clone the repo
+git clone https://github.com/acoyfellow/deja.git
+cd deja
+
+# Install dependencies
+npm install
+
+# Login to Cloudflare
+wrangler login
+
+# Create the Vectorize index for semantic search
+wrangler vectorize create deja-embeddings --dimensions 384 --metric cosine
+
+# Set your API key (you will be prompted to enter it)
+wrangler secret put API_KEY
+
+# Deploy
+wrangler deploy
+```
+
+After deployment, wrangler prints your Worker URL. It looks like:
+
+```
+https://deja.YOUR-SUBDOMAIN.workers.dev
+```
+
+Save this URL — you will use it for every API call.
+
+## Step 2: Verify the deployment
+
+```bash
+curl https://deja.YOUR-SUBDOMAIN.workers.dev/
+```
+
+You should see:
+
+```json
+{"status":"ok","service":"deja"}
+```
+
+## Step 3: Store your first memory
+
+Use the REST API to store a learning:
+
+```bash
+curl -X POST https://deja.YOUR-SUBDOMAIN.workers.dev/learn \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "deploying to production",
+    "learning": "always run wrangler deploy --dry-run first to catch config errors",
+    "confidence": 0.9,
+    "scope": "shared",
+    "reason": "caught a typo in wrangler.toml that would have broken routing"
+  }'
+```
+
+The response includes the memory ID and metadata:
+
+```json
+{
+  "id": "1709234567890-a1b2c3d4e",
+  "trigger": "deploying to production",
+  "learning": "always run wrangler deploy --dry-run first to catch config errors",
+  "confidence": 0.9,
+  "scope": "shared",
+  "createdAt": "2024-03-01T12:00:00.000Z"
+}
+```
+
+## Step 4: Retrieve the memory
+
+Now ask deja for relevant memories before a deployment:
+
+```bash
+curl -X POST https://deja.YOUR-SUBDOMAIN.workers.dev/inject \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "context": "about to ship a hotfix to production",
+    "scopes": ["shared"],
+    "limit": 5
+  }'
+```
+
+Even though you searched for "ship a hotfix" and stored "deploying to production", deja finds the match because it uses semantic similarity, not keyword matching:
+
+```json
+{
+  "prompt": "When deploying to production, always run wrangler deploy --dry-run first to catch config errors",
+  "learnings": [
+    {
+      "id": "1709234567890-a1b2c3d4e",
+      "trigger": "deploying to production",
+      "learning": "always run wrangler deploy --dry-run first to catch config errors",
+      "confidence": 0.9,
+      "scope": "shared"
+    }
+  ]
+}
+```
+
+## Step 5: Connect your agent
+
+### Option A: MCP (Claude Desktop, Cursor)
+
+Add deja to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "deja": {
+      "url": "https://deja.YOUR-SUBDOMAIN.workers.dev/mcp",
+      "transport": "http",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop. Now you can say:
+
+> "Remember that deploys need a dry-run first"
+
+And Claude will call the `learn` MCP tool automatically.
+
+### Option B: deja-client (Node.js / TypeScript)
+
+```bash
+npm install deja-client
+```
+
+```typescript
+import deja from 'deja-client';
+
+const mem = deja('https://deja.YOUR-SUBDOMAIN.workers.dev', {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+// Store a memory
+await mem.learn("deploying to production", "run dry-run first", {
+  confidence: 0.9,
+  scope: "shared",
+});
+
+// Retrieve relevant memories
+const result = await mem.inject("shipping a hotfix");
+console.log(result.prompt);
+// → "When deploying to production, run dry-run first"
+```
+
+### Option C: Raw HTTP (any language)
+
+deja is just HTTP. Use `curl`, `fetch`, `requests`, or any HTTP client:
+
+```python
+import requests
+
+DEJA_URL = "https://deja.YOUR-SUBDOMAIN.workers.dev"
+HEADERS = {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+}
+
+# Learn
+requests.post(f"{DEJA_URL}/learn", headers=HEADERS, json={
+    "trigger": "running database migrations",
+    "learning": "always take a snapshot before migrating",
+    "confidence": 0.9,
+    "scope": "shared"
+})
+
+# Inject
+response = requests.post(f"{DEJA_URL}/inject", headers=HEADERS, json={
+    "context": "about to migrate the users table",
+    "scopes": ["shared"],
+    "limit": 5
+})
+print(response.json()["prompt"])
+```
+
+## Next steps
+
+- Read the [Architecture guide](/guides/architecture-and-self-hosting) to understand what is running under the hood
+- Explore [Scoping Strategies](/guides/scoping-strategies) for multi-agent setups
+- Browse [Prompts](/prompts) for ready-to-paste agent configurations

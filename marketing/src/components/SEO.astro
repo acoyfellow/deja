@@ -21,6 +21,7 @@ interface Props {
   section?: string;
   tags?: string[];
   breadcrumbs?: Breadcrumb[];
+  collectionType?: 'integration' | 'guide' | 'pattern' | 'prompt' | 'use-case';
 }
 
 const baseUrl = 'https://deja.coey.dev';
@@ -37,6 +38,7 @@ const {
   section,
   tags = [],
   breadcrumbs = [],
+  collectionType,
 } = Astro.props;
 
 const canonicalUrl = `${baseUrl}${path}`;
@@ -122,6 +124,19 @@ const articleSchema = type === 'article' ? {
     '@id': canonicalUrl,
   },
 } : null;
+
+// HowTo schema for integration pages
+const howToSchema = collectionType === 'integration' ? {
+  '@context': 'https://schema.org',
+  '@type': 'HowTo',
+  name: title,
+  description: description,
+  step: [
+    { '@type': 'HowToStep', name: 'Deploy deja', text: 'Deploy a deja instance to Cloudflare Workers' },
+    { '@type': 'HowToStep', name: 'Configure connection', text: 'Connect your tool using MCP, REST API, or deja-client' },
+    { '@type': 'HowToStep', name: 'Start learning', text: 'Call learn() to store memories and inject() to recall them' },
+  ],
+} : null;
 ---
 
 <!-- Essential Meta Tags -->
@@ -158,4 +173,7 @@ const articleSchema = type === 'article' ? {
 )}
 {articleSchema && (
   <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+)}
+{howToSchema && (
+  <script type="application/ld+json" set:html={JSON.stringify(howToSchema)} />
 )}

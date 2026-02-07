@@ -1,0 +1,40 @@
+---
+interface BreadcrumbItem {
+  label: string;
+  href: string;
+}
+
+interface Props {
+  items: BreadcrumbItem[];
+}
+
+const { items } = Astro.props;
+
+const baseUrl = 'https://deja.coey.dev';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: items.map((item, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    name: item.label,
+    item: `${baseUrl}${item.href}`,
+  })),
+};
+---
+
+<nav aria-label="Breadcrumb" class="font-mono text-[11px] text-chrome-dark/60 flex items-center gap-1.5 flex-wrap">
+  {items.map((item, i) => (
+    <>
+      {i > 0 && <span class="text-chrome-dark/30 select-none">&gt;</span>}
+      {i < items.length - 1 ? (
+        <a href={item.href} class="hover:text-brass transition-colors">{item.label}</a>
+      ) : (
+        <span class="text-chrome-dark/80">{item.label}</span>
+      )}
+    </>
+  ))}
+</nav>
+
+<script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />

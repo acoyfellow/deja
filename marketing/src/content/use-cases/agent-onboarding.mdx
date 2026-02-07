@@ -1,0 +1,245 @@
+---
+title: "Agent Onboarding"
+description: "Give fresh agent instances the muscle memory of your best runs. Pre-seed memories so new agents start with institutional knowledge, not a blank slate."
+keywords: "agent onboarding, pre-seeding memory, agent bootstrap, institutional knowledge, memory transfer"
+tags: ["onboarding", "bootstrap", "pre-seeding", "agent-lifecycle", "engineering"]
+agentSummary: "Guide to using deja for agent onboarding. Covers pre-seeding memories for new agent instances, transferring knowledge from experienced agents, creating onboarding scripts that populate deja with institutional knowledge, and the pattern of learn-from-the-best where successful agent runs are captured and replayed into new instances."
+featured: true
+order: 2
+industry: "Engineering"
+---
+
+Every time you spin up a new agent instance, it starts from scratch. Same mistakes, same learning curve, same wasted tokens. deja lets you give new agents the accumulated knowledge of every agent that came before.
+
+## The problem
+
+Agent instances are ephemeral. A Claude Code session, a CI bot run, a Cursor chat — each starts with the system prompt and nothing else. The knowledge gained during one session (which API is flaky, which migration pattern works, which test is slow) dies when the session ends.
+
+This creates a frustrating cycle:
+1. Agent encounters an issue
+2. Agent figures it out (burning tokens and time)
+3. Session ends, knowledge is lost
+4. Next session hits the same issue
+5. Go to step 2
+
+## The deja approach
+
+Store the learnings from every agent run. When a new agent starts, inject the relevant ones before it writes a single line of code.
+
+## Pre-seeding: the onboarding script
+
+Create a script that populates deja with your team's institutional knowledge:
+
+```typescript
+import deja from 'deja-client';
+
+const mem = deja(process.env.DEJA_URL, {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+// Pre-seed with known team knowledge
+const seeds = [
+  {
+    trigger: "setting up the development environment",
+    learning: "Use Node 18 (not 20). Run 'npm install' then 'cp .env.example .env'. The DATABASE_URL in .env needs to point to the local Docker Postgres on port 5433 (not the default 5432).",
+    confidence: 0.95,
+    reason: "Standard dev setup, confirmed across all team members",
+  },
+  {
+    trigger: "running database migrations",
+    learning: "Always run 'npm run db:generate' before 'npm run db:migrate'. The generate step creates the SQL files from the Drizzle schema. If you skip it, the migration will use stale SQL.",
+    confidence: 0.95,
+    reason: "Common gotcha for new developers and agents",
+  },
+  {
+    trigger: "writing tests for API endpoints",
+    learning: "Use the test helper in tests/utils/api.ts — it handles auth token setup and database seeding. Do not create test users manually; use createTestUser() which handles cleanup in afterEach.",
+    confidence: 0.9,
+    reason: "Test pattern established by the team",
+  },
+  {
+    trigger: "deploying to staging",
+    learning: "Staging deploys go through GitHub Actions. Push to the 'staging' branch to trigger. Do NOT deploy to staging manually with wrangler — it bypasses the migration check.",
+    confidence: 0.95,
+    reason: "Manual staging deploys caused two incidents in Q1",
+  },
+  {
+    trigger: "working with the authentication module",
+    learning: "Auth is in src/auth/. The refresh token rotation logic in tokens.ts is delicate — any changes must preserve the rotation chain. Test with: npm run test -- --grep 'token rotation'",
+    confidence: 0.9,
+    reason: "Three PRs have accidentally broken token rotation",
+  },
+];
+
+for (const seed of seeds) {
+  await mem.learn(seed.trigger, seed.learning, {
+    confidence: seed.confidence,
+    scope: "shared",
+    reason: seed.reason,
+    source: "onboarding-script",
+  });
+  console.log(`Seeded: ${seed.trigger}`);
+}
+
+console.log(`Done. Seeded ${seeds.length} memories.`);
+```
+
+Run this once when setting up deja, and update it as your team's practices evolve.
+
+## Automatic onboarding from agent runs
+
+Better than manual seeding: capture knowledge automatically from successful agent runs.
+
+### Pattern: learn from the best
+
+When an agent completes a task successfully, record the key decisions:
+
+```typescript
+// After a successful code review
+await mem.learn(
+  "reviewing pull requests that touch the payment module",
+  "check for: 1) idempotency keys on all payment API calls, 2) proper error handling for declined cards (not just network errors), 3) audit log entries for every state change",
+  {
+    confidence: 0.85,
+    scope: "agent:code-reviewer",
+    reason: "Checklist refined over 15 successful reviews",
+    source: "code-reviewer",
+  }
+);
+```
+
+Over time, the `agent:code-reviewer` scope accumulates a comprehensive checklist built from real reviews, not from a static document.
+
+### Pattern: failure-driven onboarding
+
+Failures are the best teachers. When an agent fails and recovers, capture both the failure and the fix:
+
+```typescript
+// Agent tried to run tests and they failed
+await mem.learn(
+  "running the test suite",
+  "tests require Docker to be running — the integration tests connect to Postgres and Redis containers. If Docker is not running, you get 'ECONNREFUSED' on port 5433. Run 'docker compose up -d' first.",
+  {
+    confidence: 0.95,
+    scope: "shared",
+    reason: "First-run failure that hits every new agent instance",
+    source: "ci-bot",
+  }
+);
+```
+
+The next agent that tries to run tests will get this memory injected and start Docker before attempting the test suite.
+
+## The onboarding inject
+
+When a new agent session starts, inject context for the upcoming work:
+
+```typescript
+// At the start of a new agent session
+async function onboardAgent(taskDescription: string, agentName: string) {
+  const memories = await mem.inject(taskDescription, {
+    scopes: [`agent:${agentName}`, "shared"],
+    limit: 10,
+  });
+
+  // Format memories into the agent's system prompt
+  const onboardingContext = memories.learnings.length > 0
+    ? `\n\nRelevant knowledge from previous runs:\n${memories.prompt}`
+    : "";
+
+  return {
+    systemPrompt: BASE_SYSTEM_PROMPT + onboardingContext,
+  };
+}
+
+// Usage
+const config = await onboardAgent(
+  "refactoring the user authentication flow",
+  "code-assistant"
+);
+// config.systemPrompt now includes warnings about token rotation, test helpers, etc.
+```
+
+## CI/CD integration
+
+Make onboarding automatic in your CI pipeline:
+
+```yaml
+# .github/workflows/agent-task.yml
+name: Agent Task
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task for the agent'
+        required: true
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject relevant memories
+        id: memories
+        run: |
+          RESPONSE=$(curl -s -X POST "$DEJA_URL/inject" \
+            -H "Authorization: Bearer $DEJA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"context\": \"${{ inputs.task }}\", \"scopes\": [\"agent:ci-bot\", \"shared\"], \"limit\": 5}")
+          echo "memories=$(echo $RESPONSE | jq -r '.prompt')" >> $GITHUB_OUTPUT
+        env:
+          DEJA_URL: ${{ secrets.DEJA_URL }}
+          DEJA_API_KEY: ${{ secrets.DEJA_API_KEY }}
+
+      - name: Run agent with memory
+        run: |
+          # Pass injected memories to the agent as additional context
+          echo "Prior knowledge: ${{ steps.memories.outputs.memories }}"
+          # ... run your agent with this context
+
+      - name: Store outcome
+        if: always()
+        run: |
+          curl -X POST "$DEJA_URL/learn" \
+            -H "Authorization: Bearer $DEJA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"trigger\": \"${{ inputs.task }}\",
+              \"learning\": \"Task ${{ job.status }}. Key observations recorded.\",
+              \"confidence\": 0.8,
+              \"scope\": \"agent:ci-bot\",
+              \"source\": \"github-actions\"
+            }"
+        env:
+          DEJA_URL: ${{ secrets.DEJA_URL }}
+          DEJA_API_KEY: ${{ secrets.DEJA_API_KEY }}
+```
+
+## Measuring onboarding effectiveness
+
+Track how onboarding memories impact agent performance:
+
+```bash
+# Check memory stats
+curl https://deja.example.com/stats \
+  -H "Authorization: Bearer $DEJA_API_KEY"
+```
+
+```json
+{
+  "totalLearnings": 147,
+  "totalSecrets": 3,
+  "scopes": {
+    "shared": { "learnings": 89, "secrets": 2 },
+    "agent:code-reviewer": { "learnings": 32, "secrets": 0 },
+    "agent:ci-bot": { "learnings": 26, "secrets": 1 }
+  }
+}
+```
+
+Signs that onboarding is working:
+- Agents complete tasks on the first attempt more often
+- The same errors stop recurring across sessions
+- New agent instances start producing useful output faster
+- The memory count grows steadily, reflecting genuine institutional knowledge

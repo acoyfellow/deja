@@ -1,0 +1,123 @@
+---
+import IntegrationCard from './IntegrationCard.astro';
+import ContentCard from './ContentCard.astro';
+
+interface Entry {
+  id: string;
+  data: {
+    title: string;
+    description: string;
+    category?: string;
+    difficulty?: string;
+    logo?: string;
+  };
+}
+
+interface Props {
+  title: string;
+  description: string;
+  collection: string;
+  entries: Entry[];
+  categories: string[];
+}
+
+const { title, description, collection, entries, categories } = Astro.props;
+
+const isIntegrations = collection === 'integrations';
+
+function slugFromId(id: string): string {
+  return id.replace(/\.[^.]+$/, '');
+}
+---
+
+<section>
+  <!-- Hero header -->
+  <div class="pt-16 pb-10">
+    <div class="font-mono text-[11px] font-bold tracking-[0.2em] uppercase text-brass mb-3">{collection}</div>
+    <h1 class="font-serif-sc text-4xl md:text-5xl font-bold tracking-tight m-0 mb-3">{title}</h1>
+    <p class="font-serif font-light text-lg text-chrome-dark max-w-[640px] m-0">{description}</p>
+  </div>
+
+  <!-- Category filter tabs -->
+  {categories.length > 1 && (
+    <div class="mb-8 overflow-x-auto -mx-2 px-2">
+      <div class="flex gap-2 min-w-max" id="category-tabs">
+        <button
+          class="cat-tab active font-mono text-[11px] px-3 py-1.5 rounded-sm border border-brass/20 bg-brass/10 text-brass cursor-pointer transition-colors"
+          data-category="all"
+        >
+          All
+        </button>
+        {categories.map((cat) => (
+          <button
+            class="cat-tab font-mono text-[11px] px-3 py-1.5 rounded-sm border border-brass/10 bg-transparent text-chrome-dark/60 hover:text-brass hover:border-brass/20 cursor-pointer transition-colors"
+            data-category={cat}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+
+  <!-- Cards grid -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="collection-grid">
+    {entries.map((entry) => {
+      const slug = slugFromId(entry.id);
+      return isIntegrations ? (
+        <IntegrationCard
+          slug={slug}
+          title={entry.data.title}
+          description={entry.data.description}
+          category={entry.data.category || 'General'}
+          difficulty={entry.data.difficulty}
+          logo={entry.data.logo}
+        />
+      ) : (
+        <ContentCard
+          slug={slug}
+          title={entry.data.title}
+          description={entry.data.description}
+          category={entry.data.category}
+          collection={collection}
+        />
+      );
+    })}
+  </div>
+</section>
+
+<script>
+  function initFilters() {
+    const tabs = document.querySelectorAll<HTMLButtonElement>('.cat-tab');
+    const grid = document.getElementById('collection-grid');
+    if (!tabs.length || !grid) return;
+
+    const cards = grid.querySelectorAll<HTMLElement>('[data-category]');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const cat = tab.dataset.category!;
+
+        // Update active tab
+        tabs.forEach(t => {
+          t.classList.remove('active', 'bg-brass/10', 'text-brass', 'border-brass/20');
+          t.classList.add('bg-transparent', 'text-chrome-dark/60', 'border-brass/10');
+        });
+        tab.classList.add('active', 'bg-brass/10', 'text-brass', 'border-brass/20');
+        tab.classList.remove('bg-transparent', 'text-chrome-dark/60', 'border-brass/10');
+
+        // Filter cards
+        cards.forEach(card => {
+          if (cat === 'all' || card.dataset.category === cat) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    });
+  }
+
+  initFilters();
+  document.addEventListener('astro:after-swap', initFilters);
+</script>

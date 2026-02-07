@@ -1,0 +1,243 @@
+---
+title: "LangChain + deja"
+description: "Add persistent memory to LangChain agents and chains. Learn from user feedback, tool failures, and conversation patterns — then inject relevant context before every response."
+keywords: "langchain, agent framework, persistent memory, llm chains, tools, python, typescript"
+tags: ["agent-framework", "langchain", "tools", "chains"]
+publishedAt: "2025-06-01"
+updatedAt: "2025-06-01"
+agentSummary: "This integration connects LangChain agents to deja via deja-client or REST API. Define deja learn() and inject() as LangChain tools so agents can autonomously store and recall memories. Use inject() at chain start to prepend relevant context to the system prompt. Works with any LLM provider LangChain supports."
+featured: true
+order: 4
+category: "agent-framework"
+logo: "/logos/langchain.svg"
+difficulty: "intermediate"
+relatedIntegrations: ["ollama", "slack-bots"]
+relatedPatterns: ["agent-memory", "feedback-loops"]
+---
+
+## Why LangChain + deja?
+
+LangChain makes it easy to build agents that use tools, follow chains of reasoning, and interact with users. But those agents are stateless by default. Each invocation starts from scratch, with no memory of what happened last time.
+
+deja gives your LangChain agent a durable memory layer. The agent can learn from user corrections, tool failures, and successful interactions — then inject that accumulated knowledge before generating its next response. Over time, the agent gets meaningfully better at its job.
+
+## Prerequisites
+
+- A deployed deja instance (Cloudflare Worker URL)
+- Your deja API key
+- LangChain.js (`langchain` and `@langchain/core`) or LangChain Python
+- Node.js 18+ or Python 3.10+
+
+## Setup
+
+### Option 1: deja as LangChain Tools (Recommended)
+
+Define `learn` and `inject` as LangChain tools so the agent can call them autonomously.
+
+```bash
+npm install deja-client langchain @langchain/core @langchain/openai
+```
+
+```typescript
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { ChatOpenAI } from "@langchain/openai";
+import { AgentExecutor, createOpenAIFunctionsAgent } from "langchain/agents";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import deja from "deja-client";
+import { z } from "zod";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+// Define deja tools for the agent
+const learnTool = new DynamicStructuredTool({
+  name: "deja_learn",
+  description:
+    "Store a learning for future recall. Use this when you discover something important — a user preference, a correction, a pattern, or a gotcha.",
+  schema: z.object({
+    trigger: z
+      .string()
+      .describe("When this learning applies (e.g., 'user asks about billing')"),
+    learning: z
+      .string()
+      .describe("What to remember (e.g., 'user prefers monthly billing')"),
+    reason: z
+      .string()
+      .optional()
+      .describe("Why this is worth remembering"),
+  }),
+  func: async ({ trigger, learning, reason }) => {
+    const result = await mem.learn(trigger, learning, {
+      scope: "agent",
+      reason,
+      source: "langchain-agent",
+    });
+    return `Stored memory: "${learning}" (id: ${result.id})`;
+  },
+});
+
+const injectTool = new DynamicStructuredTool({
+  name: "deja_inject",
+  description:
+    "Recall relevant memories for the current context. Use this before responding to a user to check if you have learned anything relevant.",
+  schema: z.object({
+    context: z
+      .string()
+      .describe("The current task or question to find relevant memories for"),
+  }),
+  func: async ({ context }) => {
+    const result = await mem.inject(context, {
+      scopes: ["agent", "shared"],
+      limit: 5,
+    });
+    if (result.learnings.length === 0) {
+      return "No relevant memories found.";
+    }
+    return result.prompt;
+  },
+});
+
+const tools = [learnTool, injectTool];
+```
+
+### Option 2: Inject at Chain Start
+
+Prepend deja memories to the system prompt before the LLM runs:
+
+```typescript
+import deja from "deja-client";
+import { ChatOpenAI } from "@langchain/openai";
+import { RunnableSequence } from "@langchain/core/runnables";
+import {
+  ChatPromptTemplate,
+  SystemMessagePromptTemplate,
+  HumanMessagePromptTemplate,
+} from "@langchain/core/prompts";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+const chain = RunnableSequence.from([
+  // Step 1: Inject deja memories into the input
+  async (input: { question: string }) => {
+    const { prompt: memories } = await mem.inject(input.question, {
+      scopes: ["agent", "shared"],
+      limit: 5,
+    });
+    return { question: input.question, memories };
+  },
+  // Step 2: Build the prompt with memories
+  ChatPromptTemplate.fromMessages([
+    SystemMessagePromptTemplate.fromTemplate(
+      `You are a helpful assistant. Here are relevant things you have learned from past interactions:\n\n{memories}\n\nUse these memories to give better answers.`
+    ),
+    HumanMessagePromptTemplate.fromTemplate("{question}"),
+  ]),
+  // Step 3: Run the LLM
+  new ChatOpenAI({ modelName: "gpt-4o" }),
+]);
+
+const response = await chain.invoke({
+  question: "How should I set up billing for my account?",
+});
+```
+
+### Option 3: REST API Directly
+
+If you prefer not to use `deja-client`, call the REST API from a custom tool:
+
+```typescript
+const injectTool = new DynamicStructuredTool({
+  name: "recall_memories",
+  description: "Recall relevant memories for the current context",
+  schema: z.object({
+    context: z.string().describe("Current task description"),
+  }),
+  func: async ({ context }) => {
+    const res = await fetch(
+      "https://deja.your-subdomain.workers.dev/inject",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.DEJA_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          context,
+          scopes: ["agent", "shared"],
+          limit: 5,
+        }),
+      }
+    );
+    const data = await res.json();
+    return data.prompt || "No relevant memories.";
+  },
+});
+```
+
+## Example: Agent That Learns from User Feedback
+
+A support agent that gets better over time by learning from corrections.
+
+```typescript
+import { AgentExecutor, createOpenAIFunctionsAgent } from "langchain/agents";
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
+
+const prompt = ChatPromptTemplate.fromMessages([
+  [
+    "system",
+    `You are a customer support agent for a SaaS product.
+
+IMPORTANT: At the start of every conversation, use deja_inject to recall any relevant memories about the user's question topic.
+
+When a user corrects you or provides information you didn't know, use deja_learn to store that knowledge for future conversations.
+
+Always check your memories before answering. Your memories make you a better agent over time.`,
+  ],
+  new MessagesPlaceholder("chat_history"),
+  ["human", "{input}"],
+  new MessagesPlaceholder("agent_scratchpad"),
+]);
+
+const llm = new ChatOpenAI({ modelName: "gpt-4o", temperature: 0 });
+const agent = await createOpenAIFunctionsAgent({ llm, tools, prompt });
+const executor = new AgentExecutor({ agent, tools });
+
+// Conversation 1: User corrects the agent
+let result = await executor.invoke({
+  input: "How do I upgrade my plan?",
+  chat_history: [],
+});
+// Agent: "Go to Settings > Billing > Upgrade"
+// User: "Actually, it's under Account > Subscription now. They moved it."
+// Agent calls deja_learn: trigger="upgrading plan", learning="The upgrade option is under Account > Subscription, not Settings > Billing. It was moved in the v4.2 redesign."
+
+// Conversation 2: Different user asks the same question
+result = await executor.invoke({
+  input: "Where do I upgrade my subscription?",
+  chat_history: [],
+});
+// Agent calls deja_inject: context="upgrading subscription"
+// Recalls: "The upgrade option is under Account > Subscription"
+// Agent gives the correct answer immediately
+```
+
+## What to Learn, What to Inject
+
+| Trigger | What to Learn |
+|---|---|
+| `user asks about <feature>` | Correct procedures, recent UI changes, edge cases |
+| `user reports a bug` | Known workarounds, escalation paths, related issues |
+| `tool call fails` | Failure reason, retry strategy, alternative approach |
+| `user corrects the agent` | The correct information, replacing outdated knowledge |
+| `successful resolution` | What worked, for similar future issues |
+| `user preference detected` | Communication style, technical level, preferred format |
+
+## Related
+
+- [Ollama + deja](/integrations/ollama) — use deja with local LLMs via LangChain
+- [Slack Bots + deja](/integrations/slack-bots) — deploy your LangChain agent in Slack
+- [Agent Memory pattern](/patterns/agent-memory) — best practices for agent learning loops

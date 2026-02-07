@@ -1,0 +1,69 @@
+---
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+}
+
+const { headings } = Astro.props;
+
+const filtered = headings.filter(h => h.depth === 2 || h.depth === 3);
+---
+
+{filtered.length > 0 && (
+  <nav class="toc" aria-label="Table of contents">
+    <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass/60 mb-3">On this page</div>
+    <ul class="list-none m-0 p-0 space-y-1">
+      {filtered.map((h) => (
+        <li class={h.depth === 3 ? 'pl-3' : ''}>
+          <a
+            href={`#${h.slug}`}
+            class="toc-link block font-mono text-[11px] leading-relaxed py-0.5 text-chrome-dark/50 hover:text-brass transition-colors border-l-2 border-transparent pl-2"
+            data-slug={h.slug}
+          >
+            {h.text}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+)}
+
+<script>
+  function initToc() {
+    const links = document.querySelectorAll<HTMLAnchorElement>('.toc-link');
+    if (!links.length) return;
+
+    const slugs = Array.from(links).map(l => l.dataset.slug!);
+    const headingEls = slugs.map(s => document.getElementById(s)).filter(Boolean) as HTMLElement[];
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            links.forEach(link => {
+              if (link.dataset.slug === id) {
+                link.classList.add('text-brass', 'border-brass');
+                link.classList.remove('text-chrome-dark/50', 'border-transparent');
+              } else {
+                link.classList.remove('text-brass', 'border-brass');
+                link.classList.add('text-chrome-dark/50', 'border-transparent');
+              }
+            });
+          }
+        }
+      },
+      { rootMargin: '-80px 0px -70% 0px', threshold: 0 }
+    );
+
+    headingEls.forEach(el => observer.observe(el));
+  }
+
+  initToc();
+  document.addEventListener('astro:after-swap', initToc);
+</script>

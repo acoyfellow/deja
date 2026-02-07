@@ -1,0 +1,369 @@
+---
+title: "Memory Hygiene"
+description: "Keep deja memory clean and useful over time. Patterns for confidence decay, pruning stale memories, consolidating duplicates, and scheduled cleanup."
+keywords: "memory hygiene, cleanup, pruning, confidence decay, consolidation, maintenance"
+tags: ["beginner", "maintenance", "cleanup", "best-practices"]
+publishedAt: "2026-02-07"
+agentSummary: "The memory hygiene pattern provides strategies for keeping deja memory stores clean and useful as they grow. It covers confidence decay for aging memories, pruning entries below a confidence threshold, consolidating duplicate or near-duplicate learnings, and setting up automated cleanup via cron jobs or Cloudflare scheduled events. Without memory hygiene, an agent's memory becomes noisy and inject() returns increasingly irrelevant results."
+order: 7
+category: "maintenance"
+difficulty: "beginner"
+relatedPatterns: ["single-agent-recall", "human-in-loop-teaching"]
+relatedIntegrations: []
+---
+
+# Memory Hygiene
+
+An agent's memory grows with every interaction. Without maintenance, it fills with stale, duplicate, and low-confidence entries that degrade `inject()` quality. Memory hygiene keeps the store clean so the right memories surface at the right time.
+
+## Why It Matters
+
+```
+Day 1:    10 memories   -> inject() returns 5 relevant results
+Day 30:   200 memories  -> inject() returns 3 relevant + 2 stale
+Day 180:  2000 memories -> inject() returns 1 relevant + 4 noise
+```
+
+Deja uses vector similarity to match memories. As the store grows, semantically similar but outdated entries compete with current, accurate ones. Memory hygiene ensures quality stays high.
+
+## The Three Pillars
+
+### 1. Confidence Decay
+
+Memories that haven't been recalled gradually lose confidence, making room for fresher knowledge.
+
+```typescript
+import { deja } from "deja-client";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+async function decayConfidence() {
+  // Get all learnings
+  const learnings = await mem.list();
+
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+
+  for (const learning of learnings) {
+    const age = now - new Date(learning.createdAt).getTime();
+    const ageDays = age / ONE_DAY;
+
+    // Skip human-taught memories (they don't decay)
+    if (learning.source === "human-teaching" || learning.source === "human-correction") {
+      continue;
+    }
+
+    // Skip recent memories (less than 7 days old)
+    if (ageDays < 7) {
+      continue;
+    }
+
+    // Decay formula: lose 0.02 confidence per day after 7 days
+    // A 0.8 confidence learning hits 0.3 (deletion threshold) after ~32 days
+    const decay = (ageDays - 7) * 0.02;
+    const newConfidence = Math.max(0, learning.confidence - decay);
+
+    if (newConfidence < learning.confidence) {
+      // Re-learn with lower confidence (updates the existing entry)
+      await mem.learn(learning.trigger, learning.learning, {
+        confidence: newConfidence,
+        scope: learning.scope,
+        source: learning.source,
+      });
+    }
+  }
+}
+```
+
+### 2. Pruning Low-Confidence Entries
+
+Deja has a built-in cleanup method that removes entries below the confidence threshold. You can also call it via the REST API.
+
+```bash
+# Trigger the built-in cleanup
+curl -X POST https://deja.your-subdomain.workers.dev/cleanup \
+  -H "Authorization: Bearer $DEJA_API_KEY"
+
+# Response:
+# {
+#   "deleted": 23,
+#   "reasons": [
+#     "8 stale session entries",
+#     "3 stale agent entries",
+#     "12 low confidence entries"
+#   ]
+# }
+```
+
+The built-in cleanup handles:
+- **Session entries** (`session:*`) older than 7 days
+- **Agent entries** (`agent:*`) older than 30 days
+- **Low confidence entries** below 0.3
+
+For custom pruning logic:
+
+```typescript
+async function pruneMemories(options: {
+  confidenceThreshold?: number;
+  maxAge?: number; // days
+  scope?: string;
+}) {
+  const { confidenceThreshold = 0.3, maxAge, scope } = options;
+  const learnings = await mem.list({ scope });
+
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  let pruned = 0;
+
+  for (const learning of learnings) {
+    let shouldDelete = false;
+
+    // Delete low confidence entries
+    if (learning.confidence < confidenceThreshold) {
+      shouldDelete = true;
+    }
+
+    // Delete entries older than maxAge
+    if (maxAge) {
+      const ageDays = (now - new Date(learning.createdAt).getTime()) / ONE_DAY;
+      if (ageDays > maxAge) {
+        shouldDelete = true;
+      }
+    }
+
+    if (shouldDelete) {
+      await mem.forget(learning.id);
+      pruned++;
+    }
+  }
+
+  console.log(`Pruned ${pruned} memories`);
+  return pruned;
+}
+```
+
+### 3. Consolidating Duplicates
+
+Over time, multiple memories may cover the same knowledge. Consolidation merges them into a single, higher-confidence entry.
+
+```typescript
+async function consolidateMemories() {
+  const learnings = await mem.list();
+  const consolidated: string[] = []; // IDs already processed
+
+  for (let i = 0; i < learnings.length; i++) {
+    if (consolidated.includes(learnings[i].id)) continue;
+
+    // Find similar memories using deja's own query
+    const { learnings: similar } = await mem.query(
+      `${learnings[i].trigger} ${learnings[i].learning}`,
+      { scopes: [learnings[i].scope], limit: 5 }
+    );
+
+    // Filter to genuinely duplicate entries (not just semantically similar)
+    const duplicates = similar.filter(
+      (s) =>
+        s.id !== learnings[i].id &&
+        !consolidated.includes(s.id) &&
+        s.scope === learnings[i].scope
+    );
+
+    if (duplicates.length > 0) {
+      // Keep the highest confidence version
+      const all = [learnings[i], ...duplicates];
+      const best = all.reduce((a, b) =>
+        a.confidence > b.confidence ? a : b
+      );
+
+      // Boost confidence since multiple sources agree
+      const boostedConfidence = Math.min(1.0, best.confidence + 0.1);
+
+      // Re-store the best version with boosted confidence
+      await mem.learn(best.trigger, best.learning, {
+        confidence: boostedConfidence,
+        scope: best.scope,
+        source: best.source,
+      });
+
+      // Delete the duplicates
+      for (const dup of all.filter((a) => a.id !== best.id)) {
+        await mem.forget(dup.id);
+        consolidated.push(dup.id);
+      }
+
+      console.log(
+        `Consolidated ${duplicates.length + 1} entries into one (${best.trigger.slice(0, 50)}...)`
+      );
+    }
+  }
+}
+```
+
+## Automated Cleanup Schedule
+
+### Cron Job (Node.js)
+
+```typescript
+// cleanup-cron.ts
+// Run daily: 0 3 * * * npx tsx cleanup-cron.ts
+
+import { deja } from "deja-client";
+
+const mem = deja(process.env.DEJA_URL!, { apiKey: process.env.DEJA_API_KEY });
+
+async function dailyCleanup() {
+  console.log(`[${new Date().toISOString()}] Starting daily memory cleanup`);
+
+  // Step 1: Trigger built-in cleanup
+  const response = await fetch(`${process.env.DEJA_URL}/cleanup`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.DEJA_API_KEY}` },
+  });
+  const cleanup = await response.json();
+  console.log("Built-in cleanup:", cleanup);
+
+  // Step 2: Custom confidence decay
+  const learnings = await mem.list();
+  let decayed = 0;
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+
+  for (const l of learnings) {
+    if (l.source === "human-teaching") continue;
+
+    const ageDays = (now - new Date(l.createdAt).getTime()) / ONE_DAY;
+    if (ageDays < 7) continue;
+
+    const decay = Math.min(0.05, (ageDays - 7) * 0.002);
+    const newConf = Math.max(0, l.confidence - decay);
+
+    if (newConf < l.confidence) {
+      await mem.learn(l.trigger, l.learning, {
+        confidence: newConf,
+        scope: l.scope,
+        source: l.source,
+      });
+      decayed++;
+    }
+  }
+  console.log(`Decayed confidence on ${decayed} memories`);
+
+  // Step 3: Stats after cleanup
+  const stats = await mem.stats();
+  console.log("Post-cleanup stats:", stats);
+}
+
+dailyCleanup().catch(console.error);
+```
+
+### Crontab Setup
+
+```bash
+# Edit crontab
+crontab -e
+
+# Run cleanup daily at 3 AM
+0 3 * * * cd /path/to/project && DEJA_URL=https://deja.your-subdomain.workers.dev DEJA_API_KEY=your-key npx tsx cleanup-cron.ts >> /var/log/deja-cleanup.log 2>&1
+```
+
+### Cloudflare Scheduled Worker (Alternative)
+
+If your deja instance runs on Cloudflare, you can use a scheduled handler:
+
+```typescript
+// In your Cloudflare Worker
+export default {
+  async scheduled(event: ScheduledEvent, env: Env) {
+    // Get the Durable Object stub
+    const id = env.DEJA_DO.idFromName("default");
+    const stub = env.DEJA_DO.get(id);
+
+    // Call the built-in cleanup method
+    const result = await stub.cleanup();
+    console.log("Scheduled cleanup:", result);
+  },
+};
+```
+
+```toml
+# wrangler.toml
+[triggers]
+crons = ["0 3 * * *"]  # Daily at 3 AM UTC
+```
+
+## Decision Guide: Delete vs. Decay vs. Consolidate
+
+| Situation | Action | Why |
+|-----------|--------|-----|
+| Memory is factually wrong | **Delete** immediately | Wrong information is worse than no information |
+| Memory is outdated but was once correct | **Decay** confidence | It may still be partially useful for context |
+| Memory hasn't been recalled in 30+ days | **Decay** confidence | Low recall = low relevance |
+| Two memories say the same thing | **Consolidate** into one | Reduces noise, boosts confidence of the winner |
+| Session-scoped memory older than 7 days | **Delete** | Sessions are ephemeral by design |
+| Human-taught memory | **Exempt** from decay | Human teachings are curated and intentional |
+| Postmortem learning | **Slow decay** only | Incident knowledge stays relevant for months |
+
+## Monitoring Memory Health
+
+```typescript
+async function memoryHealthCheck() {
+  const stats = await mem.stats();
+  const learnings = await mem.list();
+
+  const report = {
+    total: stats.totalLearnings,
+    byScope: stats.scopes,
+    avgConfidence:
+      learnings.reduce((sum, l) => sum + l.confidence, 0) / learnings.length,
+    lowConfidence: learnings.filter((l) => l.confidence < 0.3).length,
+    highConfidence: learnings.filter((l) => l.confidence > 0.8).length,
+    sources: learnings.reduce(
+      (acc, l) => {
+        const src = l.source || "unknown";
+        acc[src] = (acc[src] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    ),
+  };
+
+  console.log("Memory Health Report:");
+  console.log(`  Total memories: ${report.total}`);
+  console.log(`  Average confidence: ${report.avgConfidence.toFixed(2)}`);
+  console.log(`  Low confidence (<0.3): ${report.lowConfidence}`);
+  console.log(`  High confidence (>0.8): ${report.highConfidence}`);
+  console.log(`  By source:`, report.sources);
+
+  // Alert if memory health is degrading
+  if (report.avgConfidence < 0.5) {
+    console.warn("WARNING: Average confidence is low. Run consolidation.");
+  }
+  if (report.lowConfidence > report.total * 0.3) {
+    console.warn("WARNING: >30% of memories are low confidence. Run pruning.");
+  }
+
+  return report;
+}
+```
+
+## When to Use This Pattern
+
+- Your agent has been running for more than a few days
+- You notice `inject()` returning irrelevant or outdated memories
+- Memory count is growing past a few hundred entries
+- You want predictable, high-quality recall over time
+
+## When NOT to Use This Pattern
+
+- **Brand new agent with fewer than 50 memories** -- too early, let it accumulate first
+- **All memories are human-curated** -- if every memory was explicitly taught, decay is unnecessary (but consolidation may still help)
+- **You need an audit trail** -- if regulations require keeping all data, use soft-delete (set confidence to 0) instead of hard deletion
+
+## Tips
+
+- **Run cleanup daily, not on every request.** Memory hygiene is a background task. Don't add latency to your agent's hot path.
+- **Exempt human teachings from decay.** If a user explicitly said "remember this," respect that intent by skipping automatic decay.
+- **Log what you delete.** Before pruning, log the entries being removed. This makes it easy to restore accidentally deleted knowledge.
+- **Use the `/stats` endpoint** to track memory growth over time. A healthy memory store grows slowly and stays mostly high-confidence.

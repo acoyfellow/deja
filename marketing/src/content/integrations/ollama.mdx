@@ -1,0 +1,260 @@
+---
+title: "Ollama + deja"
+description: "Give local LLMs persistent memory. Run Ollama for inference and deja for recall — your local agent builds knowledge across sessions without sending data to third-party LLM providers."
+keywords: "ollama, local llm, self-hosted, persistent memory, privacy, llama, mistral"
+tags: ["llm-provider", "ollama", "local", "privacy", "self-hosted"]
+publishedAt: "2025-06-01"
+updatedAt: "2025-06-01"
+agentSummary: "This integration connects Ollama (local LLM inference) with deja (persistent memory). Use deja-client to inject relevant memories before each Ollama prompt and learn from Ollama outputs. The LLM runs locally for privacy while deja stores memories on your Cloudflare Worker. Works with any Ollama model (llama3, mistral, codellama, etc.)."
+featured: false
+order: 7
+category: "llm-provider"
+logo: "/logos/ollama.svg"
+difficulty: "intermediate"
+relatedIntegrations: ["langchain", "claude-code"]
+relatedPatterns: ["local-agent-memory", "session-persistence"]
+---
+
+## Why Ollama + deja?
+
+Ollama lets you run powerful LLMs locally — full privacy, no API costs, no rate limits. But local models are just as stateless as cloud ones. Each prompt starts from scratch, with no memory of previous conversations or discoveries.
+
+deja bridges this gap. Your local agent stores learnings after each session and injects relevant memories before the next one. The LLM inference stays entirely local on your machine, while deja provides the persistent memory layer. You get the privacy of local inference with the knowledge accumulation of a cloud system.
+
+## Prerequisites
+
+- [Ollama](https://ollama.ai) installed and running locally
+- A model pulled (e.g., `ollama pull llama3.1`)
+- A deployed deja instance (Cloudflare Worker URL)
+- Your deja API key
+- Node.js 18+ (for the agent script)
+
+## Setup
+
+### Step 1: Install Dependencies
+
+```bash
+npm install deja-client ollama
+```
+
+### Step 2: Basic Agent with Memory
+
+```typescript
+import deja from "deja-client";
+import { Ollama } from "ollama";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+const ollama = new Ollama({ host: "http://localhost:11434" });
+
+async function chat(userMessage: string): Promise<string> {
+  // Step 1: Inject relevant memories
+  const { prompt: memories, learnings } = await mem.inject(userMessage, {
+    scopes: ["local-agent", "shared"],
+    limit: 5,
+  });
+
+  const systemPrompt = `You are a helpful local assistant with persistent memory.
+
+${learnings.length > 0 ? `Here are relevant things you remember from past sessions:\n\n${memories}\n\nUse these memories to give better, more contextual answers.` : "You don't have any relevant memories yet. As you interact with the user, you'll build up knowledge over time."}
+
+When you learn something important from this conversation (a user preference, a factual correction, a useful pattern), say [LEARN: trigger | what you learned] and I will store it.`;
+
+  // Step 2: Generate response with Ollama
+  const response = await ollama.chat({
+    model: "llama3.1",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+  });
+
+  const reply = response.message.content;
+
+  // Step 3: Parse and store any learnings
+  const learnPattern = /\[LEARN:\s*(.+?)\s*\|\s*(.+?)\s*\]/g;
+  let match;
+  while ((match = learnPattern.exec(reply)) !== null) {
+    const [, trigger, learning] = match;
+    await mem.learn(trigger, learning, {
+      scope: "local-agent",
+      source: "ollama-agent",
+      confidence: 0.8,
+    });
+    console.log(`Stored memory: "${trigger}" -> "${learning}"`);
+  }
+
+  // Clean the LEARN tags from the visible reply
+  return reply.replace(learnPattern, "").trim();
+}
+```
+
+### Step 3: Interactive Session Loop
+
+```typescript
+import * as readline from "readline";
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+async function main() {
+  console.log("Local agent with deja memory. Type 'quit' to exit.\n");
+
+  const askQuestion = () => {
+    rl.question("You: ", async (input) => {
+      if (input.toLowerCase() === "quit") {
+        rl.close();
+        return;
+      }
+      const reply = await chat(input);
+      console.log(`\nAgent: ${reply}\n`);
+      askQuestion();
+    });
+  };
+
+  askQuestion();
+}
+
+main();
+```
+
+### Option 2: Direct REST Calls (No deja-client)
+
+If you want to keep dependencies minimal:
+
+```typescript
+import { Ollama } from "ollama";
+
+const DEJA_URL = "https://deja.your-subdomain.workers.dev";
+const DEJA_KEY = process.env.DEJA_API_KEY;
+const ollama = new Ollama({ host: "http://localhost:11434" });
+
+async function inject(context: string): Promise<string> {
+  const res = await fetch(`${DEJA_URL}/inject`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${DEJA_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      context,
+      scopes: ["local-agent", "shared"],
+      limit: 5,
+    }),
+  });
+  const data = await res.json();
+  return data.prompt;
+}
+
+async function learn(trigger: string, learning: string): Promise<void> {
+  await fetch(`${DEJA_URL}/learn`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${DEJA_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      trigger,
+      learning,
+      scope: "local-agent",
+      confidence: 0.8,
+      source: "ollama-agent",
+    }),
+  });
+}
+```
+
+### Option 3: With Code-Specific Models
+
+Use CodeLlama or DeepSeek Coder for a code-focused local agent with memory:
+
+```typescript
+async function codeChat(task: string): Promise<string> {
+  const { prompt: memories } = await mem.inject(task, {
+    scopes: ["codebase", "local-agent"],
+    limit: 5,
+  });
+
+  const response = await ollama.chat({
+    model: "deepseek-coder-v2",
+    messages: [
+      {
+        role: "system",
+        content: `You are a code assistant with persistent memory of this codebase.\n\n${memories}`,
+      },
+      { role: "user", content: task },
+    ],
+  });
+
+  return response.message.content;
+}
+
+// After a coding session, store what was learned
+await mem.learn(
+  "working with the payments module",
+  "The payments module uses a state machine pattern. Valid transitions are: pending -> processing -> completed/failed. Never skip states.",
+  {
+    scope: "codebase",
+    source: "ollama-agent",
+    confidence: 0.9,
+  }
+);
+```
+
+## Example: Local Agent That Builds Knowledge Over Sessions
+
+**Session 1** — You ask the agent about setting up a Python virtual environment:
+
+```
+You: How do I set up a venv for this project?
+Agent: Create a virtual environment with: python3 -m venv .venv
+       Then activate it: source .venv/bin/activate
+       Then install dependencies: pip install -r requirements.txt
+```
+
+You mention a project-specific detail:
+
+```
+You: Actually this project uses uv instead of pip. And the venv needs Python 3.12 specifically.
+Agent: Got it! For this project, use:
+       uv venv --python 3.12 .venv
+       source .venv/bin/activate
+       uv pip install -r requirements.txt
+       [LEARN: setting up Python environment for this project | This project uses uv instead of pip, and requires Python 3.12. Create venv with: uv venv --python 3.12 .venv]
+```
+
+**Session 2** — Days later, you ask about the environment again:
+
+```
+You: I need to set up the dev environment on a new machine
+Agent: Based on what I remember about this project: you need Python 3.12 specifically,
+       and this project uses uv instead of pip.
+
+       Run these commands:
+       uv venv --python 3.12 .venv
+       source .venv/bin/activate
+       uv pip install -r requirements.txt
+```
+
+The agent recalled the project-specific setup without you needing to re-explain.
+
+## What to Learn, What to Inject
+
+| Trigger | What to Learn |
+|---|---|
+| `setting up <project> environment` | Language version, package manager, special setup steps |
+| `working with <module>` | Architecture patterns, key abstractions, gotchas |
+| `debugging <error type>` | Common causes, diagnostic steps, fixes that worked |
+| `user preference detected` | Output format, verbosity level, explanation style |
+| `project convention` | Naming patterns, file structure, testing approach |
+| `tool configuration` | Editor settings, linter rules, build flags |
+
+## Related
+
+- [LangChain + deja](/integrations/langchain) — use Ollama as the LLM backend in LangChain with deja memory
+- [Claude Code + deja](/integrations/claude-code) — compare local vs. cloud code assistants with memory
+- [Local Agent Memory pattern](/patterns/local-agent-memory) — best practices for privacy-focused memory

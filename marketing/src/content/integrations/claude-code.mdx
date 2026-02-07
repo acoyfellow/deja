@@ -1,0 +1,171 @@
+---
+title: "Claude Code + deja"
+description: "Give Claude Code persistent memory across sessions. Learn from deployment failures, architectural decisions, and codebase patterns — then automatically recall them when they matter."
+keywords: "claude code, claude desktop, mcp, persistent memory, code assistant, anthropic"
+tags: ["mcp", "code-assistant", "claude", "anthropic"]
+publishedAt: "2025-06-01"
+updatedAt: "2025-06-01"
+agentSummary: "This integration connects Claude Code to deja via MCP protocol or deja-client. Claude Code can call learn() to store deployment gotchas, architecture decisions, and codebase patterns, then inject() to recall relevant memories before performing tasks. MCP is the recommended approach — add the deja server URL to claude_desktop_config.json or .claude/settings.json."
+featured: true
+order: 1
+category: "code-assistant"
+logo: "/logos/claude-code.svg"
+difficulty: "beginner"
+relatedIntegrations: ["cursor", "mcp-filesystem"]
+relatedPatterns: ["deployment-memory", "codebase-patterns"]
+---
+
+## Why Claude Code + deja?
+
+Claude Code is powerful out of the box, but it forgets everything between sessions. Every time you start a new conversation, you re-explain the same deployment quirks, the same architectural decisions, the same "don't touch that file" warnings.
+
+With deja, Claude Code builds a persistent memory layer. When it learns that your production deploy requires a specific wrangler flag, it remembers. When it discovers that your monorepo has a tricky circular dependency, it stores that. Next session, before touching anything, it injects the relevant memories and already knows what to watch out for.
+
+## Prerequisites
+
+- A deployed deja instance (Cloudflare Worker URL)
+- Your deja API key (Bearer token)
+- Claude Code (via Claude Desktop or CLI)
+
+## Setup
+
+### Option 1: MCP (Recommended)
+
+The fastest path. Add deja as an MCP server so Claude Code can call `learn` and `inject` as native tools.
+
+**Claude Desktop** — edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "deja": {
+      "url": "https://deja.your-subdomain.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_DEJA_API_KEY"
+      }
+    }
+  }
+}
+```
+
+**Claude Code CLI** — edit `.claude/settings.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "deja": {
+      "url": "https://deja.your-subdomain.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_DEJA_API_KEY"
+      }
+    }
+  }
+}
+```
+
+After saving, restart Claude. You should see `deja` listed in the available MCP tools. Claude Code can now call `learn` and `inject` directly.
+
+### Option 2: System Prompt Approach
+
+If you prefer to guide Claude Code through REST calls, add instructions to your system prompt or CLAUDE.md:
+
+```markdown
+## Memory (deja)
+
+Before starting any task, recall relevant memories:
+
+    curl -s -X POST https://deja.your-subdomain.workers.dev/inject \
+      -H "Authorization: Bearer $DEJA_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"context": "<describe current task>", "scopes": ["shared"]}'
+
+When you learn something important (a gotcha, a pattern, a decision), store it:
+
+    curl -s -X POST https://deja.your-subdomain.workers.dev/learn \
+      -H "Authorization: Bearer $DEJA_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"trigger": "<when this applies>", "learning": "<what to remember>", "scope": "shared"}'
+```
+
+### Option 3: deja-client in Scripts
+
+Use `deja-client` in helper scripts that Claude Code can execute:
+
+```bash
+npm install deja-client
+```
+
+```typescript
+import deja from "deja-client";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+// Before a task — inject context
+const { prompt, learnings } = await mem.inject("deploying to production");
+console.log(`Recalled ${learnings.length} relevant memories`);
+console.log(prompt);
+
+// After a discovery — store it
+await mem.learn(
+  "deploying to production",
+  "always run wrangler deploy --dry-run first — the binding names changed in v3",
+  { scope: "deploy", source: "claude-code" }
+);
+```
+
+## Example: Deployment Memory
+
+Here is a real workflow showing how Claude Code builds deployment knowledge over time.
+
+**Session 1** — Claude Code deploys and hits an issue:
+
+```bash
+# Claude Code runs the deploy and it fails
+$ wrangler deploy
+# Error: binding "AI" is not defined in wrangler.toml
+
+# Claude Code fixes it, then learns from the experience
+```
+
+Claude Code calls `learn` (via MCP or curl):
+
+```json
+{
+  "trigger": "deploying to production with wrangler",
+  "learning": "The AI binding must be explicitly declared in wrangler.toml under [ai]. Without it, the worker crashes on cold start. Add: [ai]\nbinding = \"AI\"",
+  "scope": "deploy",
+  "confidence": 0.95,
+  "source": "claude-code",
+  "reason": "Deploy failed with binding error — this is easy to forget after adding new features that use the AI binding"
+}
+```
+
+**Session 2** — Next time Claude Code is asked to deploy:
+
+Claude Code calls `inject` with context `"deploying to production with wrangler"` and gets back:
+
+```
+Relevant memories:
+- The AI binding must be explicitly declared in wrangler.toml under [ai]. Without it, the worker crashes on cold start.
+```
+
+Claude Code checks `wrangler.toml` before deploying. No more forgotten bindings.
+
+## What to Learn, What to Inject
+
+| Trigger | What to Learn |
+|---|---|
+| `deploying to production` | Wrangler flags, binding requirements, environment variable gotchas |
+| `editing database schema` | Migration ordering, breaking change warnings, rollback procedures |
+| `modifying auth flow` | Token refresh edge cases, session timeout behavior |
+| `updating dependencies` | Known version conflicts, peer dependency issues |
+| `writing tests for <module>` | Test setup quirks, mock patterns, flaky test workarounds |
+| `refactoring <component>` | Hidden coupling, consumers that depend on internal behavior |
+
+## Related
+
+- [Cursor + deja](/integrations/cursor) — same MCP approach, different editor
+- [MCP Filesystem + deja](/integrations/mcp-filesystem) — combine file awareness with memory
+- [Deployment Memory pattern](/patterns/deployment-memory) — structured approach to deploy learnings

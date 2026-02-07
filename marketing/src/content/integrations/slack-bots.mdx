@@ -1,0 +1,280 @@
+---
+title: "Slack Bots + deja"
+description: "Build Slack bots with persistent memory. Learn from incident channels, team decisions, and resolved threads — then recall that knowledge when similar situations arise."
+keywords: "slack, slack bot, bolt, persistent memory, incident management, team knowledge"
+tags: ["communication", "slack", "bot", "bolt", "rest-api"]
+publishedAt: "2025-06-01"
+updatedAt: "2025-06-01"
+agentSummary: "This integration connects Slack bots to deja via REST API or deja-client. The bot calls learn() when incidents are resolved, decisions are made, or threads reach conclusions, then inject() when new messages match similar patterns. Built with Slack Bolt framework. Use scopes to separate knowledge by channel or team."
+featured: true
+order: 6
+category: "communication"
+logo: "/logos/slack.svg"
+difficulty: "intermediate"
+relatedIntegrations: ["github-actions", "n8n", "langchain"]
+relatedPatterns: ["incident-memory", "team-knowledge"]
+---
+
+## Why Slack Bots + deja?
+
+Slack is where your team's knowledge lives — and dies. Critical incident resolutions get buried in threads. Architectural decisions made in channels become impossible to find three months later. New team members ask the same questions that were answered last quarter.
+
+A deja-powered Slack bot changes this. It learns from incident postmortems, resolved threads, and explicit team teachings. When a new incident fires or someone asks a question that's been answered before, the bot injects relevant memories and surfaces them instantly.
+
+## Prerequisites
+
+- A deployed deja instance (Cloudflare Worker URL)
+- Your deja API key
+- A Slack app with bot token (`xoxb-...`)
+- Node.js 18+
+- Slack Bolt framework (`@slack/bolt`)
+
+## Setup
+
+### Step 1: Create the Slack App
+
+If you don't have a Slack app yet, create one at [api.slack.com/apps](https://api.slack.com/apps) with these scopes:
+
+- `chat:write` — send messages
+- `app_mentions:read` — respond to @mentions
+- `channels:history` — read channel messages (for learning)
+- `reactions:read` — detect resolved threads (via emoji reactions)
+
+### Step 2: Install Dependencies
+
+```bash
+npm install @slack/bolt deja-client
+```
+
+### Step 3: Wire Up the Bot
+
+```typescript
+import { App } from "@slack/bolt";
+import deja from "deja-client";
+
+const app = new App({
+  token: process.env.SLACK_BOT_TOKEN,
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
+  socketMode: true,
+  appToken: process.env.SLACK_APP_TOKEN,
+});
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+// ---------------------------------------------------------------
+// Recall: When the bot is mentioned, inject relevant memories
+// ---------------------------------------------------------------
+app.event("app_mention", async ({ event, say }) => {
+  const question = event.text.replace(/<@[A-Z0-9]+>/g, "").trim();
+
+  // Inject relevant memories
+  const { prompt: memories, learnings } = await mem.inject(question, {
+    scopes: ["incidents", "team", "shared"],
+    limit: 5,
+  });
+
+  if (learnings.length === 0) {
+    await say({
+      thread_ts: event.ts,
+      text: `I don't have any relevant memories for "${question}". I'll learn from this channel over time.`,
+    });
+    return;
+  }
+
+  // Format memories for Slack
+  const blocks = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Here's what I remember about "${question}":*`,
+      },
+    },
+    ...learnings.map((l) => ({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `> *${l.trigger}*\n> ${l.learning}\n> _Confidence: ${(l.confidence * 100).toFixed(0)}% | Source: ${l.source || "unknown"}_`,
+      },
+    })),
+  ];
+
+  await say({ thread_ts: event.ts, blocks });
+});
+
+// ---------------------------------------------------------------
+// Learn: When someone reacts with :brain: emoji, store the message
+// ---------------------------------------------------------------
+app.event("reaction_added", async ({ event, client }) => {
+  if (event.reaction !== "brain") return;
+
+  // Fetch the message that was reacted to
+  const result = await client.conversations.history({
+    channel: event.item.channel,
+    latest: event.item.ts,
+    inclusive: true,
+    limit: 1,
+  });
+
+  const message = result.messages?.[0];
+  if (!message?.text) return;
+
+  // Fetch channel name for context
+  const channelInfo = await client.conversations.info({
+    channel: event.item.channel,
+  });
+  const channelName = channelInfo.channel?.name || "unknown";
+
+  // Store the learning
+  await mem.learn(
+    `discussion in #${channelName}`,
+    message.text,
+    {
+      scope: "team",
+      confidence: 0.85,
+      source: `slack:#${channelName}`,
+      reason: `Team member reacted with :brain: to flag this as worth remembering`,
+    }
+  );
+
+  // Acknowledge
+  await client.reactions.add({
+    channel: event.item.channel,
+    timestamp: event.item.ts,
+    name: "white_check_mark",
+  });
+});
+
+// ---------------------------------------------------------------
+// Learn from incident resolution
+// ---------------------------------------------------------------
+app.message(/resolved|postmortem|root cause/i, async ({ message, say }) => {
+  if (message.subtype || !("text" in message)) return;
+
+  // Only learn from messages in incident channels
+  const channelInfo = await app.client.conversations.info({
+    channel: message.channel,
+  });
+  const channelName = channelInfo.channel?.name || "";
+  if (!channelName.startsWith("incident-")) return;
+
+  await mem.learn(
+    `incident in #${channelName}`,
+    message.text,
+    {
+      scope: "incidents",
+      confidence: 0.9,
+      source: `slack:#${channelName}`,
+      reason: "Message in incident channel mentioning resolution or root cause",
+    }
+  );
+
+  await say({
+    thread_ts: message.ts,
+    text: "Got it — I've stored this for future reference. Next time a similar incident comes up, I'll recall this.",
+  });
+});
+
+await app.start(3000);
+console.log("Slack bot with deja memory is running");
+```
+
+### Option 2: REST API Without deja-client
+
+If you prefer raw HTTP calls:
+
+```typescript
+// Inject memories
+async function recallMemories(context: string): Promise<string> {
+  const res = await fetch(
+    "https://deja.your-subdomain.workers.dev/inject",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.DEJA_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        context,
+        scopes: ["incidents", "team", "shared"],
+        limit: 5,
+      }),
+    }
+  );
+  const data = await res.json();
+  return data.prompt;
+}
+
+// Store a learning
+async function storeMemory(
+  trigger: string,
+  learning: string,
+  channel: string
+): Promise<void> {
+  await fetch("https://deja.your-subdomain.workers.dev/learn", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.DEJA_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      trigger,
+      learning,
+      scope: "incidents",
+      confidence: 0.85,
+      source: `slack:#${channel}`,
+    }),
+  });
+}
+```
+
+## Example: Incident Memory Bot
+
+Here is how the bot builds institutional memory over a series of incidents.
+
+**Incident 1** — Database connection pool exhaustion. The team debugs in `#incident-db-pool-jan15`. Someone posts:
+
+> Root cause: The connection pool was set to max 10 connections but the new batch job opens 8 connections simultaneously. Fix: increased pool to 50 and added connection timeout of 5s.
+
+The bot detects "root cause" in an incident channel and learns:
+
+```json
+{
+  "trigger": "incident in #incident-db-pool-jan15",
+  "learning": "The connection pool was set to max 10 connections but the new batch job opens 8 connections simultaneously. Fix: increased pool to 50 and added connection timeout of 5s.",
+  "scope": "incidents",
+  "confidence": 0.9,
+  "source": "slack:#incident-db-pool-jan15"
+}
+```
+
+**Incident 2** — Two weeks later, the database starts timing out again. Someone opens `#incident-db-timeout-jan29` and mentions the bot:
+
+> @dejabot database connections timing out, seeing pool exhaustion errors
+
+The bot injects context and responds:
+
+> **Here's what I remember about "database connections timing out, pool exhaustion errors":**
+> - **incident in #incident-db-pool-jan15**: The connection pool was set to max 10 connections but the new batch job opens 8 connections simultaneously. Fix: increased pool to 50 and added connection timeout of 5s.
+> - *Confidence: 90% | Source: slack:#incident-db-pool-jan15*
+
+The team immediately has context. They check if the pool size was reverted or if a new batch job is consuming connections.
+
+## What to Learn, What to Inject
+
+| Trigger | What to Learn |
+|---|---|
+| `incident in #incident-*` | Root causes, fixes applied, services affected |
+| `discussion in #engineering` | Architectural decisions, tradeoff rationale |
+| `discussion in #product` | Feature context, customer feedback patterns |
+| `onboarding question` | Answers to common new-hire questions |
+| `deployment discussion` | Deploy procedures, rollback steps |
+| `outage in <service>` | Runbook steps, escalation contacts, past fixes |
+
+## Related
+
+- [n8n + deja](/integrations/n8n) — trigger Slack bot actions from n8n workflows
+- [GitHub Actions + deja](/integrations/github-actions) — connect CI memories to incident channels
+- [Incident Memory pattern](/patterns/incident-memory) — structured approach to incident learning

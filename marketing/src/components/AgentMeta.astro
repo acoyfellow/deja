@@ -1,0 +1,27 @@
+---
+interface Props {
+  summary: string;
+}
+
+const { summary } = Astro.props;
+---
+
+{summary && (
+  <details class="agent-meta mt-12 border border-brass/10 rounded-sm bg-void-deep/60 overflow-hidden">
+    <summary class="flex items-center gap-2 px-4 py-3 cursor-pointer font-mono text-[11px] text-chrome-dark/50 hover:text-chrome-dark/70 transition-colors select-none">
+      <svg class="w-3.5 h-3.5 transition-transform details-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M9 18l6-6-6-6"/>
+      </svg>
+      Agent-readable summary
+    </summary>
+    <div class="px-4 pb-4 pt-1">
+      <pre class="font-mono text-[11px] leading-relaxed text-chrome-dark/60 whitespace-pre-wrap m-0">{summary}</pre>
+    </div>
+  </details>
+)}
+
+<style>
+  details[open] .details-arrow {
+    transform: rotate(90deg);
+  }
+</style>

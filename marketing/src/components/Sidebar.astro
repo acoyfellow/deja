@@ -1,0 +1,68 @@
+---
+interface Entry {
+  id: string;
+  data: {
+    title: string;
+    category?: string;
+  };
+}
+
+interface Props {
+  collection: string;
+  entries: Entry[];
+  currentSlug?: string;
+}
+
+const { collection, entries, currentSlug } = Astro.props;
+
+// Group entries by category
+const grouped = new Map<string, Entry[]>();
+for (const entry of entries) {
+  const cat = entry.data.category || 'General';
+  if (!grouped.has(cat)) grouped.set(cat, []);
+  grouped.get(cat)!.push(entry);
+}
+
+// Sort categories alphabetically, but put "General" last
+const categories = [...grouped.keys()].sort((a, b) => {
+  if (a === 'General') return 1;
+  if (b === 'General') return -1;
+  return a.localeCompare(b);
+});
+
+function slugFromId(id: string): string {
+  return id.replace(/\.[^.]+$/, '');
+}
+---
+
+<nav class="sidebar-nav max-h-[calc(100vh-6rem)] overflow-y-auto pr-2" aria-label="Collection navigation">
+  {categories.map((cat) => (
+    <div class="mb-4">
+      <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass/50 mb-1.5 px-2">
+        {cat}
+      </div>
+      <ul class="list-none m-0 p-0 space-y-0.5">
+        {grouped.get(cat)!.map((entry) => {
+          const slug = slugFromId(entry.id);
+          const isCurrent = slug === currentSlug;
+          return (
+            <li>
+              <a
+                href={`/${collection}/${slug}`}
+                class:list={[
+                  'block font-serif text-[13px] py-1 px-2 rounded-sm transition-colors border-l-2',
+                  isCurrent
+                    ? 'text-brass border-brass bg-brass/5 font-medium'
+                    : 'text-chrome-dark/60 border-transparent hover:text-chrome hover:border-brass/30',
+                ]}
+                aria-current={isCurrent ? 'page' : undefined}
+              >
+                {entry.data.title}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  ))}
+</nav>

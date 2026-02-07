@@ -1,0 +1,91 @@
+---
+import Base from '../../layouts/Base.astro';
+import SEO from '../../components/SEO.astro';
+import { getCollection } from 'astro:content';
+
+const entries = await getCollection('integrations');
+const sorted = entries.sort((a, b) => a.data.order - b.data.order);
+const categories = [...new Set(sorted.map(e => e.data.category))];
+---
+
+<Base title="Integrations — deja" variant="content">
+  <SEO
+    slot="head"
+    title="Integrations — deja"
+    description="Connect deja to your favorite tools. Agent frameworks, code assistants, CI/CD, orchestration, and more."
+    keywords="deja integrations, agent memory integrations, claude code deja, cursor deja, langchain memory"
+    path="/integrations"
+    type="article"
+    section="Integrations"
+    breadcrumbs={[{ name: 'Integrations', path: '/integrations' }]}
+  />
+  <section class="pt-16 pb-8">
+    <div class="bg-void/90 backdrop-blur-sm border border-brass/10 rounded-sm p-8 md:p-10 shadow-hero">
+      <div class="font-mono text-[11px] font-bold tracking-widest uppercase text-brass mb-4">Integrations</div>
+      <h1 class="font-serif-sc text-4xl md:text-5xl font-bold tracking-tight m-0 mb-4">
+        Connect anything to shared memory
+      </h1>
+      <p class="font-serif font-light text-lg text-chrome-dark max-w-3xl m-0">
+        deja is just HTTP. Any tool that can make a request can learn and recall. Here's how to wire up the ones you already use.
+      </p>
+    </div>
+  </section>
+
+  <!-- Category filters -->
+  <div class="flex flex-wrap gap-2 mt-8 mb-6">
+    <button class="filter-btn active font-mono text-[11px] font-bold tracking-widest uppercase px-3 py-1.5 rounded-sm border border-brass/20 bg-brass/10 text-brass hover:bg-brass/20 transition-colors cursor-pointer" data-category="all">All</button>
+    {categories.map(cat => (
+      <button class="filter-btn font-mono text-[11px] font-bold tracking-widest uppercase px-3 py-1.5 rounded-sm border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/10 hover:text-brass transition-colors cursor-pointer" data-category={cat}>
+        {cat.replace(/-/g, ' ')}
+      </button>
+    ))}
+  </div>
+
+  <!-- Grid -->
+  <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" id="integration-grid">
+    {sorted.map(entry => (
+      <a href={`/integrations/${entry.id}`} class="group block bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card hover:border-brass/30 transition-colors" data-category={entry.data.category}>
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-brass/10 text-brass">{entry.data.category.replace(/-/g, ' ')}</span>
+          <span class="font-mono text-[10px] tracking-widest uppercase text-chrome-dark/50">{entry.data.difficulty}</span>
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-2 group-hover:text-brass transition-colors">{entry.data.title}</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0 line-clamp-2">{entry.data.description}</p>
+      </a>
+    ))}
+  </div>
+</Base>
+
+<script>
+  const buttons = document.querySelectorAll('.filter-btn');
+  const cards = document.querySelectorAll('#integration-grid > a');
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      buttons.forEach(b => b.classList.remove('active', 'bg-brass/10', 'text-brass'));
+      buttons.forEach(b => { b.classList.add('bg-transparent', 'text-chrome-dark'); });
+      btn.classList.add('active', 'bg-brass/10', 'text-brass');
+      btn.classList.remove('bg-transparent', 'text-chrome-dark');
+
+      const cat = (btn as HTMLElement).dataset.category;
+      cards.forEach(card => {
+        const el = card as HTMLElement;
+        if (cat === 'all' || el.dataset.category === cat) {
+          el.style.display = '';
+        } else {
+          el.style.display = 'none';
+        }
+      });
+    });
+  });
+</script>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>

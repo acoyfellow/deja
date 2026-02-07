@@ -1,0 +1,46 @@
+---
+interface Props {
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  difficulty?: string;
+  logo?: string;
+}
+
+const { slug, title, description, category, difficulty, logo } = Astro.props;
+---
+
+<a
+  href={`/integrations/${slug}`}
+  class="group block bg-steel border border-brass/10 rounded-sm shadow-card hover:border-brass/30 transition-colors overflow-hidden"
+  data-category={category}
+>
+  <div class="p-5">
+    <div class="flex items-start gap-3 mb-3">
+      <div class="w-10 h-10 rounded-sm border border-brass/10 bg-void-deep/60 flex items-center justify-center shrink-0">
+        {logo ? (
+          <img src={logo} alt="" class="w-6 h-6" />
+        ) : (
+          <span class="font-mono text-[11px] text-brass font-bold">{title.charAt(0).toUpperCase()}</span>
+        )}
+      </div>
+      <div class="min-w-0">
+        <h3 class="font-serif font-semibold text-base m-0 text-chrome group-hover:text-brass transition-colors truncate">
+          {title}
+        </h3>
+      </div>
+    </div>
+    <p class="font-serif text-sm text-chrome-dark/70 m-0 line-clamp-2">{description}</p>
+    <div class="flex items-center gap-2 mt-3">
+      <span class="font-mono text-[10px] px-2 py-0.5 rounded-sm bg-brass/10 text-brass/80 uppercase tracking-wider">
+        {category}
+      </span>
+      {difficulty && (
+        <span class="font-mono text-[10px] px-2 py-0.5 rounded-sm bg-steel-light text-chrome-dark/50 uppercase tracking-wider">
+          {difficulty}
+        </span>
+      )}
+    </div>
+  </div>
+</a>

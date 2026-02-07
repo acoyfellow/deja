@@ -1,0 +1,43 @@
+---
+interface Props {
+  text: string;
+}
+
+const { text } = Astro.props;
+---
+
+<button
+  class="copy-btn absolute top-2 right-2 p-1.5 rounded-sm border border-brass/10 bg-steel/80 text-chrome-dark/60 hover:text-brass hover:border-brass/30 transition-colors cursor-pointer"
+  data-copy={text}
+  aria-label="Copy to clipboard"
+>
+  <svg class="copy-icon w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+  </svg>
+  <svg class="check-icon w-3.5 h-3.5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+</button>
+
+<script>
+  document.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.copy-btn') as HTMLElement | null;
+    if (!btn) return;
+
+    const text = btn.dataset.copy || '';
+    navigator.clipboard.writeText(text).then(() => {
+      const copyIcon = btn.querySelector('.copy-icon') as HTMLElement;
+      const checkIcon = btn.querySelector('.check-icon') as HTMLElement;
+      copyIcon.classList.add('hidden');
+      checkIcon.classList.remove('hidden');
+      btn.classList.add('text-green-400/70');
+
+      setTimeout(() => {
+        copyIcon.classList.remove('hidden');
+        checkIcon.classList.add('hidden');
+        btn.classList.remove('text-green-400/70');
+      }, 2000);
+    });
+  });
+</script>

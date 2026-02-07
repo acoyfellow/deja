@@ -1,0 +1,245 @@
+---
+title: "MCP Filesystem Server + deja"
+description: "Combine file system awareness with persistent memory. Agents learn where important files live, how projects are structured, and which files are related — then recall that knowledge across projects and sessions."
+keywords: "mcp, filesystem, model context protocol, file structure, project navigation, multi-server"
+tags: ["mcp-server", "filesystem", "multi-mcp", "project-navigation"]
+publishedAt: "2025-06-01"
+updatedAt: "2025-06-01"
+agentSummary: "This integration combines the MCP Filesystem Server (for reading/writing/searching files) with deja MCP (for persistent memory). Agents use filesystem tools to explore projects, then deja learn() to remember file locations, project structures, and file relationships. On future sessions or different projects, deja inject() recalls where important files are and how projects are organized. Requires multi-MCP-server configuration."
+featured: false
+order: 8
+category: "mcp-server"
+logo: "/logos/mcp.svg"
+difficulty: "advanced"
+relatedIntegrations: ["claude-code", "cursor"]
+relatedPatterns: ["project-navigation", "cross-project-memory"]
+---
+
+## Why MCP Filesystem Server + deja?
+
+The MCP Filesystem Server gives agents the ability to read, write, and search files. But each session, the agent re-discovers the project structure from scratch. It does not know that the database models are in `/src/db/models/`, that the config files are split across three directories, or that editing `schema.prisma` always requires running `prisma generate` afterward.
+
+By combining the filesystem MCP with deja MCP, agents build persistent knowledge about file structures. They remember where important files live, which files tend to change together, and what the project layout conventions are. This knowledge transfers across sessions and even across similar projects.
+
+## Prerequisites
+
+- A deployed deja instance (Cloudflare Worker URL)
+- Your deja API key
+- An MCP client that supports multiple servers (Claude Desktop, Cursor, or a custom client)
+- Node.js 18+ (for the filesystem MCP server)
+
+## Setup
+
+### Step 1: Install the Filesystem MCP Server
+
+The official MCP filesystem server is available as an npm package:
+
+```bash
+npm install -g @modelcontextprotocol/server-filesystem
+```
+
+### Step 2: Configure Both MCP Servers
+
+Add both the filesystem server and deja to your MCP client configuration.
+
+**Claude Desktop** — edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/you/projects"
+      ]
+    },
+    "deja": {
+      "url": "https://deja.your-subdomain.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_DEJA_API_KEY"
+      }
+    }
+  }
+}
+```
+
+**Cursor** — create `.cursor/mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ]
+    },
+    "deja": {
+      "url": "https://deja.your-subdomain.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_DEJA_API_KEY"
+      }
+    }
+  }
+}
+```
+
+After configuration, restart your MCP client. The agent now has access to both filesystem tools (`read_file`, `write_file`, `list_directory`, `search_files`) and deja tools (`learn`, `inject`, `query`).
+
+### Step 3: Teach the Agent to Connect Both
+
+Add instructions to your system prompt or project rules that tell the agent to combine the two capabilities:
+
+```markdown
+## File Structure Memory
+
+You have access to two MCP servers:
+- **filesystem**: read, write, and search files
+- **deja**: persistent memory across sessions
+
+When you explore the file system and discover important structural information, store it with deja:
+- Where key files and directories are located
+- How the project is organized
+- Which files need to change together
+- Build/generation steps required after certain file changes
+
+Before exploring a new directory, check deja for existing memories about the project structure.
+```
+
+## Example: Agent That Remembers File Structures
+
+### First Session: Exploring a New Project
+
+The agent is asked to "add a new API endpoint for user notifications." It has no prior knowledge of the project.
+
+**Step 1** — Agent calls `inject` with context "project structure for adding API endpoints":
+
+```json
+{ "context": "project structure for adding API endpoints", "scopes": ["filesystem", "shared"] }
+```
+
+No memories found (first time working on this project).
+
+**Step 2** — Agent uses filesystem tools to explore:
+
+```
+list_directory("/Users/you/projects/myapp")
+→ src/, tests/, prisma/, package.json, tsconfig.json ...
+
+list_directory("/Users/you/projects/myapp/src")
+→ routes/, middleware/, db/, services/, utils/, index.ts
+
+list_directory("/Users/you/projects/myapp/src/routes")
+→ auth.ts, users.ts, billing.ts, health.ts, index.ts
+```
+
+**Step 3** — Agent reads the route index to understand the pattern:
+
+```
+read_file("/Users/you/projects/myapp/src/routes/index.ts")
+```
+
+```typescript
+// /src/routes/index.ts
+import { Router } from "express";
+import authRoutes from "./auth";
+import userRoutes from "./users";
+import billingRoutes from "./billing";
+import healthRoutes from "./health";
+
+const router = Router();
+router.use("/auth", authRoutes);
+router.use("/users", userRoutes);
+router.use("/billing", billingRoutes);
+router.use("/health", healthRoutes);
+
+export default router;
+```
+
+**Step 4** — Agent stores what it learned:
+
+```json
+{
+  "trigger": "adding a new API route to myapp",
+  "learning": "Routes live in /src/routes/. Each route is a separate file exporting a Router. New routes must be imported and registered in /src/routes/index.ts. Follow the pattern: create /src/routes/<name>.ts, add import and router.use() in index.ts.",
+  "scope": "filesystem",
+  "confidence": 0.95,
+  "source": "mcp-filesystem"
+}
+```
+
+```json
+{
+  "trigger": "project structure of myapp",
+  "learning": "myapp follows a standard Express structure: /src/routes/ for API endpoints, /src/middleware/ for Express middleware, /src/db/ for database models and queries, /src/services/ for business logic, /src/utils/ for shared utilities. Tests mirror the src structure under /tests/. Database schema is in /prisma/schema.prisma.",
+  "scope": "filesystem",
+  "confidence": 0.95,
+  "source": "mcp-filesystem"
+}
+```
+
+The agent also discovers that tests follow a convention:
+
+```json
+{
+  "trigger": "writing tests for myapp routes",
+  "learning": "Tests for routes live in /tests/routes/<name>.test.ts. They use supertest and import the Express app from /src/index.ts. Each test file sets up its own test database with /tests/helpers/db.ts. Run tests with: npm test -- --testPathPattern=routes/<name>",
+  "scope": "filesystem",
+  "confidence": 0.9,
+  "source": "mcp-filesystem"
+}
+```
+
+### Second Session: Working Faster
+
+A week later, someone asks the agent to "add a new API endpoint for webhooks."
+
+**Step 1** — Agent injects context:
+
+```json
+{ "context": "adding a new API endpoint to myapp", "scopes": ["filesystem", "shared"] }
+```
+
+Memories returned:
+
+```
+- Routes live in /src/routes/. Each route is a separate file exporting a Router.
+  New routes must be imported and registered in /src/routes/index.ts.
+- Tests for routes live in /tests/routes/<name>.test.ts. They use supertest.
+- myapp follows a standard Express structure: /src/routes/ for endpoints,
+  /src/services/ for business logic, /src/db/ for database.
+```
+
+**Step 2** — Agent skips the exploration phase entirely. It knows exactly where to create files:
+
+1. Creates `/src/routes/webhooks.ts`
+2. Updates `/src/routes/index.ts` with the new import
+3. Creates `/src/services/webhook-service.ts` for business logic
+4. Creates `/tests/routes/webhooks.test.ts` following the test pattern
+
+What took 10 minutes of exploration in the first session takes seconds in the second.
+
+### Cross-Project Knowledge
+
+When the agent works on a different Express project, it injects "Express project structure" and gets general patterns it learned from myapp. The file paths will differ, but the structural knowledge transfers.
+
+## What to Learn, What to Inject
+
+| Trigger | What to Learn |
+|---|---|
+| `project structure of <project>` | Directory layout, key file locations, naming conventions |
+| `adding a new <resource> to <project>` | Which files to create, which files to update, registration patterns |
+| `files that change together in <project>` | Co-dependent files (schema + migration + model), generation steps |
+| `build process for <project>` | Build commands, code generation steps, output locations |
+| `configuration in <project>` | Where config files live, environment variable sources, override hierarchy |
+| `navigating <project> monorepo` | Package locations, shared dependencies, workspace conventions |
+
+## Related
+
+- [Claude Code + deja](/integrations/claude-code) — Claude Code with MCP filesystem and deja
+- [Cursor + deja](/integrations/cursor) — Cursor already has file access; add deja for memory
+- [Project Navigation pattern](/patterns/project-navigation) — structured approach to learning project layouts

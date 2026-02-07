@@ -1,0 +1,69 @@
+---
+import Base from '../../../layouts/Base.astro';
+import SEO from '../../../components/SEO.astro';
+import { getCollection } from 'astro:content';
+
+const allCategories = [
+  'agent-framework', 'code-assistant', 'llm-provider', 'orchestration',
+  'ci-cd', 'communication', 'mcp-server', 'protocol',
+];
+
+export function getStaticPaths() {
+  return [
+    'agent-framework', 'code-assistant', 'llm-provider', 'orchestration',
+    'ci-cd', 'communication', 'mcp-server', 'protocol',
+  ].map(category => ({ params: { category }, props: { category } }));
+}
+
+const { category } = Astro.props;
+const entries = (await getCollection('integrations'))
+  .filter(e => e.data.category === category)
+  .sort((a, b) => a.data.order - b.data.order);
+
+const label = category.replace(/-/g, ' ');
+---
+
+<Base title={`${label} integrations — deja`} variant="content">
+  <SEO
+    slot="head"
+    title={`${label} integrations — deja`}
+    description={`Connect ${label} tools to deja for persistent agent memory. Setup guides, examples, and ready-to-use configs.`}
+    path={`/integrations/category/${category}`}
+    type="article"
+    section="Integrations"
+    breadcrumbs={[
+      { name: 'Integrations', path: '/integrations' },
+      { name: label, path: `/integrations/category/${category}` },
+    ]}
+  />
+  <section class="pt-16 pb-8">
+    <div class="bg-void/90 backdrop-blur-sm border border-brass/10 rounded-sm p-8 md:p-10 shadow-hero">
+      <div class="font-mono text-[11px] font-bold tracking-widest uppercase text-brass mb-4">{label}</div>
+      <h1 class="font-serif-sc text-4xl md:text-5xl font-bold tracking-tight m-0 mb-4 capitalize">
+        {label} integrations
+      </h1>
+      <p class="font-serif font-light text-lg text-chrome-dark max-w-3xl m-0">
+        Give your {label} tools persistent memory with deja.
+      </p>
+    </div>
+  </section>
+
+  <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mt-8">
+    {entries.map(entry => (
+      <a href={`/integrations/${entry.id}`} class="group block bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card hover:border-brass/30 transition-colors">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-[10px] tracking-widest uppercase text-chrome-dark/50">{entry.data.difficulty}</span>
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-2 group-hover:text-brass transition-colors">{entry.data.title}</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">{entry.data.description}</p>
+      </a>
+    ))}
+  </div>
+
+  {entries.length === 0 && (
+    <div class="text-center py-16">
+      <p class="font-serif text-chrome-dark/60">No integrations in this category yet. Check back soon.</p>
+    </div>
+  )}
+</Base>

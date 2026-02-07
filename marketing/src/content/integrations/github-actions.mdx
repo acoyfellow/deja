@@ -1,0 +1,209 @@
+---
+title: "GitHub Actions + deja"
+description: "Give your CI pipeline persistent memory. Learn from build failures, test flakes, and deploy issues — then inject that knowledge into future runs to prevent repeat mistakes."
+keywords: "github actions, ci cd, continuous integration, persistent memory, build failures, pipeline"
+tags: ["ci-cd", "github-actions", "automation", "rest-api"]
+publishedAt: "2025-06-01"
+updatedAt: "2025-06-01"
+agentSummary: "This integration connects GitHub Actions workflows to deja via REST API (curl). CI steps call POST /learn to store build failures, test flakes, and deploy issues, then POST /inject at the start of subsequent runs to recall relevant context. No MCP — REST only via curl in workflow YAML steps."
+featured: true
+order: 3
+category: "ci-cd"
+logo: "/logos/github-actions.svg"
+difficulty: "intermediate"
+relatedIntegrations: ["claude-code", "slack-bots"]
+relatedPatterns: ["ci-memory", "failure-learning"]
+---
+
+## Why GitHub Actions + deja?
+
+CI pipelines repeat the same failures. A flaky test breaks the build, someone fixes it, and three weeks later the same test breaks again for the same reason. Deployment scripts hit environment-specific gotchas that someone debugged last month but nobody documented.
+
+With deja, your CI learns from every failure. When a build breaks, the pipeline stores what went wrong and how it was fixed. On the next run, before the same step executes, the pipeline injects relevant memories and can take preventive action — or at the very least, surface the context to the developer.
+
+## Prerequisites
+
+- A deployed deja instance (Cloudflare Worker URL)
+- Your deja API key (store as a GitHub Actions secret: `DEJA_API_KEY`)
+- Your deja URL (store as a GitHub Actions variable or secret: `DEJA_URL`)
+
+## Setup
+
+There is no MCP option for GitHub Actions. Use the REST API via `curl` in workflow steps.
+
+### Store Secrets in GitHub
+
+Go to your repository Settings > Secrets and variables > Actions and add:
+
+- `DEJA_API_KEY` — your deja Bearer token
+- `DEJA_URL` — your deja instance URL (e.g., `https://deja.your-subdomain.workers.dev`)
+
+### Basic Workflow Structure
+
+```yaml
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DEJA_URL: ${{ secrets.DEJA_URL }}
+  DEJA_API_KEY: ${{ secrets.DEJA_API_KEY }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Recall relevant memories
+        id: inject
+        run: |
+          RESPONSE=$(curl -sf -X POST "$DEJA_URL/inject" \
+            -H "Authorization: Bearer $DEJA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"context\": \"building ${{ github.repository }} on branch ${{ github.ref_name }}\",
+              \"scopes\": [\"ci\", \"shared\"],
+              \"limit\": 5
+            }")
+          echo "## CI Memories" >> $GITHUB_STEP_SUMMARY
+          echo "$RESPONSE" | jq -r '.learnings[] | "- **\(.trigger)**: \(.learning)"' >> $GITHUB_STEP_SUMMARY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        id: tests
+        run: npm test
+        continue-on-error: true
+
+      - name: Learn from test failure
+        if: steps.tests.outcome == 'failure'
+        run: |
+          curl -sf -X POST "$DEJA_URL/learn" \
+            -H "Authorization: Bearer $DEJA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"trigger\": \"running tests in ${{ github.repository }}\",
+              \"learning\": \"Tests failed on branch ${{ github.ref_name }} at commit ${{ github.sha }}. Check the workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+              \"scope\": \"ci\",
+              \"confidence\": 0.8,
+              \"source\": \"github-actions\",
+              \"reason\": \"Automated CI failure capture\"
+            }"
+
+      - name: Fail if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
+
+      - name: Deploy
+        if: github.ref == 'refs/heads/main'
+        run: npm run deploy
+
+      - name: Learn from successful deploy
+        if: github.ref == 'refs/heads/main' && success()
+        run: |
+          curl -sf -X POST "$DEJA_URL/learn" \
+            -H "Authorization: Bearer $DEJA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"trigger\": \"deploying ${{ github.repository }} to production\",
+              \"learning\": \"Successful deploy at $(date -u +%Y-%m-%dT%H:%M:%SZ) from commit ${{ github.sha }}. No issues.\",
+              \"scope\": \"ci\",
+              \"confidence\": 0.5,
+              \"source\": \"github-actions\"
+            }"
+```
+
+### Advanced: Learn from Specific Failure Output
+
+Capture the actual error message and store it:
+
+```yaml
+      - name: Run migration
+        id: migrate
+        run: npm run db:migrate 2>&1 | tee /tmp/migrate-output.txt
+        continue-on-error: true
+
+      - name: Learn from migration failure
+        if: steps.migrate.outcome == 'failure'
+        run: |
+          ERROR_OUTPUT=$(tail -20 /tmp/migrate-output.txt | jq -Rs .)
+          curl -sf -X POST "$DEJA_URL/learn" \
+            -H "Authorization: Bearer $DEJA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"trigger\": \"running database migrations\",
+              \"learning\": \"Migration failed with output: $ERROR_OUTPUT. Branch: ${{ github.ref_name }}, commit: ${{ github.sha }}\",
+              \"scope\": \"ci\",
+              \"confidence\": 0.9,
+              \"source\": \"github-actions\",
+              \"reason\": \"Migration failures are often caused by column ordering or missing seed data\"
+            }"
+```
+
+## Example: CI Learns from Failures
+
+Here is how the feedback loop works across multiple CI runs.
+
+**Run 1** — Tests fail due to a missing environment variable:
+
+```
+Error: STRIPE_WEBHOOK_SECRET is not defined
+```
+
+The workflow captures this and calls `learn`:
+
+```json
+{
+  "trigger": "running tests in acme/billing-service",
+  "learning": "Tests require STRIPE_WEBHOOK_SECRET to be set in the CI environment. Without it, the webhook handler tests crash. Add it to GitHub Actions secrets.",
+  "scope": "ci",
+  "confidence": 0.95,
+  "source": "github-actions"
+}
+```
+
+**Run 2** — A developer opens a PR that modifies the webhook handler. The `inject` step at the start of the build recalls:
+
+```
+## CI Memories
+- **running tests in acme/billing-service**: Tests require STRIPE_WEBHOOK_SECRET to be set in the CI environment.
+```
+
+This appears in the GitHub Actions step summary. The developer sees it immediately and can verify the secret is configured before waiting for the full test suite.
+
+**Run 3** — Deploy fails because the database migration ran out of order:
+
+```json
+{
+  "trigger": "deploying acme/billing-service to production",
+  "learning": "Migration 042_add_invoice_status.sql must run AFTER 041_add_invoices_table.sql. If they run out of order (can happen in parallel deploys), the status column fails because the table does not exist yet. Always deploy with --no-parallel-migrations flag.",
+  "scope": "ci",
+  "confidence": 0.95,
+  "source": "github-actions"
+}
+```
+
+Future deploys inject this memory and the workflow can automatically add the `--no-parallel-migrations` flag.
+
+## What to Learn, What to Inject
+
+| Trigger | What to Learn |
+|---|---|
+| `running tests in <repo>` | Flaky tests, missing env vars, setup requirements |
+| `deploying <repo> to production` | Migration ordering, required flags, rollback steps |
+| `building <repo>` | Dependency conflicts, Node version issues, cache invalidation |
+| `running linter on <repo>` | Config quirks, auto-fix limitations, ignore patterns |
+| `publishing npm package` | Version bump requirements, registry auth, changelog format |
+| `running security scan` | Known false positives, suppression patterns, audit exceptions |
+
+## Related
+
+- [Slack Bots + deja](/integrations/slack-bots) — notify your team with CI memories
+- [Claude Code + deja](/integrations/claude-code) — let your code assistant learn from CI failures too
+- [CI Memory pattern](/patterns/ci-memory) — structured approach to CI/CD learning

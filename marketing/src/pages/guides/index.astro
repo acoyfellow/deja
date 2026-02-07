@@ -1,0 +1,48 @@
+---
+import Base from '../../layouts/Base.astro';
+import SEO from '../../components/SEO.astro';
+import { getCollection } from 'astro:content';
+
+const entries = await getCollection('guides');
+const sorted = entries.sort((a, b) => a.data.order - b.data.order);
+const categories = [...new Set(sorted.map(e => e.data.category))];
+---
+
+<Base title="Guides — deja" variant="content">
+  <SEO
+    slot="head"
+    title="Guides — deja"
+    description="Deep dives on deja architecture, security, scaling, and self-hosting. Everything you need to run persistent agent memory in production."
+    keywords="deja guides, agent memory architecture, self-hosting deja, cloudflare workers guide"
+    path="/guides"
+    type="article"
+    section="Guides"
+    breadcrumbs={[{ name: 'Guides', path: '/guides' }]}
+  />
+  <section class="pt-16 pb-8">
+    <div class="bg-void/90 backdrop-blur-sm border border-brass/10 rounded-sm p-8 md:p-10 shadow-hero">
+      <div class="font-mono text-[11px] font-bold tracking-widest uppercase text-brass mb-4">Guides</div>
+      <h1 class="font-serif-sc text-4xl md:text-5xl font-bold tracking-tight m-0 mb-4">
+        Deep dives
+      </h1>
+      <p class="font-serif font-light text-lg text-chrome-dark max-w-3xl m-0">
+        Architecture, security, scaling, and everything else you need to run deja in production.
+      </p>
+    </div>
+  </section>
+
+  <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 mt-8">
+    {sorted.map(entry => (
+      <a href={`/guides/${entry.id}`} class="group block bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card hover:border-brass/30 transition-colors">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-brass/10 text-brass">{entry.data.category.replace(/-/g, ' ')}</span>
+          <span class="font-mono text-[10px] tracking-widest uppercase text-chrome-dark/50">{entry.data.difficulty}</span>
+          {entry.data.estimatedReadTime && <span class="font-mono text-[10px] text-chrome-dark/40">{entry.data.estimatedReadTime}</span>}
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-2 group-hover:text-brass transition-colors">{entry.data.title}</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">{entry.data.description}</p>
+      </a>
+    ))}
+  </div>
+</Base>

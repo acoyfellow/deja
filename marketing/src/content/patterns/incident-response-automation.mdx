@@ -1,0 +1,313 @@
+---
+title: "Incident Response Automation"
+description: "Capture postmortem learnings in deja and automatically inject them during similar future incidents. Turn every outage into institutional memory."
+keywords: "incident response, postmortem, outage, runbook, automation, SRE"
+tags: ["intermediate", "recall", "incident-response", "SRE", "postmortem"]
+publishedAt: "2026-02-07"
+agentSummary: "The incident response automation pattern stores structured postmortem learnings after every incident using learn() and injects them automatically when similar incidents occur in the future. When an alert fires or a new incident is declared, the responding agent calls inject() with the incident description to surface past resolutions, root causes, and runbook steps. This turns institutional knowledge from postmortems into actionable, real-time guidance."
+order: 6
+category: "recall"
+difficulty: "intermediate"
+relatedPatterns: ["single-agent-recall", "a2a-via-shared-memory", "inner-loop-steering"]
+relatedIntegrations: []
+---
+
+# Incident Response Automation
+
+Every incident teaches something. But postmortem documents get filed away and forgotten. This pattern stores incident learnings in deja so they are automatically surfaced when a similar incident happens again.
+
+## The Workflow
+
+```
+Incident Lifecycle
+==================
+
+Phase 1: Incident occurs
+  |
+  v
+Phase 2: Agent is alerted
+  |
+  +--- inject("CPU spike on payments-api, 5xx errors") ---> deja
+  |                                                           |
+  |   <--- "Last CPU spike was caused by N+1 query in      --+
+  |         /charges endpoint. Fix: add pagination."
+  |
+  v
+Phase 3: Agent investigates with past context
+  |
+  v
+Phase 4: Incident resolved
+  |
+  +--- learn("payments-api CPU spike with 5xx errors",     ---> deja
+  |          "caused by connection pool exhaustion after
+  |           traffic spike. Fix: increase pool from 10
+  |           to 50 and add circuit breaker.")
+  |
+  v
+Phase 5: Next similar incident gets this learning automatically
+```
+
+## Implementation
+
+### Storing Postmortem Learnings
+
+After every incident, store structured learnings:
+
+```typescript
+import { deja } from "deja-client";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+interface PostmortemEntry {
+  symptoms: string;      // What the alerts/monitors showed
+  rootCause: string;     // What actually went wrong
+  resolution: string;    // How it was fixed
+  prevention: string;    // How to prevent recurrence
+  service: string;       // Which service was affected
+  severity: string;      // P0, P1, P2, etc.
+}
+
+async function storePostmortem(entry: PostmortemEntry) {
+  // Store the symptom-to-resolution mapping
+  await mem.learn(
+    `${entry.service}: ${entry.symptoms}`,
+    `Root cause: ${entry.rootCause}. Resolution: ${entry.resolution}. Prevention: ${entry.prevention}`,
+    {
+      confidence: 0.95, // Postmortems are high-confidence learnings
+      scope: "shared",
+      source: `postmortem-${entry.service}-${Date.now()}`,
+      reason: `Severity: ${entry.severity}`,
+    }
+  );
+
+  // Also store the resolution as a separate actionable learning
+  await mem.learn(
+    `fixing ${entry.rootCause} in ${entry.service}`,
+    entry.resolution,
+    {
+      confidence: 0.9,
+      scope: "shared",
+      source: `postmortem-${entry.service}-${Date.now()}`,
+    }
+  );
+}
+
+// Example: After a real incident
+await storePostmortem({
+  symptoms: "5xx errors spiking, latency >5s on /api/charges",
+  rootCause: "Database connection pool exhausted after Black Friday traffic surge",
+  resolution: "Increased connection pool from 10 to 50. Added PgBouncer as connection pooler. Deployed circuit breaker on /api/charges.",
+  prevention: "Set up auto-scaling for connection pool based on active connections metric. Add load test for 10x traffic before major sales events.",
+  service: "payments-api",
+  severity: "P0",
+});
+```
+
+### Injecting During a New Incident
+
+```typescript
+interface AlertPayload {
+  service: string;
+  description: string;
+  severity: string;
+  metrics: Record<string, number>;
+}
+
+async function handleIncident(alert: AlertPayload): Promise<string> {
+  // Build a rich context string from the alert
+  const incidentContext = [
+    `Service: ${alert.service}`,
+    `Alert: ${alert.description}`,
+    `Severity: ${alert.severity}`,
+    ...Object.entries(alert.metrics).map(
+      ([k, v]) => `${k}: ${v}`
+    ),
+  ].join(". ");
+
+  // Inject past incident knowledge
+  const { prompt: pastKnowledge, learnings } = await mem.inject(
+    incidentContext,
+    {
+      scopes: ["shared"],
+      limit: 5,
+    }
+  );
+
+  // Build the incident response prompt
+  const responsePrompt = `You are an SRE incident responder.
+
+## Alert
+${alert.description}
+Service: ${alert.service}
+Severity: ${alert.severity}
+
+## Past incident knowledge
+${pastKnowledge || "No relevant past incidents found."}
+
+## Your task
+1. Based on past knowledge, identify the most likely root cause
+2. Suggest immediate mitigation steps
+3. Suggest diagnostic commands to confirm the root cause
+4. If no past knowledge is relevant, troubleshoot from first principles`;
+
+  const response = await callLLM(responsePrompt);
+
+  // Log how many past incidents were matched
+  console.log(
+    `Incident response enriched with ${learnings.length} past learnings`
+  );
+
+  return response;
+}
+```
+
+### Webhook Integration with PagerDuty / Opsgenie
+
+```typescript
+// Express/Hono webhook handler for incoming alerts
+app.post("/webhook/alert", async (c) => {
+  const payload = await c.req.json();
+
+  // Parse the alert (PagerDuty format example)
+  const alert: AlertPayload = {
+    service: payload.event?.data?.service?.name || "unknown",
+    description: payload.event?.data?.title || "",
+    severity: payload.event?.data?.severity || "P2",
+    metrics: payload.event?.data?.custom_details || {},
+  };
+
+  // Get AI-assisted response with past incident knowledge
+  const recommendation = await handleIncident(alert);
+
+  // Post recommendation to the incident Slack channel
+  await postToSlack(
+    payload.event?.data?.channel || "#incidents",
+    `*Incident Response Bot*\n\n${recommendation}`
+  );
+
+  return c.json({ status: "ok" });
+});
+```
+
+### Bulk Import from Existing Postmortems
+
+```bash
+#!/bin/bash
+# import-postmortems.sh
+# Import structured postmortem data from a JSON file
+
+DEJA_URL="https://deja.your-subdomain.workers.dev"
+
+# postmortems.json is an array of postmortem entries
+cat postmortems.json | jq -c '.[]' | while read -r entry; do
+  service=$(echo "$entry" | jq -r '.service')
+  symptoms=$(echo "$entry" | jq -r '.symptoms')
+  root_cause=$(echo "$entry" | jq -r '.rootCause')
+  resolution=$(echo "$entry" | jq -r '.resolution')
+  prevention=$(echo "$entry" | jq -r '.prevention')
+
+  curl -s -X POST "$DEJA_URL/learn" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $DEJA_API_KEY" \
+    -d "$(jq -n \
+      --arg trigger "${service}: ${symptoms}" \
+      --arg learning "Root cause: ${root_cause}. Resolution: ${resolution}. Prevention: ${prevention}" \
+      '{trigger: $trigger, learning: $learning, confidence: 0.9, scope: "shared", source: "postmortem-import"}'
+    )"
+
+  echo "Imported: $service - $symptoms"
+done
+```
+
+### Example: The Postmortem JSON Format
+
+```json
+[
+  {
+    "service": "payments-api",
+    "symptoms": "5xx errors spiking, latency >5s on /api/charges",
+    "rootCause": "Database connection pool exhausted after traffic surge",
+    "resolution": "Increased pool to 50, added PgBouncer, deployed circuit breaker",
+    "prevention": "Auto-scale pool based on active connections, load test before sales"
+  },
+  {
+    "service": "auth-service",
+    "symptoms": "login failures, JWT validation errors across all services",
+    "rootCause": "JWT signing key rotated but cached public key not refreshed",
+    "resolution": "Cleared public key cache in all services, added cache TTL of 5 minutes",
+    "prevention": "Implement JWKS endpoint with automatic key rotation support"
+  },
+  {
+    "service": "search-api",
+    "symptoms": "search returning stale results, indexer lag >30 minutes",
+    "rootCause": "Elasticsearch cluster ran out of disk space, stopped indexing",
+    "resolution": "Deleted old indices, expanded disk to 500GB, resumed indexing",
+    "prevention": "Set up disk space alert at 80%, implement automatic index lifecycle policy"
+  }
+]
+```
+
+## The Full Cycle
+
+```
+ Incident #1 (January)         deja                  Incident #2 (March)
+ =====================         ====                  =====================
+
+ payments-api down
+ 5xx errors on /charges
+       |
+       v
+  Team investigates
+  (manual, 2 hours)
+       |
+       v
+  Root cause found:
+  connection pool
+       |
+       v
+  Postmortem written
+       |
+       |--- learn() ------>  Stores incident
+       |                     knowledge with
+       |                     semantic embedding
+       |
+       |                                          payments-api alerts
+       |                                          5xx errors on /refunds
+       |                                                |
+       |                                                v
+       |                                          inject() --------->
+       |                                                        deja matches
+       |                                          <--- memories: "connection
+       |                                               pool exhaustion..."
+       |                                                |
+       |                                                v
+       |                                          Agent checks pool:
+       |                                          confirmed, 47/50
+       |                                          connections used
+       |                                                |
+       |                                                v
+       |                                          Resolved in 10 minutes
+       |                                          (vs. 2 hours manually)
+```
+
+## When to Use This Pattern
+
+- Your team does postmortems (formal or informal) after incidents
+- The same classes of incidents recur across services
+- On-call rotation means the person responding may not have seen the previous incident
+- You want to turn "tribal knowledge" into queryable institutional memory
+
+## When NOT to Use This Pattern
+
+- **Incidents with sensitive root causes** -- if the postmortem contains security-sensitive details (credentials leaked, vulnerability details), redact before storing
+- **Unique, one-off incidents** -- if the incident is truly unique with no chance of recurrence, storing it adds noise
+- **You need deterministic runbooks** -- deja provides semantic recall, not step-by-step runbook execution. For deterministic playbooks, use a runbook tool and use deja to suggest which runbook to use
+
+## Tips
+
+- **Structure your learnings around symptoms.** The trigger should describe what the alert looks like, not the root cause. During a new incident, you know the symptoms -- you don't know the cause yet.
+- **Store both the resolution AND prevention.** The resolution helps during the incident. The prevention helps the agent recommend follow-up actions.
+- **Include the service name in triggers.** "payments-api: 5xx errors" matches better than generic "5xx errors" when the same symptoms can have different causes across services.
+- **Set high confidence (0.9+) for postmortem learnings.** These are verified by humans after thorough investigation. They should outrank agent-generated learnings during inject.

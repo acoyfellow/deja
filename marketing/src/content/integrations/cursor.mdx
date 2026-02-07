@@ -1,0 +1,178 @@
+---
+title: "Cursor + deja"
+description: "Give Cursor persistent memory across coding sessions. Learn codebase patterns, architectural decisions, and style preferences — then recall them automatically when editing similar files."
+keywords: "cursor, cursor editor, mcp, persistent memory, code assistant, ai editor"
+tags: ["mcp", "code-assistant", "cursor", "editor"]
+publishedAt: "2025-06-01"
+updatedAt: "2025-06-01"
+agentSummary: "This integration connects Cursor to deja via MCP protocol or REST API. Cursor can learn codebase patterns, naming conventions, and architectural decisions, then inject relevant memories when editing similar files. Configure MCP in Cursor settings or .cursor/mcp.json."
+featured: true
+order: 2
+category: "code-assistant"
+logo: "/logos/cursor.svg"
+difficulty: "beginner"
+relatedIntegrations: ["claude-code", "mcp-filesystem"]
+relatedPatterns: ["codebase-patterns", "style-memory"]
+---
+
+## Why Cursor + deja?
+
+Cursor's AI features are great at understanding the file you're editing, but they don't remember lessons from last week's refactor. Every session starts fresh — same questions, same mistakes, same re-explanations.
+
+With deja, Cursor accumulates knowledge about your codebase. When it learns that your API routes follow a specific middleware pattern, it remembers across sessions. When it discovers that a particular component has a tricky re-render edge case, it stores that. Next time you edit a similar file, it injects the relevant context before generating code.
+
+## Prerequisites
+
+- A deployed deja instance (Cloudflare Worker URL)
+- Your deja API key (Bearer token)
+- Cursor editor (v0.40+)
+
+## Setup
+
+### Option 1: MCP (Recommended)
+
+Add deja as an MCP server so Cursor's agent can call `learn` and `inject` as native tools.
+
+**Via Cursor Settings** — open Settings > MCP Servers and add:
+
+```json
+{
+  "deja": {
+    "url": "https://deja.your-subdomain.workers.dev/mcp",
+    "headers": {
+      "Authorization": "Bearer YOUR_DEJA_API_KEY"
+    }
+  }
+}
+```
+
+**Via project config** — create `.cursor/mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "deja": {
+      "url": "https://deja.your-subdomain.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_DEJA_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Restart Cursor after saving. The deja tools (`learn`, `inject`, `query`) will appear in the agent's tool list.
+
+### Option 2: REST via Cursor Rules
+
+Add memory instructions to `.cursorrules` in your project root:
+
+```markdown
+## Memory System
+
+This project uses deja for persistent memory. Before making changes to any file,
+check for relevant memories:
+
+curl -s -X POST https://deja.your-subdomain.workers.dev/inject \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"context": "editing <filename> — <describe the change>", "scopes": ["shared", "codebase"]}'
+
+When you discover a pattern, convention, or gotcha, store it:
+
+curl -s -X POST https://deja.your-subdomain.workers.dev/learn \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"trigger": "<when this applies>", "learning": "<what to remember>", "scope": "codebase"}'
+```
+
+### Option 3: deja-client in Project Scripts
+
+Create a helper script that Cursor can invoke:
+
+```bash
+npm install deja-client
+```
+
+```typescript
+// scripts/memory.ts
+import deja from "deja-client";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+const command = process.argv[2];
+
+if (command === "inject") {
+  const context = process.argv[3];
+  const result = await mem.inject(context, { scopes: ["shared", "codebase"] });
+  console.log(result.prompt);
+} else if (command === "learn") {
+  const trigger = process.argv[3];
+  const learning = process.argv[4];
+  await mem.learn(trigger, learning, { scope: "codebase", source: "cursor" });
+  console.log("Stored.");
+}
+```
+
+```bash
+# Recall before editing
+npx tsx scripts/memory.ts inject "editing the auth middleware"
+
+# Store a new learning
+npx tsx scripts/memory.ts learn "editing React components in /src/ui" "all components use forwardRef — always wrap new components with forwardRef"
+```
+
+## Example: Codebase Pattern Memory
+
+Here is how Cursor builds up knowledge about your codebase over a few sessions.
+
+**Session 1** — You ask Cursor to add a new API route. It generates the handler but forgets the error middleware wrapper your team uses. You correct it and Cursor learns:
+
+```json
+{
+  "trigger": "creating a new API route in /src/routes",
+  "learning": "All route handlers must be wrapped with asyncHandler() from /src/middleware/async-handler.ts. This catches thrown errors and passes them to the Express error middleware. Without it, unhandled promise rejections crash the server.",
+  "scope": "codebase",
+  "confidence": 0.95,
+  "source": "cursor"
+}
+```
+
+**Session 2** — You ask Cursor to add another route. Before generating code, it injects context for "creating a new API route" and gets:
+
+```
+Relevant memories:
+- All route handlers must be wrapped with asyncHandler() from /src/middleware/async-handler.ts.
+```
+
+Cursor generates the route correctly the first time, with `asyncHandler()` already wrapping the handler.
+
+**Session 3** — You ask Cursor to refactor several routes. It injects and also recalls:
+
+```
+Relevant memories:
+- All route handlers must be wrapped with asyncHandler()
+- Route files in /src/routes must export a default Router instance, not individual handlers
+- Validation schemas live in /src/schemas/<route-name>.ts, not inline
+```
+
+Each session, the code gets more consistent without you repeating yourself.
+
+## What to Learn, What to Inject
+
+| Trigger | What to Learn |
+|---|---|
+| `creating a new React component` | forwardRef conventions, prop naming patterns, CSS module structure |
+| `adding an API route` | middleware wrappers, auth guards, validation patterns |
+| `writing a database query` | ORM patterns, connection pooling rules, index usage |
+| `modifying the build config` | Bundler quirks, environment-specific overrides, known compatibility issues |
+| `editing test files` | Test utilities, mock factory patterns, snapshot conventions |
+| `working with <module-name>` | Module-specific patterns, known bugs, performance considerations |
+
+## Related
+
+- [Claude Code + deja](/integrations/claude-code) — same MCP approach for Claude's CLI
+- [MCP Filesystem + deja](/integrations/mcp-filesystem) — combine file awareness with memory
+- [Codebase Patterns](/patterns/codebase-patterns) — structured approach to learning code conventions

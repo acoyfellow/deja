@@ -1,0 +1,233 @@
+---
+title: "n8n + deja"
+description: "Add persistent memory to n8n workflows. Learn from ticket resolutions, customer interactions, and process outcomes — then inject relevant context when similar situations arise."
+keywords: "n8n, workflow automation, no-code, low-code, persistent memory, http request"
+tags: ["orchestration", "n8n", "workflow", "automation", "rest-api"]
+publishedAt: "2025-06-01"
+updatedAt: "2025-06-01"
+agentSummary: "This integration connects n8n workflows to deja via HTTP Request nodes pointing at the deja REST API. Use POST /learn in workflow steps that complete tasks (ticket resolution, customer onboarding) and POST /inject at the start of workflows to recall relevant memories. No npm packages needed — pure HTTP."
+featured: true
+order: 5
+category: "orchestration"
+logo: "/logos/n8n.svg"
+difficulty: "beginner"
+relatedIntegrations: ["slack-bots", "github-actions"]
+relatedPatterns: ["ticket-memory", "process-learning"]
+---
+
+## Why n8n + deja?
+
+n8n workflows are powerful for automation, but each execution is stateless. Your ticket-routing workflow does not remember that the last five "payment failed" tickets were all caused by the same expired API key. Your onboarding workflow does not recall that customers from a specific region always need an extra verification step.
+
+With deja, n8n workflows accumulate knowledge. A support workflow that resolves a tricky issue stores the solution. Next time a similar ticket arrives, the workflow injects that memory and can either auto-resolve or provide the agent with the context they need.
+
+## Prerequisites
+
+- A deployed deja instance (Cloudflare Worker URL)
+- Your deja API key
+- n8n (self-hosted or n8n Cloud)
+
+## Setup
+
+All communication with deja happens through n8n's HTTP Request node. No custom nodes or npm packages are needed.
+
+### Step 1: Store Credentials
+
+In n8n, go to **Credentials** and create a new **Header Auth** credential:
+
+- **Name**: `deja`
+- **Header Name**: `Authorization`
+- **Header Value**: `Bearer YOUR_DEJA_API_KEY`
+
+### Step 2: Create an Inject Node
+
+Add an **HTTP Request** node configured to recall memories:
+
+- **Method**: `POST`
+- **URL**: `https://deja.your-subdomain.workers.dev/inject`
+- **Authentication**: Header Auth (select your `deja` credential)
+- **Body Content Type**: JSON
+- **Body**:
+
+```json
+{
+  "context": "={{ $json.description || $json.subject || 'general task' }}",
+  "scopes": ["shared", "support"],
+  "limit": 5
+}
+```
+
+This node takes the incoming data (e.g., a ticket description) and fetches relevant memories.
+
+### Step 3: Create a Learn Node
+
+Add another **HTTP Request** node configured to store learnings:
+
+- **Method**: `POST`
+- **URL**: `https://deja.your-subdomain.workers.dev/learn`
+- **Authentication**: Header Auth (select your `deja` credential)
+- **Body Content Type**: JSON
+- **Body**:
+
+```json
+{
+  "trigger": "={{ $json.category || 'general' }} ticket received",
+  "learning": "={{ $json.resolution }}",
+  "scope": "support",
+  "confidence": 0.85,
+  "source": "n8n-workflow",
+  "reason": "Automated capture from resolved ticket"
+}
+```
+
+## Example: Ticket Resolution Memory
+
+A workflow that learns from resolved support tickets and injects that knowledge when new tickets arrive.
+
+### Workflow Structure
+
+```
+[Webhook: New Ticket] → [Inject Memories] → [IF: Memories Found?]
+                                                    ↓ Yes          ↓ No
+                                            [Add to Ticket]   [Route Normally]
+                                                    ↓
+                                            [Route with Context]
+
+[Webhook: Ticket Resolved] → [Learn from Resolution]
+```
+
+### Workflow JSON (import into n8n)
+
+```json
+{
+  "nodes": [
+    {
+      "name": "New Ticket Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 300],
+      "parameters": {
+        "path": "new-ticket",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "name": "Inject Memories",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [450, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://deja.your-subdomain.workers.dev/inject",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "context",
+              "value": "={{ $json.body.subject }}: {{ $json.body.description }}"
+            },
+            { "name": "scopes", "value": "[\"support\", \"shared\"]" },
+            { "name": "limit", "value": "3" }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "deja", "name": "deja" }
+      }
+    },
+    {
+      "name": "Has Memories?",
+      "type": "n8n-nodes-base.if",
+      "position": [650, 300],
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.learnings.length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Resolution Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 500],
+      "parameters": {
+        "path": "ticket-resolved",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "name": "Learn from Resolution",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [450, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "https://deja.your-subdomain.workers.dev/learn",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "trigger",
+              "value": "={{ $json.body.category }} support ticket"
+            },
+            {
+              "name": "learning",
+              "value": "={{ $json.body.resolution }}"
+            },
+            { "name": "scope", "value": "support" },
+            { "name": "confidence", "value": "0.85" },
+            { "name": "source", "value": "n8n-workflow" }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "deja", "name": "deja" }
+      }
+    }
+  ]
+}
+```
+
+### How It Plays Out
+
+**Week 1** — A ticket comes in: "Payment failing for customer #4521." The support agent investigates and discovers the customer's payment method expired. The resolution is stored:
+
+```json
+{
+  "trigger": "billing support ticket",
+  "learning": "Payment failures for individual customers are often caused by expired payment methods. Check Stripe dashboard > Customers > Payment Methods before escalating. If the method expired in the last 30 days, send the customer the update-payment-method link.",
+  "scope": "support"
+}
+```
+
+**Week 2** — A similar ticket arrives: "Customer #7890 says payments aren't going through." The workflow injects memories for this context and gets:
+
+```
+Relevant memories:
+- Payment failures for individual customers are often caused by expired payment methods. Check Stripe dashboard > Customers > Payment Methods before escalating.
+```
+
+This context is appended to the ticket as an internal note, so the support agent sees the likely cause immediately.
+
+## What to Learn, What to Inject
+
+| Trigger | What to Learn |
+|---|---|
+| `billing support ticket` | Common payment failure causes, Stripe dashboard shortcuts |
+| `onboarding new customer` | Region-specific requirements, common setup mistakes |
+| `integration setup request` | API key generation steps, webhook configuration gotchas |
+| `feature request received` | Similar existing features, planned roadmap items |
+| `bug report for <feature>` | Known workarounds, related issues, fix timelines |
+| `escalation to engineering` | What information engineering needs, common resolution paths |
+
+## Related
+
+- [Slack Bots + deja](/integrations/slack-bots) — surface ticket memories in Slack channels
+- [GitHub Actions + deja](/integrations/github-actions) — connect CI knowledge to support workflows
+- [Ticket Memory pattern](/patterns/ticket-memory) — structured approach to support knowledge

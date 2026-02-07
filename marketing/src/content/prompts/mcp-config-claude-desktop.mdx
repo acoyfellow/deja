@@ -1,0 +1,128 @@
+---
+title: "MCP Config for Claude Desktop"
+description: "The JSON configuration to add deja as an MCP server in Claude Desktop. Copy, paste, restart."
+keywords: "mcp config, claude desktop, model context protocol, mcp server, claude configuration"
+tags: ["mcp", "claude-desktop", "configuration", "getting-started"]
+agentSummary: "Provides the exact JSON config to add deja as an MCP server in Claude Desktop's claude_desktop_config.json file. Includes the config, file location, customization options, and troubleshooting steps."
+featured: true
+order: 3
+category: "mcp-config"
+prompt: |
+  {
+    "mcpServers": {
+      "deja": {
+        "url": "https://deja.YOUR-SUBDOMAIN.workers.dev/mcp",
+        "transport": "http",
+        "headers": {
+          "Authorization": "Bearer YOUR_API_KEY"
+        }
+      }
+    }
+  }
+---
+
+This is the MCP server configuration for connecting Claude Desktop to your deja instance. Once configured, Claude can call `learn`, `inject`, `query`, `forget`, `list`, and `stats` as native MCP tools — no extra prompting needed.
+
+## Where to find the config file
+
+The `claude_desktop_config.json` file lives in different places depending on your OS:
+
+```bash
+# macOS
+~/Library/Application Support/Claude/claude_desktop_config.json
+
+# Windows
+%APPDATA%\Claude\claude_desktop_config.json
+
+# Linux
+~/.config/Claude/claude_desktop_config.json
+```
+
+If the file does not exist, create it. If it already has content, merge the `deja` key into the existing `mcpServers` object:
+
+```json
+{
+  "mcpServers": {
+    "existing-server": { "...": "..." },
+    "deja": {
+      "url": "https://deja.YOUR-SUBDOMAIN.workers.dev/mcp",
+      "transport": "http",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+## Customizing the config
+
+### URL
+
+Replace `YOUR-SUBDOMAIN` with your actual Cloudflare Workers subdomain. If you deployed with a custom domain, use that instead:
+
+```json
+"url": "https://memory.yourcompany.com/mcp"
+```
+
+### Authentication
+
+If your deja instance has `API_KEY` set (recommended), include the `Authorization` header. If you are running deja without auth (development only), you can omit the `headers` block.
+
+### Local development
+
+When running deja locally with `wrangler dev`, point to localhost:
+
+```json
+{
+  "mcpServers": {
+    "deja": {
+      "url": "http://localhost:8787/mcp",
+      "transport": "http"
+    }
+  }
+}
+```
+
+## After editing the config
+
+1. Save `claude_desktop_config.json`
+2. **Fully quit Claude Desktop** (not just close the window — quit the app)
+3. Reopen Claude Desktop
+4. Start a new conversation and verify deja is connected:
+
+> "What MCP tools do you have available?"
+
+Claude should list the deja tools: `learn`, `inject`, `query`, `forget`, `list`, `stats`.
+
+## Troubleshooting
+
+### Claude does not see deja tools
+
+- Verify the JSON is valid (no trailing commas, proper quoting)
+- Confirm the URL is reachable: `curl https://deja.YOUR-SUBDOMAIN.workers.dev/mcp`
+- Make sure you fully restarted Claude Desktop
+- Check that `transport` is set to `"http"` (not `"stdio"`)
+
+### Authentication errors
+
+- Confirm your API key matches what you set with `wrangler secret put API_KEY`
+- The header must be `"Authorization": "Bearer YOUR_KEY"` — include the `Bearer` prefix
+
+### Timeout errors
+
+- deja's MCP endpoint at `/mcp` responds to JSON-RPC 2.0 requests
+- If you see timeout errors, check that your Cloudflare Worker is deployed and healthy: `curl https://deja.YOUR-SUBDOMAIN.workers.dev/`
+
+## Available MCP tools
+
+Once connected, Claude can use these tools directly in conversation:
+
+| Tool | Description | Example usage |
+|------|-------------|---------------|
+| `learn` | Store a memory | "Remember that deploys fail without dry-run" |
+| `inject` | Get relevant memories | "What do you know about deploying?" |
+| `query` | Search memories | "Search for anything about Node version issues" |
+| `forget` | Delete a memory | "Forget memory abc-123" |
+| `list` | List memories | "Show me all shared memories" |
+| `stats` | Get statistics | "How many memories are stored?" |

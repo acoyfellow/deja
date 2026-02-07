@@ -1,0 +1,120 @@
+---
+import Base from '../../layouts/Base.astro';
+import SEO from '../../components/SEO.astro';
+import AgentMeta from '../../components/AgentMeta.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('patterns');
+  return entries.map(entry => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const allEntries = (await getCollection('patterns')).sort((a, b) => a.data.order - b.data.order);
+const idx = allEntries.findIndex(e => e.id === entry.id);
+const prev = idx > 0 ? allEntries[idx - 1] : null;
+const next = idx < allEntries.length - 1 ? allEntries[idx + 1] : null;
+
+const grouped: Record<string, typeof allEntries> = {};
+for (const e of allEntries) {
+  const cat = e.data.category;
+  if (!grouped[cat]) grouped[cat] = [];
+  grouped[cat].push(e);
+}
+---
+
+<Base title={`${entry.data.title} — deja`} variant="content">
+  <SEO
+    slot="head"
+    title={`${entry.data.title} — deja`}
+    description={entry.data.description}
+    keywords={entry.data.keywords}
+    path={`/patterns/${entry.id}`}
+    type="article"
+    section="Patterns"
+    tags={entry.data.tags}
+    breadcrumbs={[
+      { name: 'Patterns', path: '/patterns' },
+      { name: entry.data.title, path: `/patterns/${entry.id}` },
+    ]}
+  />
+
+  <div class="pt-16 pb-8 lg:grid lg:grid-cols-[220px_1fr_180px] lg:gap-8">
+    <aside class="hidden lg:block">
+      <nav class="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
+        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3">Patterns</div>
+        {Object.entries(grouped).map(([cat, items]) => (
+          <div class="mb-4">
+            <div class="font-mono text-[9px] font-bold tracking-widest uppercase text-chrome-dark/40 mb-1">{cat.replace(/-/g, ' ')}</div>
+            {items.map(item => (
+              <a href={`/patterns/${item.id}`} class:list={['block py-1 text-[13px] font-serif transition-colors', item.id === entry.id ? 'text-brass border-l-2 border-brass pl-2' : 'text-chrome-dark/70 hover:text-chrome pl-2']}>
+                {item.data.title}
+              </a>
+            ))}
+          </div>
+        ))}
+      </nav>
+    </aside>
+
+    <div class="min-w-0">
+      <nav class="font-mono text-[11px] text-chrome-dark/60 mb-6 flex items-center gap-1.5">
+        <a href="/" class="hover:text-brass transition-colors">Home</a><span>/</span>
+        <a href="/patterns" class="hover:text-brass transition-colors">Patterns</a><span>/</span>
+        <span class="text-chrome-dark">{entry.data.title}</span>
+      </nav>
+
+      <div class="mb-8">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-brass/10 text-brass">{entry.data.category.replace(/-/g, ' ')}</span>
+          <span class="font-mono text-[10px] tracking-widest uppercase text-chrome-dark/50">{entry.data.difficulty}</span>
+        </div>
+        <h1 class="font-serif-sc text-4xl md:text-5xl font-bold tracking-tight m-0 mb-3">{entry.data.title}</h1>
+        <p class="font-serif font-light text-lg text-chrome-dark m-0">{entry.data.description}</p>
+      </div>
+
+      <article class="prose-deja"><Content /></article>
+      <AgentMeta summary={entry.data.agentSummary} />
+
+      <div class="mt-12 pt-8 border-t border-brass/10 grid grid-cols-2 gap-4">
+        {prev && (
+          <a href={`/patterns/${prev.id}`} class="group text-left">
+            <div class="font-mono text-[10px] text-chrome-dark/40 uppercase tracking-widest mb-1">Previous</div>
+            <div class="font-serif text-sm text-chrome-dark group-hover:text-brass transition-colors">{prev.data.title}</div>
+          </a>
+        )}
+        {next && (
+          <a href={`/patterns/${next.id}`} class="group text-right col-start-2">
+            <div class="font-mono text-[10px] text-chrome-dark/40 uppercase tracking-widest mb-1">Next</div>
+            <div class="font-serif text-sm text-chrome-dark group-hover:text-brass transition-colors">{next.data.title}</div>
+          </a>
+        )}
+      </div>
+    </div>
+
+    <aside class="hidden lg:block">
+      <nav class="sticky top-24">
+        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3">On this page</div>
+        {headings.filter(h => h.depth <= 3).map(h => (
+          <a href={`#${h.slug}`} class:list={['toc-link block py-1 text-[13px] font-serif text-chrome-dark/60 hover:text-brass transition-colors', h.depth === 3 && 'pl-3']} data-slug={h.slug}>{h.text}</a>
+        ))}
+      </nav>
+    </aside>
+  </div>
+</Base>
+
+<script>
+  const tocLinks = document.querySelectorAll('.toc-link');
+  const headings = document.querySelectorAll('article h2[id], article h3[id]');
+  if (headings.length > 0 && tocLinks.length > 0) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(l => l.classList.remove('!text-brass'));
+          document.querySelector(`.toc-link[data-slug="${entry.target.id}"]`)?.classList.add('!text-brass');
+        }
+      });
+    }, { rootMargin: '-80px 0px -80% 0px' });
+    headings.forEach(h => observer.observe(h));
+  }
+</script>

@@ -1,0 +1,270 @@
+---
+title: "Human-in-the-Loop Teaching"
+description: "Let humans explicitly teach agents by saying 'remember this.' The agent stores the teaching with appropriate confidence and scope using deja's learn() API."
+keywords: "human-in-loop, teaching, explicit memory, remember this, user feedback"
+tags: ["beginner", "human-in-loop", "teaching", "user-feedback"]
+publishedAt: "2026-02-07"
+agentSummary: "The human-in-the-loop teaching pattern lets users explicitly teach an agent by issuing natural-language instructions like 'remember that we use pnpm' or 'never deploy on Fridays.' The agent parses these into structured learn() calls with a trigger, learning, and high confidence. This creates a curated, human-validated memory layer that supplements the agent's self-generated learnings."
+featured: true
+order: 3
+category: "human-in-loop"
+difficulty: "beginner"
+relatedPatterns: ["single-agent-recall", "memory-hygiene"]
+relatedIntegrations: []
+---
+
+# Human-in-the-Loop Teaching
+
+Agents learn on their own, but humans know things agents never encounter. This pattern gives users a direct way to teach the agent -- saying "remember this" and having it stick permanently.
+
+## The Pattern
+
+When a user gives an explicit instruction to remember something, the agent:
+
+1. Parses the instruction into a structured trigger + learning pair
+2. Stores it via `learn()` with high confidence (it came from a human)
+3. Confirms what it stored so the user can correct if needed
+
+Future interactions automatically surface these teachings via `inject()`.
+
+## Conversation Examples
+
+### Example 1: Direct teaching
+
+```
+User: Remember that we always use pnpm, never npm or yarn.
+
+Agent: Got it. I've stored this memory:
+  - Trigger: "choosing a package manager or running install commands"
+  - Learning: "always use pnpm, never npm or yarn"
+  - Confidence: 0.95
+
+I'll apply this to all future tasks involving package management.
+```
+
+**The learn() call this produces:**
+
+```typescript
+await mem.learn(
+  "choosing a package manager or running install commands",
+  "always use pnpm, never npm or yarn",
+  {
+    confidence: 0.95,
+    scope: "shared",
+    source: "human-teaching",
+  }
+);
+```
+
+### Example 2: Corrective teaching
+
+```
+User: You used tabs in that file. Remember that this project uses 2-space
+      indentation everywhere.
+
+Agent: Sorry about that. I've stored this as a memory:
+  - Trigger: "writing or formatting code in this project"
+  - Learning: "use 2-space indentation, never tabs"
+  - Confidence: 0.95
+
+I've corrected the file and will use 2-space indentation going forward.
+```
+
+```typescript
+await mem.learn(
+  "writing or formatting code in this project",
+  "use 2-space indentation, never tabs",
+  {
+    confidence: 0.95,
+    scope: "shared",
+    source: "human-correction",
+  }
+);
+```
+
+### Example 3: Scoped teaching
+
+```
+User: For my personal projects (not work), remember that I prefer Tailwind
+      over plain CSS.
+
+Agent: Noted. I've stored this in your personal scope:
+  - Trigger: "styling a personal project"
+  - Learning: "use Tailwind CSS, not plain CSS"
+  - Scope: session:personal-prefs
+  - Confidence: 0.9
+```
+
+```typescript
+await mem.learn(
+  "styling a personal project",
+  "use Tailwind CSS, not plain CSS",
+  {
+    confidence: 0.9,
+    scope: "session:personal-prefs",
+    source: "human-teaching",
+  }
+);
+```
+
+### Example 4: Negative teaching ("never do this")
+
+```
+User: Never run database migrations during business hours. We had an outage
+      last time.
+
+Agent: Important lesson stored:
+  - Trigger: "running or scheduling database migrations"
+  - Learning: "never run database migrations during business hours (9am-6pm).
+    Schedule for off-hours only. Previous attempt caused an outage."
+  - Confidence: 1.0
+```
+
+```typescript
+await mem.learn(
+  "running or scheduling database migrations",
+  "never run database migrations during business hours (9am-6pm). Schedule for off-hours only. Previous attempt caused an outage.",
+  {
+    confidence: 1.0,
+    scope: "shared",
+    source: "human-teaching",
+    reason: "previous outage during business-hours migration",
+  }
+);
+```
+
+## Implementation
+
+### Detecting "Remember This" Intent
+
+```typescript
+import { deja } from "deja-client";
+
+const mem = deja("https://deja.your-subdomain.workers.dev", {
+  apiKey: process.env.DEJA_API_KEY,
+});
+
+// Phrases that signal teaching intent
+const TEACHING_SIGNALS = [
+  "remember that",
+  "remember this",
+  "don't forget",
+  "keep in mind",
+  "note that",
+  "never do",
+  "always do",
+  "from now on",
+  "going forward",
+  "in the future",
+];
+
+function isTeachingIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  return TEACHING_SIGNALS.some((signal) => lower.includes(signal));
+}
+```
+
+### Full Teaching Handler
+
+```typescript
+interface ParsedTeaching {
+  trigger: string;
+  learning: string;
+  confidence: number;
+  scope: string;
+  source: string;
+  reason?: string;
+}
+
+async function handleTeaching(
+  userMessage: string,
+  parseWithLLM: (prompt: string) => Promise<string>
+): Promise<ParsedTeaching> {
+  // Use the LLM to parse the natural language into structured fields
+  const parsePrompt = `The user wants to teach the agent something. Parse their
+message into a structured memory.
+
+User message: "${userMessage}"
+
+Respond with JSON only:
+{
+  "trigger": "when this situation arises (be specific and descriptive)",
+  "learning": "what to do or not do (include the full context)",
+  "confidence": 0.95,
+  "scope": "shared",
+  "reason": "optional: why this matters"
+}`;
+
+  const parsed: ParsedTeaching = JSON.parse(await parseWithLLM(parsePrompt));
+
+  // Human teachings always get high confidence
+  parsed.confidence = Math.max(parsed.confidence, 0.9);
+  parsed.source = "human-teaching";
+
+  // Store it
+  await mem.learn(parsed.trigger, parsed.learning, {
+    confidence: parsed.confidence,
+    scope: parsed.scope,
+    source: parsed.source,
+    reason: parsed.reason,
+  });
+
+  return parsed;
+}
+```
+
+### Integration into an Agent Loop
+
+```typescript
+async function agentLoop(userMessage: string) {
+  // Check if this is a teaching moment
+  if (isTeachingIntent(userMessage)) {
+    const teaching = await handleTeaching(userMessage, callLLM);
+    return formatTeachingConfirmation(teaching);
+  }
+
+  // Normal flow: inject memories, then process
+  const { prompt: memories } = await mem.inject(userMessage, {
+    scopes: ["shared"],
+    limit: 5,
+  });
+
+  const response = await callLLM(buildPrompt(memories, userMessage));
+  return response;
+}
+
+function formatTeachingConfirmation(teaching: ParsedTeaching): string {
+  return [
+    "Got it. I've stored this memory:",
+    `  - Trigger: "${teaching.trigger}"`,
+    `  - Learning: "${teaching.learning}"`,
+    `  - Confidence: ${teaching.confidence}`,
+    teaching.reason ? `  - Reason: ${teaching.reason}` : "",
+    "",
+    "I'll apply this to all relevant future tasks.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+```
+
+## When to Use This Pattern
+
+- Your agent works with a specific user or team that has domain knowledge
+- The agent makes recurring mistakes that could be corrected once
+- You want users to feel ownership over the agent's behavior
+- Organizational policies or preferences need to be encoded
+
+## When NOT to Use This Pattern
+
+- **Fully autonomous agents with no human interaction** -- use [Single Agent Recall](/patterns/single-agent-recall) for self-learning instead
+- **The user's instructions are ambiguous or contradictory** -- add a confirmation step before storing
+- **High-volume teaching** -- if a user is teaching dozens of things at once, consider bulk-importing via the REST API rather than conversational teaching
+- **Sensitive information** -- never store passwords, API keys, or PII as learnings. Use deja's secrets API for those
+
+## Tips
+
+- **Always confirm what was stored.** Show the user the parsed trigger and learning so they can correct misinterpretations before the memory becomes permanent.
+- **Tag the source as `human-teaching` or `human-correction`.** This lets you filter and prioritize human-provided knowledge during inject.
+- **Give human teachings higher confidence.** A human explicitly saying "remember this" is more reliable than an agent's self-generated learning. Use 0.9-1.0 confidence.
+- **Pair with Memory Hygiene.** Human teachings with confidence 1.0 should be exempt from automatic confidence decay. See [Memory Hygiene](/patterns/memory-hygiene).

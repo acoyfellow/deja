@@ -1,6 +1,29 @@
 ---
-import Base from '../layouts/Base.astro';
-import SEO from '../components/SEO.astro';
+import Base from "../layouts/Base.astro";
+import SEO from "../components/SEO.astro";
+import { getCollection } from "astro:content";
+
+const featuredIntegrations = (await getCollection('integrations'))
+  .filter(e => e.data.featured)
+  .sort((a, b) => a.data.order - b.data.order)
+  .slice(0, 6);
+
+const latestPatterns = (await getCollection('patterns'))
+  .sort((a, b) => a.data.order - b.data.order)
+  .slice(0, 4);
+
+const featuredPrompt = (await getCollection('prompts'))
+  .filter(e => e.data.featured)
+  .sort((a, b) => a.data.order - b.data.order)[0];
+
+const integrationCategories = [
+  { slug: 'agent-framework', label: 'Agent Frameworks', desc: 'LangChain, CrewAI, AutoGPT' },
+  { slug: 'code-assistant', label: 'Code Assistants', desc: 'Claude Code, Cursor, Windsurf' },
+  { slug: 'ci-cd', label: 'CI/CD', desc: 'GitHub Actions, GitLab CI' },
+  { slug: 'orchestration', label: 'Orchestration', desc: 'n8n, Zapier, Temporal' },
+  { slug: 'communication', label: 'Communication', desc: 'Slack, Discord, Teams' },
+  { slug: 'mcp-server', label: 'MCP Servers', desc: 'Filesystem, Database, Git' },
+];
 ---
 
 <Base title="deja — persistent memory for agents">
@@ -13,37 +36,74 @@ import SEO from '../components/SEO.astro';
   />
   <!-- Hero -->
   <section class="pt-24 pb-18">
-    <div class="border border-brass/20 rounded-sm p-12 relative overflow-hidden bg-cover bg-center bg-no-repeat shadow-hero" style="background-image: url('/brain.jpg');">
-      <div class="absolute inset-0 bg-gradient-to-b from-void/70 via-void/85 to-void/95"></div>
-      <div class="relative z-[1]">
-        <div class="font-mono text-[11px] font-bold tracking-[0.2em] uppercase text-brass mb-4">Shared memory for agents — from anywhere</div>
-        <h1 class="font-serif-sc text-5xl md:text-7xl font-bold tracking-tight m-0 mb-3">
-          deja, <span class="text-brass">one brain</span> for every agent you run.
+    <div
+      class="border border-brass/20 rounded-sm p-12 relative overflow-hidden bg-cover bg-center bg-no-repeat shadow-hero relative z-10"
+    >
+      <div
+        class="absolute inset-0 bg-linear-to-b from-void/70 via-void/85 to-void/95"
+      >
+      </div>
+      <div
+        class="absolute inset-0 bg-cover bg-center bg-no-repeat -z-10 bg-blend-multiply"
+        style="background-image: url('/brain.jpg');"
+      >
+      </div>
+      <div class="relative z-1">
+        <div
+          class="font-mono text-[11px] font-bold tracking-[0.2em] uppercase text-brass mb-4"
+        >
+          Shared memory for agents — from anywhere
+        </div>
+        <h1
+          class="font-serif-sc text-5xl md:text-7xl font-bold tracking-tight m-0 mb-3"
+        >
+          deja, <span class="text-brass">what one agent learns,</span> they all know.
         </h1>
-        <p class="font-serif font-light text-lg text-chrome-dark max-w-[640px] mb-6">
-          CI learns it. Your chat agent already knows it. Open source, self-hosted recall that any server, client, or script can shape.
+        <p
+          class="font-serif font-light text-lg text-chrome-dark max-w-[640px] mb-6"
+        >
+          CI learns it. Your chat agent already knows it. Open source,
+          self-hosted recall that any server, client, or script can shape.
         </p>
 
         <!-- The killer snippet - Library focused -->
-        <div class="bg-void-deep/80 border border-brass/20 rounded-sm p-5 mb-8 max-w-[480px] backdrop-blur-sm">
+        <div
+          class="bg-void-deep/80 border border-brass/20 rounded-sm p-5 mb-8 max-w-[480px] backdrop-blur-sm"
+        >
           <div class="font-mono text-[13px] leading-relaxed">
             <div class="text-chrome-dark/60 mb-2">npm i deja-client</div>
             <div class="mb-3">
-              <span class="text-brass">await</span> <span class="text-chrome">mem.learn</span>(<span class="text-chrome-dark">"deploy failed"</span>, <span class="text-chrome-dark">"check wrangler.toml"</span>)
+              <span class="text-brass">await</span>
+              <span class="text-chrome">mem.learn</span>(<span
+                class="text-chrome-dark">"deploy failed"</span
+              >, <span class="text-chrome-dark">"check wrangler.toml"</span>)
             </div>
             <div>
-              <span class="text-brass">await</span> <span class="text-chrome">mem.inject</span>(<span class="text-chrome-dark">"deploying"</span>) <span class="text-chrome-dark/60">// → "check wrangler.toml"</span>
+              <span class="text-brass">await</span>
+              <span class="text-chrome">mem.inject</span>(<span
+                class="text-chrome-dark">"deploying"</span
+              >) <span class="text-chrome-dark/60"
+                >// → "check wrangler.toml"</span
+              >
             </div>
           </div>
         </div>
 
-        <div class="flex flex-wrap gap-4 items-center max-md:flex-col max-md:items-start">
-          <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/acoyfellow/deja" target="_blank" rel="noreferrer"
-            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass-dark bg-gradient-to-b from-steel-light to-steel shadow-btn hover:-translate-y-px active:translate-y-px transition-transform">
+        <div
+          class="flex flex-wrap gap-4 items-center max-md:flex-col max-md:items-start"
+        >
+          <a
+            href="https://deploy.workers.cloudflare.com/?url=https://github.com/acoyfellow/deja"
+            target="_blank"
+            rel="noreferrer"
+            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass-dark bg-linear-to-b from-steel-light to-steel shadow-btn hover:-translate-y-px active:translate-y-px transition-transform"
+          >
             Deploy to Cloudflare
           </a>
-          <a href="/docs"
-            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors">
+          <a
+            href="/docs"
+            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+          >
             Read the Docs
           </a>
         </div>
@@ -53,15 +113,31 @@ import SEO from '../components/SEO.astro';
 
   <!-- Three Ways to Use -->
   <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Three ways to use deja</div>
+    <div
+      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
+    >
+      Three ways to use deja
+    </div>
     <div class="grid gap-6 grid-cols-1 lg:grid-cols-3">
       <!-- Library -->
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3">Library</div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">Thin wrapper over HTTP. Two functions.</p>
-        <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> <span class="var">deja</span> <span class="flag">from</span> <span class="string">'deja-client'</span>
-
+      <div
+        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+      >
+        <div
+          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+        >
+        </div>
+        <div
+          class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
+        >
+          Library
+        </div>
+        <p class="font-serif font-light text-chrome-dark m-0 mb-4">
+          Thin wrapper over HTTP. Two functions.
+        </p>
+        <div
+          class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"
+        ><span class="flag">import</span> <span class="var">deja</span> <span class="flag">from</span> <span class="string">'deja-client'</span>
 <span class="flag">const</span> <span class="var">mem</span> = deja(<span class="var">DEJA_URL</span>)
 
 <span class="flag">await</span> mem.<span class="cmd">learn</span>(<span class="string">"trigger"</span>, <span class="string">"learning"</span>)
@@ -69,11 +145,24 @@ import SEO from '../components/SEO.astro';
       </div>
 
       <!-- API -->
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3">REST API</div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">HTTP endpoints. Use from anywhere.</p>
-        <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="cmd">POST</span> /learn
+      <div
+        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+      >
+        <div
+          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+        >
+        </div>
+        <div
+          class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
+        >
+          REST API
+        </div>
+        <p class="font-serif font-light text-chrome-dark m-0 mb-4">
+          HTTP endpoints. Use from anywhere.
+        </p>
+        <div
+          class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"
+        ><span class="cmd">POST</span> /learn
 <span class="cmd">POST</span> /inject
 <span class="cmd">POST</span> /query
 <span class="cmd">GET</span>  /learnings
@@ -81,13 +170,28 @@ import SEO from '../components/SEO.astro';
       </div>
 
       <!-- MCP -->
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3">MCP</div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">Native protocol. Claude, Cursor, etc.</p>
-        <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="comment">// claude_desktop_config.json</span>
+      <div
+        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+      >
+        <div
+          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+        >
+        </div>
+        <div
+          class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
+        >
+          MCP
+        </div>
+        <p class="font-serif font-light text-chrome-dark m-0 mb-4">
+          Native protocol. Claude, Cursor, etc.
+        </p>
+        <div
+          class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"
+        ><span class="comment">// claude_desktop_config.json</span>
 <span class="string">"mcpServers"</span>: {"{"}
-  <span class="string">"deja"</span>: {"{"} <span class="string">"url"</span>: <span class="string">"..."</span> {"}"}
+  <span class="string">"deja"</span>: {"{"}
+    <span class="string">"url"</span>: <span class="string">"..."</span>
+  {"}"}
 {"}"}</div>
       </div>
     </div>
@@ -95,73 +199,177 @@ import SEO from '../components/SEO.astro';
 
   <!-- Use Cases -->
   <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Use cases</div>
+    <div
+      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
+    >
+      Use cases
+    </div>
     <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">Incident response</h3>
-        <p class="font-serif font-light text-chrome-dark m-0">Capture the postmortem as learnings, inject them before the next on-call handoff.</p>
+      <div
+        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+      >
+        <div
+          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+        >
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">
+          Incident response
+        </h3>
+        <p class="font-serif font-light text-chrome-dark m-0">
+          Capture the postmortem as learnings, inject them before the next
+          on-call handoff.
+        </p>
       </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">Agent onboarding</h3>
-        <p class="font-serif font-light text-chrome-dark m-0">Give fresh agents the muscle memory of your best runs without flooding them with logs.</p>
+      <div
+        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+      >
+        <div
+          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+        >
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">
+          Agent onboarding
+        </h3>
+        <p class="font-serif font-light text-chrome-dark m-0">
+          Give fresh agents the muscle memory of your best runs without flooding
+          them with logs.
+        </p>
       </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">Long-running workflows</h3>
-        <p class="font-serif font-light text-chrome-dark m-0">Stitch multi-day work into a single arc. Deja remembers outcomes, not noise.</p>
+      <div
+        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+      >
+        <div
+          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+        >
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">
+          Long-running workflows
+        </h3>
+        <p class="font-serif font-light text-chrome-dark m-0">
+          Stitch multi-day work into a single arc. Deja remembers outcomes, not
+          noise.
+        </p>
       </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">Tool reliability</h3>
-        <p class="font-serif font-light text-chrome-dark m-0">Teach agents the traps: flaky endpoints, brittle migrations, and safe retries.</p>
+      <div
+        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+      >
+        <div
+          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+        >
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">
+          Tool reliability
+        </h3>
+        <p class="font-serif font-light text-chrome-dark m-0">
+          Teach agents the traps: flaky endpoints, brittle migrations, and safe
+          retries.
+        </p>
       </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">Ops playbooks</h3>
-        <p class="font-serif font-light text-chrome-dark m-0">Store the short form. Inject it when the runbook needs to be alive.</p>
+      <div
+        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+      >
+        <div
+          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+        >
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">
+          Ops playbooks
+        </h3>
+        <p class="font-serif font-light text-chrome-dark m-0">
+          Store the short form. Inject it when the runbook needs to be alive.
+        </p>
       </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">Product memory</h3>
-        <p class="font-serif font-light text-chrome-dark m-0">Let agents remember the why, not just the what. Keep decisions tethered.</p>
+      <div
+        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+      >
+        <div
+          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+        >
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-3">
+          Product memory
+        </h3>
+        <p class="font-serif font-light text-chrome-dark m-0">
+          Let agents remember the why, not just the what. Keep decisions
+          tethered.
+        </p>
       </div>
     </div>
   </section>
 
   <!-- One memory, everywhere -->
   <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">One memory, everywhere</div>
-    <div class="bg-steel border border-brass/10 rounded-sm p-8 relative shadow-card overflow-hidden">
-      <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
+    <div
+      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
+    >
+      One memory, everywhere
+    </div>
+    <div
+      class="bg-steel border border-brass/10 rounded-sm p-8 relative shadow-card overflow-hidden"
+    >
+      <div
+        class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+      >
+      </div>
       <p class="font-serif font-light text-chrome-dark m-0 mb-8 max-w-2xl">
-        deja is just HTTP. Anything that can make a request can learn and recall. CI/CD pipelines, local chat agents, Slack bots, cron jobs, CLI scripts — all writing to and reading from the same memory.
+        deja is just HTTP. Anything that can make a request can learn and
+        recall. CI/CD pipelines, local chat agents, Slack bots, cron jobs, CLI
+        scripts — all writing to and reading from the same memory.
       </p>
       <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <div class="bg-void-deep/60 border border-brass/10 rounded-sm p-5">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3">CI/CD learns</div>
+          <div
+            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
+          >
+            CI/CD learns
+          </div>
           <div class="font-mono text-xs text-chrome-dark leading-relaxed">
-            <div class="text-chrome-dark/50 mb-1"># GitHub Action on deploy failure</div>
-            <div><span class="text-brass">curl</span> -X POST $DEJA_URL/learn \</div>
+            <div class="text-chrome-dark/50 mb-1">
+              # GitHub Action on deploy failure
+            </div>
+            <div>
+              <span class="text-brass">curl</span> -X POST $DEJA_URL/learn \
+            </div>
             <div class="pl-4">-d '{"{"}"trigger": "deploy",</div>
-            <div class="pl-4">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"learning": "node 20 breaks esbuild"{"}"}'</div>
+            <div class="pl-4">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"learning": "node 20 breaks esbuild"{
+                "}"
+              }'
+            </div>
           </div>
         </div>
         <div class="bg-void-deep/60 border border-brass/10 rounded-sm p-5">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3">Chat agent recalls</div>
+          <div
+            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
+          >
+            Chat agent recalls
+          </div>
           <div class="font-mono text-xs text-chrome-dark leading-relaxed">
-            <div class="text-chrome-dark/50 mb-1">// Claude, 30 seconds later</div>
-            <div><span class="text-brass">await</span> mem.<span class="text-chrome">inject</span>(<span class="text-chrome-dark">"deploying"</span>)</div>
-            <div class="text-chrome-dark/50 mt-1">// → "node 20 breaks esbuild"</div>
+            <div class="text-chrome-dark/50 mb-1">
+              // Claude, 30 seconds later
+            </div>
+            <div>
+              <span class="text-brass">await</span> mem.<span
+                class="text-chrome">inject</span
+              >(<span class="text-chrome-dark">"deploying"</span>)
+            </div>
+            <div class="text-chrome-dark/50 mt-1">
+              // → "node 20 breaks esbuild"
+            </div>
           </div>
         </div>
         <div class="bg-void-deep/60 border border-brass/10 rounded-sm p-5">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3">Cron maintains</div>
+          <div
+            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
+          >
+            Cron maintains
+          </div>
           <div class="font-mono text-xs text-chrome-dark leading-relaxed">
             <div class="text-chrome-dark/50 mb-1"># Nightly cleanup</div>
             <div><span class="text-brass">curl</span> $DEJA_URL/stats</div>
-            <div class="text-chrome-dark/50 mt-1">// stale memories auto-expire</div>
+            <div class="text-chrome-dark/50 mt-1">
+              // stale memories auto-expire
+            </div>
           </div>
         </div>
       </div>
@@ -173,9 +381,18 @@ import SEO from '../components/SEO.astro';
 
   <!-- How it works - Flow Visualization -->
   <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Your context window is precious</div>
-    <div class="bg-steel border border-brass/10 rounded-sm p-8 md:p-12 relative shadow-card overflow-hidden">
-      <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
+    <div
+      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
+    >
+      Your context window is precious
+    </div>
+    <div
+      class="bg-steel border border-brass/10 rounded-sm p-8 md:p-12 relative shadow-card overflow-hidden"
+    >
+      <div
+        class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+      >
+      </div>
 
       <!-- Flow visualization -->
       <div class="flow-container">
@@ -188,7 +405,9 @@ import SEO from '../components/SEO.astro';
             <span class="flow-node-icon">.learn()</span>
           </div>
           <span class="flow-node-label">Post-run</span>
-          <span class="flow-node-desc">Capture what worked and what didn't.</span>
+          <span class="flow-node-desc"
+            >Capture what worked and what didn't.</span
+          >
         </div>
 
         <!-- Node 2: Store -->
@@ -219,17 +438,34 @@ import SEO from '../components/SEO.astro';
 
   <!-- Try it -->
   <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Try it</div>
-    <div class="bg-steel border border-brass/10 rounded-sm relative shadow-card overflow-hidden">
-      <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
-      <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-brass/10">
-
+    <div
+      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
+    >
+      Try it
+    </div>
+    <div
+      class="bg-steel border border-brass/10 rounded-sm relative shadow-card overflow-hidden"
+    >
+      <div
+        class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+      >
+      </div>
+      <div
+        class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-brass/10"
+      >
         <!-- Teach panel -->
         <div class="p-6 md:p-8">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4">Teach</div>
+          <div
+            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4"
+          >
+            Teach
+          </div>
           <div class="space-y-3">
             <div>
-              <label class="font-mono text-[11px] text-chrome-dark/60 block mb-1">When this comes up...</label>
+              <label
+                class="font-mono text-[11px] text-chrome-dark/60 block mb-1"
+                >When this comes up...</label
+              >
               <input
                 id="demo-trigger"
                 type="text"
@@ -238,7 +474,10 @@ import SEO from '../components/SEO.astro';
               />
             </div>
             <div>
-              <label class="font-mono text-[11px] text-chrome-dark/60 block mb-1">Remember this...</label>
+              <label
+                class="font-mono text-[11px] text-chrome-dark/60 block mb-1"
+                >Remember this...</label
+              >
               <input
                 id="demo-learning"
                 type="text"
@@ -253,15 +492,26 @@ import SEO from '../components/SEO.astro';
               mem.learn()
             </button>
           </div>
-          <div id="demo-learn-result" class="mt-3 font-mono text-[11px] leading-relaxed text-chrome-dark/60 min-h-[20px]"></div>
+          <div
+            id="demo-learn-result"
+            class="mt-3 font-mono text-[11px] leading-relaxed text-chrome-dark/60 min-h-[20px]"
+          >
+          </div>
         </div>
 
         <!-- Recall panel -->
         <div class="p-6 md:p-8">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4">Recall</div>
+          <div
+            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4"
+          >
+            Recall
+          </div>
           <div class="space-y-3">
             <div>
-              <label class="font-mono text-[11px] text-chrome-dark/60 block mb-1">What are you about to do?</label>
+              <label
+                class="font-mono text-[11px] text-chrome-dark/60 block mb-1"
+                >What are you about to do?</label
+              >
               <input
                 id="demo-context"
                 type="text"
@@ -277,14 +527,18 @@ import SEO from '../components/SEO.astro';
             </button>
           </div>
           <div id="demo-inject-result" class="mt-3 min-h-[60px]">
-            <div class="font-mono text-[11px] text-chrome-dark/30 italic">Memories will appear here...</div>
+            <div class="font-mono text-[11px] text-chrome-dark/30 italic">
+              Memories will appear here...
+            </div>
           </div>
         </div>
-
       </div>
 
       <!-- Response bar -->
-      <div id="demo-response" class="border-t border-brass/10 px-6 py-3 bg-void-deep/40">
+      <div
+        id="demo-response"
+        class="border-t border-brass/10 px-6 py-3 bg-void-deep/40"
+      >
         <div class="font-mono text-[11px] text-chrome-dark/40">
           <span id="demo-method" class="text-brass">POST</span>
           <span id="demo-endpoint" class="ml-1">/learn</span>
@@ -296,13 +550,24 @@ import SEO from '../components/SEO.astro';
 
   <!-- Stack -->
   <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Under the hood</div>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-      <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
+    <div
+      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
+    >
+      Under the hood
+    </div>
+    <div
+      class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+    >
+      <div
+        class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+      >
+      </div>
       <div class="grid gap-6 grid-cols-2 md:grid-cols-5 text-center">
         <div>
           <div class="font-mono text-xs text-brass mb-2">compute</div>
-          <div class="font-serif text-chrome-dark text-sm">Cloudflare Workers</div>
+          <div class="font-serif text-chrome-dark text-sm">
+            Cloudflare Workers
+          </div>
         </div>
         <div>
           <div class="font-mono text-xs text-brass mb-2">isolation</div>
@@ -310,15 +575,21 @@ import SEO from '../components/SEO.astro';
         </div>
         <div>
           <div class="font-mono text-xs text-brass mb-2">vectors</div>
-          <div class="font-serif text-chrome-dark text-sm">Vectorize + Workers AI</div>
+          <div class="font-serif text-chrome-dark text-sm">
+            Vectorize + Workers AI
+          </div>
         </div>
         <div>
           <div class="font-mono text-xs text-brass mb-2">storage</div>
-          <div class="font-serif text-chrome-dark text-sm">SQLite + Drizzle</div>
+          <div class="font-serif text-chrome-dark text-sm">
+            SQLite + Drizzle
+          </div>
         </div>
         <div>
           <div class="font-mono text-xs text-brass mb-2">auth</div>
-          <div class="font-serif text-chrome-dark text-sm">API key + scoped access</div>
+          <div class="font-serif text-chrome-dark text-sm">
+            API key + scoped access
+          </div>
         </div>
       </div>
     </div>
@@ -326,56 +597,185 @@ import SEO from '../components/SEO.astro';
 
   <!-- Security -->
   <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Secure by default</div>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-      <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brass to-transparent opacity-30"></div>
+    <div
+      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
+    >
+      Secure by default
+    </div>
+    <div
+      class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
+    >
+      <div
+        class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
+      >
+      </div>
       <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <div class="font-mono text-xs text-brass mb-2">Your infrastructure</div>
-          <p class="font-serif font-light text-chrome-dark text-sm m-0">Deploys to your Cloudflare account. No data leaves your Workers.</p>
+          <div class="font-mono text-xs text-brass mb-2">
+            Your infrastructure
+          </div>
+          <p class="font-serif font-light text-chrome-dark text-sm m-0">
+            Deploys to your Cloudflare account. No data leaves your Workers.
+          </p>
         </div>
         <div>
-          <div class="font-mono text-xs text-brass mb-2">Per-tenant isolation</div>
-          <p class="font-serif font-light text-chrome-dark text-sm m-0">Each API key gets its own Durable Object. No cross-tenant leakage.</p>
+          <div class="font-mono text-xs text-brass mb-2">
+            Per-tenant isolation
+          </div>
+          <p class="font-serif font-light text-chrome-dark text-sm m-0">
+            Each API key gets its own Durable Object. No cross-tenant leakage.
+          </p>
         </div>
         <div>
-          <div class="font-mono text-xs text-brass mb-2">Auth-first routing</div>
-          <p class="font-serif font-light text-chrome-dark text-sm m-0">All routes require Bearer tokens by default. Explicitly opt in to public access.</p>
+          <div class="font-mono text-xs text-brass mb-2">
+            Auth-first routing
+          </div>
+          <p class="font-serif font-light text-chrome-dark text-sm m-0">
+            All routes require Bearer tokens by default. Explicitly opt in to
+            public access.
+          </p>
         </div>
         <div>
           <div class="font-mono text-xs text-brass mb-2">Scoped access</div>
-          <p class="font-serif font-light text-chrome-dark text-sm m-0">Shared, agent-specific, and session-scoped memories. Least privilege by design.</p>
+          <p class="font-serif font-light text-chrome-dark text-sm m-0">
+            Shared, agent-specific, and session-scoped memories. Least privilege
+            by design.
+          </p>
         </div>
       </div>
     </div>
   </section>
 
+  <!-- Featured Integrations -->
+  {featuredIntegrations.length > 0 && (
+    <section class="mt-18">
+      <div class="flex items-center justify-between mb-6">
+        <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass">Featured Integrations</div>
+        <a href="/integrations" class="font-mono text-[11px] text-chrome-dark/60 hover:text-brass transition-colors">View all &rarr;</a>
+      </div>
+      <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {featuredIntegrations.map(entry => (
+          <a href={`/integrations/${entry.id}`} class="group block bg-steel border border-brass/10 rounded-sm p-5 relative shadow-card hover:border-brass/30 transition-colors">
+            <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+            <div class="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-brass/10 text-brass mb-2 inline-block">{entry.data.category.replace(/-/g, ' ')}</div>
+            <h3 class="font-serif font-semibold text-lg tracking-tight m-0 mb-1 group-hover:text-brass transition-colors">{entry.data.title}</h3>
+            <p class="font-serif font-light text-chrome-dark text-sm m-0">{entry.data.description}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <!-- Browse by Category -->
+  <section class="mt-18">
+    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Browse by category</div>
+    <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+      {integrationCategories.map(cat => (
+        <a href={`/integrations/category/${cat.slug}`} class="group bg-steel border border-brass/10 rounded-sm p-4 text-center hover:border-brass/30 transition-colors shadow-card">
+          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-1">{cat.label}</div>
+          <div class="font-serif text-[12px] text-chrome-dark/60">{cat.desc}</div>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <!-- Latest Patterns -->
+  {latestPatterns.length > 0 && (
+    <section class="mt-18">
+      <div class="flex items-center justify-between mb-6">
+        <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass">Latest Patterns</div>
+        <a href="/patterns" class="font-mono text-[11px] text-chrome-dark/60 hover:text-brass transition-colors">View all &rarr;</a>
+      </div>
+      <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        {latestPatterns.map(entry => (
+          <a href={`/patterns/${entry.id}`} class="group block bg-steel border border-brass/10 rounded-sm p-5 relative shadow-card hover:border-brass/30 transition-colors">
+            <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+            <div class="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-brass/10 text-brass mb-2 inline-block">{entry.data.category.replace(/-/g, ' ')}</div>
+            <h3 class="font-serif font-semibold text-base tracking-tight m-0 mb-1 group-hover:text-brass transition-colors">{entry.data.title}</h3>
+            <p class="font-serif font-light text-chrome-dark text-xs m-0">{entry.data.description}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <!-- Featured Prompt -->
+  {featuredPrompt && (
+    <section class="mt-18">
+      <div class="flex items-center justify-between mb-6">
+        <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass">Featured Prompt</div>
+        <a href="/prompts" class="font-mono text-[11px] text-chrome-dark/60 hover:text-brass transition-colors">All prompts &rarr;</a>
+      </div>
+      <a href={`/prompts/${featuredPrompt.id}`} class="group block bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card hover:border-brass/30 transition-colors">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-brass/10 text-brass">{featuredPrompt.data.category.replace(/-/g, ' ')}</span>
+        </div>
+        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-2 group-hover:text-brass transition-colors">{featuredPrompt.data.title}</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0 mb-4">{featuredPrompt.data.description}</p>
+        <pre class="font-mono text-[11px] text-chrome-dark/60 bg-void-deep/60 border border-brass/10 rounded-sm p-4 overflow-hidden whitespace-pre-wrap" style="max-height:120px">{featuredPrompt.data.prompt.slice(0, 300)}{featuredPrompt.data.prompt.length > 300 ? '...' : ''}</pre>
+      </a>
+    </section>
+  )}
+
   <!-- CTA -->
   <div class="relative mt-20">
-    <div class="absolute inset-0 bg-cover bg-center bg-no-repeat -z-10" style="background-image: url('/orb.jpg');"></div>
-    <section class="text-center py-16 px-6 rounded-sm bg-gradient-to-b from-steel-light to-steel border border-brass/20 relative z-10 shadow-cta">
-      <div class="absolute inset-0 bg-gradient-to-r from-transparent via-brass/5 to-transparent pointer-events-none"></div>
-      <h2 class="font-serif-sc font-bold text-4xl md:text-5xl m-0 mb-3 relative text-balance">A new run starts. It already knows.</h2>
-      <p class="font-serif font-light text-lg text-chrome-dark max-w-[640px] mx-auto mb-8 relative text-balance">
-        Every lesson, every workaround, every hard-won fix — already waiting in context before the first token lands.
+    <div
+      class="absolute inset-0 bg-cover bg-center bg-no-repeat -z-10"
+      style="background-image: url('/orb.jpg');"
+    >
+    </div>
+    <section
+      class="text-center py-16 px-6 rounded-sm bg-linear-to-b from-steel-light to-steel border border-brass/20 relative z-10 shadow-cta"
+    >
+      <div
+        class="absolute inset-0 bg-linear-to-r from-transparent via-brass/5 to-transparent pointer-events-none"
+      >
+      </div>
+      <h2
+        class="font-serif-sc font-bold text-4xl md:text-5xl m-0 mb-3 relative text-balance"
+      >
+        One agent learns it. The next one already knows.
+      </h2>
+      <p
+        class="font-serif font-light text-lg text-chrome-dark max-w-[640px] mx-auto mb-8 relative text-balance"
+      >
+        Every lesson, every workaround, every hard-won fix — already waiting in
+        context before the first token lands.
       </p>
       <div class="flex flex-wrap gap-4 justify-center relative">
-        <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/acoyfellow/deja" target="_blank" rel="noreferrer"
-          class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass-dark bg-gradient-to-b from-steel-light to-steel shadow-btn hover:-translate-y-px active:translate-y-px transition-transform">
+        <a
+          href="https://deploy.workers.cloudflare.com/?url=https://github.com/acoyfellow/deja"
+          target="_blank"
+          rel="noreferrer"
+          class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass-dark bg-linear-to-b from-steel-light to-steel shadow-btn hover:-translate-y-px active:translate-y-px transition-transform"
+        >
           Level up with deja
         </a>
       </div>
       <div class="flex flex-wrap gap-4 justify-center mt-6 relative">
-        <a href="/docs"
-          class="font-mono px-5 py-2.5 rounded-sm text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors">
-          Read the Docs
+        <a
+          href="/integrations"
+          class="font-mono px-5 py-2.5 rounded-sm text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+        >
+          Browse Integrations
         </a>
-        <a href="/patterns"
-          class="font-mono px-5 py-2.5 rounded-sm text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors">
+        <a
+          href="/patterns"
+          class="font-mono px-5 py-2.5 rounded-sm text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+        >
           See Patterns
         </a>
+        <a
+          href="/docs"
+          class="font-mono px-5 py-2.5 rounded-sm text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+        >
+          Read the Docs
+        </a>
       </div>
-      <footer class="mt-8 pt-8 border-t border-brass/10 text-chrome-dark font-mono text-[11px] font-medium tracking-[0.05em]">
+      <footer
+        class="mt-8 pt-8 border-t border-brass/10 text-chrome-dark font-mono text-[11px] font-medium tracking-[0.05em]"
+      >
         Open source. MIT licensed. Self-hosted. Built for Cloudflare Workers.
       </footer>
     </section>
@@ -386,95 +786,108 @@ import SEO from '../components/SEO.astro';
   const el = (id: string) => document.getElementById(id)!;
   const input = (id: string) => document.getElementById(id) as HTMLInputElement;
 
-  const learnBtn = el('demo-learn-btn');
-  const injectBtn = el('demo-inject-btn');
-  const learnResult = el('demo-learn-result');
-  const injectResult = el('demo-inject-result');
-  const methodEl = el('demo-method');
-  const endpointEl = el('demo-endpoint');
-  const statusEl = el('demo-status');
+  const learnBtn = el("demo-learn-btn");
+  const injectBtn = el("demo-inject-btn");
+  const learnResult = el("demo-learn-result");
+  const injectResult = el("demo-inject-result");
+  const methodEl = el("demo-method");
+  const endpointEl = el("demo-endpoint");
+  const statusEl = el("demo-status");
 
   function showStatus(m: string, ep: string, text: string, ok: boolean) {
     methodEl.textContent = m;
     endpointEl.textContent = ep;
     statusEl.textContent = text;
-    statusEl.className = ok ? 'ml-3 text-green-400/70' : 'ml-3 text-red-400/70';
+    statusEl.className = ok ? "ml-3 text-green-400/70" : "ml-3 text-red-400/70";
   }
 
-  learnBtn.addEventListener('click', async () => {
-    const trigger = input('demo-trigger').value.trim();
-    const learning = input('demo-learning').value.trim();
+  learnBtn.addEventListener("click", async () => {
+    const trigger = input("demo-trigger").value.trim();
+    const learning = input("demo-learning").value.trim();
     if (!trigger || !learning) {
-      learnResult.textContent = 'Both fields required.';
+      learnResult.textContent = "Both fields required.";
       return;
     }
 
-    learnBtn.textContent = '...';
-    showStatus('POST', '/learn', '', true);
+    learnBtn.textContent = "...";
+    showStatus("POST", "/learn", "", true);
 
     try {
-      const res = await fetch('/learn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trigger, learning, confidence: 0.9, scope: 'shared' }),
+      const res = await fetch("/learn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trigger,
+          learning,
+          confidence: 0.9,
+          scope: "shared",
+        }),
       });
       const data = await res.json();
 
       if (res.ok) {
-        showStatus('POST', '/learn', `${res.status} OK`, true);
-        learnResult.innerHTML = `<span class="text-green-400/70">Stored.</span> <span class="text-chrome-dark/40">id: ${data.id || 'ok'}</span>`;
+        showStatus("POST", "/learn", `${res.status} OK`, true);
+        learnResult.innerHTML = `<span class="text-green-400/70">Stored.</span> <span class="text-chrome-dark/40">id: ${data.id || "ok"}</span>`;
       } else {
-        showStatus('POST', '/learn', `${res.status}`, false);
-        learnResult.innerHTML = `<span class="text-red-400/70">${data.error || 'Failed'}</span>`;
+        showStatus("POST", "/learn", `${res.status}`, false);
+        learnResult.innerHTML = `<span class="text-red-400/70">${data.error || "Failed"}</span>`;
       }
     } catch {
-      showStatus('POST', '/learn', 'network error', false);
-      learnResult.innerHTML = '<span class="text-red-400/70">Could not reach /learn</span>';
+      showStatus("POST", "/learn", "network error", false);
+      learnResult.innerHTML =
+        '<span class="text-red-400/70">Could not reach /learn</span>';
     }
-    learnBtn.textContent = 'mem.learn()';
+    learnBtn.textContent = "mem.learn()";
   });
 
-  injectBtn.addEventListener('click', async () => {
-    const context = input('demo-context').value.trim();
+  injectBtn.addEventListener("click", async () => {
+    const context = input("demo-context").value.trim();
     if (!context) {
-      injectResult.innerHTML = '<div class="font-mono text-[11px] text-chrome-dark/40">Enter a context first.</div>';
+      injectResult.innerHTML =
+        '<div class="font-mono text-[11px] text-chrome-dark/40">Enter a context first.</div>';
       return;
     }
 
-    injectBtn.textContent = '...';
-    showStatus('POST', '/inject', '', true);
+    injectBtn.textContent = "...";
+    showStatus("POST", "/inject", "", true);
 
     try {
-      const res = await fetch('/inject', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context, scopes: ['shared'], limit: 5 }),
+      const res = await fetch("/inject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ context, scopes: ["shared"], limit: 5 }),
       });
       const data = await res.json();
 
       if (res.ok) {
-        showStatus('POST', '/inject', `${res.status} OK`, true);
-        if (data.memories && data.memories.length > 0) {
-          injectResult.innerHTML = data.memories.map((m: Record<string, unknown>) =>
-            `<div class="bg-void-deep/60 border border-brass/10 rounded-sm px-3 py-2 mb-2">
-              <div class="font-mono text-[11px] text-brass">${m.trigger || m.context || ''}</div>
-              <div class="font-serif text-sm text-chrome-dark mt-1">${m.learning || m.text || ''}</div>
-              ${m.similarity ? `<div class="font-mono text-[10px] text-chrome-dark/30 mt-1">${(Number(m.similarity) * 100).toFixed(0)}% match</div>` : ''}
-            </div>`
-          ).join('');
-        } else if (typeof data === 'string' && data.length > 0) {
-          injectResult.innerHTML = `<div class="bg-void-deep/60 border border-brass/10 rounded-sm px-3 py-2 font-serif text-sm text-chrome-dark whitespace-pre-wrap">${data}</div>`;
+        showStatus("POST", "/inject", `${res.status} OK`, true);
+        const learnings = data.learnings || data.memories || [];
+        if (learnings.length > 0) {
+          injectResult.innerHTML = learnings
+            .map(
+              (m: Record<string, unknown>) =>
+                `<div class="bg-void-deep/60 border border-brass/10 rounded-sm px-3 py-2 mb-2">
+              <div class="font-mono text-[11px] text-brass">${m.trigger || ""}</div>
+              <div class="font-serif text-sm text-chrome-dark mt-1">${m.learning || ""}</div>
+              ${m.confidence ? `<div class="font-mono text-[10px] text-chrome-dark/30 mt-1">${(Number(m.confidence) * 100).toFixed(0)}% confidence</div>` : ""}
+            </div>`,
+            )
+            .join("");
+        } else if (data.prompt && data.prompt.length > 0) {
+          injectResult.innerHTML = `<div class="bg-void-deep/60 border border-brass/10 rounded-sm px-3 py-2 font-serif text-sm text-chrome-dark whitespace-pre-wrap">${data.prompt}</div>`;
         } else {
-          injectResult.innerHTML = '<div class="font-mono text-[11px] text-chrome-dark/40 italic">No memories found. Teach it something first.</div>';
+          injectResult.innerHTML =
+            '<div class="font-mono text-[11px] text-chrome-dark/40 italic">No memories found. Teach it something first.</div>';
         }
       } else {
-        showStatus('POST', '/inject', `${res.status}`, false);
-        injectResult.innerHTML = `<div class="font-mono text-[11px] text-red-400/70">${data.error || 'Failed'}</div>`;
+        showStatus("POST", "/inject", `${res.status}`, false);
+        injectResult.innerHTML = `<div class="font-mono text-[11px] text-red-400/70">${data.error || "Failed"}</div>`;
       }
     } catch {
-      showStatus('POST', '/inject', 'network error', false);
-      injectResult.innerHTML = '<div class="font-mono text-[11px] text-red-400/70">Could not reach /inject</div>';
+      showStatus("POST", "/inject", "network error", false);
+      injectResult.innerHTML =
+        '<div class="font-mono text-[11px] text-red-400/70">Could not reach /inject</div>';
     }
-    injectBtn.textContent = 'mem.inject()';
+    injectBtn.textContent = "mem.inject()";
   });
 </script>

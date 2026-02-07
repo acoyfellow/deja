@@ -1,0 +1,27 @@
+---
+import CopyButton from './CopyButton.astro';
+
+interface Props {
+  code: string;
+  lang?: string;
+  filename?: string;
+}
+
+const { code, lang = 'typescript', filename } = Astro.props;
+---
+
+<div class="code-block relative bg-void-deep border border-brass/10 rounded-sm shadow-code overflow-hidden">
+  {filename && (
+    <div class="flex items-center justify-between px-4 py-2 border-b border-brass/10 bg-steel/40">
+      <span class="font-mono text-[11px] text-chrome-dark/60">{filename}</span>
+      <span class="font-mono text-[10px] text-chrome-dark/40 uppercase tracking-wider">{lang}</span>
+    </div>
+  )}
+  {!filename && (
+    <span class="absolute top-2 right-10 font-mono text-[10px] text-chrome-dark/30 uppercase tracking-wider">{lang}</span>
+  )}
+  <div class="relative">
+    <pre class="p-4 overflow-x-auto"><code class={`language-${lang} font-mono text-xs leading-relaxed text-chrome-dark`}>{code}</code></pre>
+    <CopyButton text={code} />
+  </div>
+</div>

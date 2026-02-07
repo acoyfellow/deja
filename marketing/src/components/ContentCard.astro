@@ -1,0 +1,31 @@
+---
+interface Props {
+  slug: string;
+  title: string;
+  description: string;
+  category?: string;
+  collection: string;
+}
+
+const { slug, title, description, category, collection } = Astro.props;
+---
+
+<a
+  href={`/${collection}/${slug}`}
+  class="group block bg-steel border border-brass/10 rounded-sm shadow-card hover:border-brass/30 transition-colors overflow-hidden"
+  data-category={category || ''}
+>
+  <div class="p-5">
+    <h3 class="font-serif font-semibold text-base m-0 mb-2 text-chrome group-hover:text-brass transition-colors">
+      {title}
+    </h3>
+    <p class="font-serif text-sm text-chrome-dark/70 m-0 line-clamp-2">{description}</p>
+    {category && (
+      <div class="mt-3">
+        <span class="font-mono text-[10px] px-2 py-0.5 rounded-sm bg-brass/10 text-brass/80 uppercase tracking-wider">
+          {category}
+        </span>
+      </div>
+    )}
+  </div>
+</a>

@@ -1,0 +1,237 @@
+---
+title: "Architecture and Self-Hosting"
+description: "How deja works under the hood: Cloudflare Workers, Durable Objects, Vectorize, SQLite, and Workers AI. Everything you need to self-host confidently."
+keywords: "deja architecture, self-hosting, cloudflare workers, durable objects, vectorize, sqlite, workers ai"
+tags: ["architecture", "self-hosting", "cloudflare", "infrastructure", "deep-dive"]
+agentSummary: "Explains deja's architecture: Cloudflare Workers for compute, Durable Objects for per-tenant isolation and SQLite storage, Vectorize for semantic search with 384-dimension embeddings via bge-small-en-v1.5, and Hono for HTTP routing. Covers self-hosting requirements, cost model, data flow, and operational considerations."
+featured: false
+order: 2
+category: "architecture"
+difficulty: "intermediate"
+estimatedReadTime: "10 min"
+---
+
+deja is a single Cloudflare Worker backed by Durable Objects, Vectorize, and Workers AI. This guide explains each layer, how they connect, and what to consider when self-hosting.
+
+## Architecture overview
+
+```
+                        ┌──────────────────────────────────┐
+                        │         Cloudflare Edge          │
+                        │                                  │
+  Agent/Client ────────►│  Worker (Hono router)            │
+  (REST / MCP)          │    │                             │
+                        │    ├─► Durable Object (per-user) │
+                        │    │     └─► SQLite (storage)    │
+                        │    │                             │
+                        │    ├─► Vectorize (search index)  │
+                        │    │                             │
+                        │    └─► Workers AI (embeddings)   │
+                        └──────────────────────────────────┘
+```
+
+Every request flows through the same Worker entry point. The Worker authenticates, resolves the tenant, and routes to the correct Durable Object.
+
+## Layer by layer
+
+### Cloudflare Workers (compute)
+
+The Worker is the entry point for all requests. It handles:
+
+- **CORS** and preflight responses
+- **Authentication** via Bearer token (optional `API_KEY` secret)
+- **Routing** — REST endpoints, MCP JSON-RPC, and static asset serving
+- **Tenant resolution** — each API key maps to its own Durable Object instance
+
+The Worker code uses [Hono](https://hono.dev) for HTTP routing inside the Durable Object and raw fetch handling at the top level.
+
+### Durable Objects (isolation + storage)
+
+Each authenticated user gets their own Durable Object instance, identified by their API key. This provides:
+
+- **Per-tenant isolation** — one user's memories are completely separate from another's
+- **SQLite storage** — each DO has its own embedded SQLite database via `ctx.storage.sql`
+- **Transactional writes** — SQLite gives you atomic reads and writes within a single DO
+- **Concurrency control** — `blockConcurrencyWhile` ensures the schema is created before handling requests
+
+The SQLite schema has two tables:
+
+```sql
+-- Learnings: the core memory table
+CREATE TABLE learnings (
+  id TEXT PRIMARY KEY,
+  trigger TEXT NOT NULL,
+  learning TEXT NOT NULL,
+  reason TEXT,
+  confidence REAL DEFAULT 1.0,
+  source TEXT,
+  scope TEXT NOT NULL,
+  embedding TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- Secrets: key-value store with scope support
+CREATE TABLE secrets (
+  name TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+```
+
+Indexes exist on `trigger`, `confidence`, `created_at`, and `scope` for efficient queries.
+
+### Vectorize (semantic search)
+
+Vectorize is Cloudflare's vector database. deja uses it for semantic similarity search — when an agent calls `inject("deploying a hotfix")`, Vectorize finds memories that are semantically close, even if the exact words differ.
+
+Configuration:
+
+- **Dimensions**: 384 (matches bge-small-en-v1.5 output)
+- **Metric**: cosine similarity
+- **Index name**: `deja-embeddings`
+
+When a memory is stored via `learn()`:
+1. The trigger + learning text is sent to Workers AI for embedding
+2. The resulting 384-dimensional vector is stored in Vectorize with the memory ID
+3. The memory metadata (trigger, learning, scope) is stored in SQLite
+
+When a memory is retrieved via `inject()` or `query()`:
+1. The context text is embedded using the same model
+2. Vectorize returns the top-K most similar vectors
+3. The matching memory IDs are used to fetch full records from SQLite
+4. Results are filtered by the requested scopes
+
+### Workers AI (embeddings)
+
+deja uses the `@cf/baai/bge-small-en-v1.5` model to generate text embeddings. This model was chosen for:
+
+- **384 dimensions** — compact enough for fast search, expressive enough for good semantic matching
+- **Small size** — fast inference at the edge, low cost
+- **Good quality** — strong performance on semantic similarity benchmarks for its size class
+
+Every `learn()` call generates one embedding. Every `inject()` or `query()` call generates one embedding for the search context. The cost is minimal — Workers AI has a generous free tier.
+
+## Request flow: learn()
+
+```
+1. POST /learn arrives at Worker
+2. Worker checks auth (Bearer token)
+3. Worker resolves Durable Object by API key
+4. DO receives request via Hono router
+5. DO calls Workers AI to embed "When {trigger}, {learning}"
+6. DO inserts record into SQLite
+7. DO inserts vector into Vectorize
+8. Response returned to client
+```
+
+## Request flow: inject()
+
+```
+1. POST /inject arrives at Worker
+2. Worker checks auth
+3. Worker resolves Durable Object
+4. DO calls Workers AI to embed the context string
+5. DO queries Vectorize for top-K similar vectors
+6. DO fetches matching records from SQLite
+7. DO filters by requested scopes (priority: session > agent > shared)
+8. DO bumps confidence on returned memories (+0.1)
+9. Response returned as formatted prompt + raw learnings
+```
+
+The confidence bump on inject is a subtle but important feature — memories that are frequently recalled gradually increase in confidence, while unused memories stay at their original level and may eventually be cleaned up.
+
+## MCP protocol
+
+The `/mcp` endpoint speaks JSON-RPC 2.0, implementing the [Model Context Protocol](https://modelcontextprotocol.io). It supports:
+
+- `initialize` — returns server capabilities
+- `tools/list` — returns available tools (learn, inject, query, forget, list, stats)
+- `tools/call` — executes a tool and returns results
+- `notifications/initialized` and `notifications/cancelled` — handled as no-ops
+
+MCP tools map directly to the REST endpoints — they are just a different transport for the same underlying operations.
+
+## Self-hosting considerations
+
+### Cloudflare account requirements
+
+deja requires:
+
+- **Workers** — available on all plans including free
+- **Durable Objects** — requires Workers Paid plan ($5/month)
+- **Vectorize** — available on Workers Paid plan
+- **Workers AI** — free tier available, pay-per-use after that
+
+### Creating the Vectorize index
+
+This is the one manual step that the deploy button cannot do for you:
+
+```bash
+wrangler vectorize create deja-embeddings --dimensions 384 --metric cosine
+```
+
+If you forget this step, `learn()` calls will fail because there is no index to write vectors to.
+
+### Setting the API key
+
+```bash
+wrangler secret put API_KEY
+```
+
+Enter a strong, random key. This key serves double duty:
+
+1. Authentication — requests must include `Authorization: Bearer {key}`
+2. Tenant isolation — the key determines which Durable Object handles the request
+
+If you do not set an API key, deja runs in open access mode. All requests go to a single "anonymous" Durable Object. This is fine for development but not for production.
+
+### Custom domains
+
+To use a custom domain instead of `*.workers.dev`:
+
+1. Add a custom domain in the Cloudflare dashboard under Workers > your-worker > Settings > Domains
+2. Or add a route in `wrangler.toml`:
+
+```toml
+routes = [
+  { pattern = "memory.yourcompany.com", custom_domain = true }
+]
+```
+
+### Cost model
+
+For typical usage (hundreds of memories, dozens of agents):
+
+| Component | Free tier | Paid tier |
+|-----------|-----------|-----------|
+| Workers | 100K requests/day | $0.30/M requests |
+| Durable Objects | N/A | $5/month + $0.15/M requests |
+| Vectorize | 5M vector queries/month | $0.01/1K queries |
+| Workers AI | 10K neurons/day | Pay per use |
+| SQLite storage | 1GB included per DO | $0.20/GB/month |
+
+Most small to medium deployments run well within the paid plan minimums.
+
+### Cleanup and maintenance
+
+deja includes a scheduled cleanup task that runs daily:
+
+- **Session memories** (`session:*`) older than 7 days are deleted
+- **Agent memories** (`agent:*`) older than 30 days are deleted
+- **Low confidence** memories (below 0.3) are deleted from both SQLite and Vectorize
+
+To enable scheduled cleanup, add a cron trigger in `wrangler.toml`:
+
+```toml
+[triggers]
+crons = ["0 0 * * *"]  # Daily at midnight UTC
+```
+
+You can also trigger cleanup manually:
+
+```bash
+curl -X POST https://deja.YOUR-SUBDOMAIN.workers.dev/cleanup \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```

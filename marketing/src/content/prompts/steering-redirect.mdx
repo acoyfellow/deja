@@ -1,0 +1,193 @@
+---
+title: "Steering via Memory Injection"
+description: "A prompt for redirecting agent behavior by injecting targeted corrective memories. Shape what agents do without rewriting their system prompts."
+keywords: "agent steering, corrective memory, behavior redirect, memory injection, agent correction"
+tags: ["steering", "injection", "correction", "behavior", "advanced"]
+agentSummary: "Explains how to use deja's learn() to inject corrective memories that steer agent behavior. Instead of changing system prompts, you write high-confidence memories that override previous behavior. Includes examples of corrective, preventive, and procedural steering memories."
+featured: false
+order: 5
+category: "steering"
+prompt: |
+  You are a memory operator. Your job is to inject corrective memories into deja to steer agent behavior.
+
+  ## Writing a steering memory
+
+  A steering memory has three properties:
+  1. **High confidence** (0.95+) so it always surfaces above other memories
+  2. **Specific trigger** that matches the context where the agent misbehaves
+  3. **Clear directive** that tells the agent exactly what to do instead
+
+  ```
+  POST {DEJA_URL}/learn
+  {
+    "trigger": "[exact context where the agent goes wrong]",
+    "learning": "[what the agent should do instead]",
+    "confidence": 0.95,
+    "scope": "shared",
+    "reason": "Steering correction: [why this change is needed]",
+    "source": "operator"
+  }
+  ```
+
+  ## Examples
+
+  ### Corrective: stop an agent from doing something harmful
+  ```json
+  {
+    "trigger": "modifying production database directly",
+    "learning": "NEVER modify production database directly. Always create a migration script and have it reviewed first.",
+    "confidence": 0.99,
+    "scope": "shared",
+    "reason": "Steering correction: agent dropped a column in production on 2024-03-15",
+    "source": "operator"
+  }
+  ```
+
+  ### Preventive: add a guardrail before it is needed
+  ```json
+  {
+    "trigger": "deploying to production on Friday",
+    "learning": "Do not deploy to production on Fridays unless explicitly approved by the user. Suggest Monday instead.",
+    "confidence": 0.95,
+    "scope": "shared",
+    "reason": "Steering: company policy is no Friday deploys",
+    "source": "operator"
+  }
+  ```
+
+  ### Procedural: enforce a process
+  ```json
+  {
+    "trigger": "creating a new API endpoint",
+    "learning": "All new API endpoints must include: rate limiting, input validation, OpenAPI spec update, and a test. Do not mark the task as complete until all four are done.",
+    "confidence": 0.95,
+    "scope": "shared",
+    "reason": "Steering: engineering team standard for new endpoints",
+    "source": "operator"
+  }
+  ```
+
+  ## Verification
+
+  After injecting a steering memory, test it:
+
+  ```
+  POST {DEJA_URL}/inject
+  {
+    "context": "[the same context the agent would encounter]",
+    "scopes": ["shared"],
+    "limit": 3
+  }
+  ```
+
+  The steering memory should appear in the top results. If it does not, adjust the trigger wording to better match how agents describe their context.
+
+  ## Removing a steering memory
+
+  When a steering correction is no longer needed, delete it:
+
+  ```
+  DELETE {DEJA_URL}/learning/{id}
+  ```
+---
+
+Steering is the most powerful pattern in deja. Instead of rewriting system prompts or redeploying code, you write a single memory that changes how every agent behaves.
+
+## When steering is needed
+
+Steering memories are appropriate when:
+
+- An agent repeatedly makes the same mistake
+- You need to enforce a policy across all agents immediately
+- A temporary restriction needs to be applied (e.g., "database is in maintenance mode, do not write")
+- You want to correct behavior without touching the agent's code or prompt
+
+Steering is NOT appropriate when:
+
+- The behavior change requires new capabilities (use code changes instead)
+- The rule is so fundamental it should be in the system prompt permanently
+- The memory would need to match every possible context (too broad)
+
+## How it works
+
+Deja uses semantic similarity to match memories to context. When an agent calls `inject("deploying to production")`, deja finds the most relevant memories by meaning, not exact string match. A steering memory with trigger `"deploying to production on Friday"` will surface for contexts like:
+
+- "shipping a release on Friday afternoon"
+- "Friday deploy of the billing service"
+- "end-of-week production push"
+
+The high confidence score (0.95+) ensures the steering memory ranks above regular learnings (typically 0.7-0.9).
+
+## Examples of corrective memories
+
+### Scenario: Agent keeps using deprecated API
+
+The agent was trained on data that included an old API. It keeps calling `v1/users` instead of `v2/users`.
+
+```bash
+curl -X POST https://deja.example.com/learn \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "calling the users API",
+    "learning": "The v1/users endpoint is deprecated and returns stale data. Use v2/users instead. The response format changed: user.name is now user.displayName.",
+    "confidence": 0.98,
+    "scope": "shared",
+    "reason": "Steering: v1 API deprecated as of 2024-03-01",
+    "source": "operator"
+  }'
+```
+
+### Scenario: Agent gives wrong advice about a library
+
+The agent recommends `moment.js` for date handling but your team uses `date-fns`.
+
+```bash
+curl -X POST https://deja.example.com/learn \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "working with dates and times in JavaScript",
+    "learning": "This project uses date-fns for all date handling. Do not suggest moment.js — it is not installed and the team has standardized on date-fns. Import from \"date-fns\" directly.",
+    "confidence": 0.95,
+    "scope": "shared",
+    "reason": "Steering: team standard is date-fns, not moment",
+    "source": "operator"
+  }'
+```
+
+### Scenario: Temporary freeze on a service
+
+A downstream service is having issues and you need all agents to avoid it:
+
+```bash
+curl -X POST https://deja.example.com/learn \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "interacting with the payment service",
+    "learning": "TEMPORARY: The payment service is experiencing intermittent failures (incident INC-2024-847). Do not make payment API calls until this memory is removed. Queue payment operations for later processing.",
+    "confidence": 0.99,
+    "scope": "shared",
+    "reason": "Steering: active incident on payment service",
+    "source": "operator"
+  }'
+```
+
+When the incident is resolved, delete this memory by ID and agents return to normal behavior.
+
+## Scoping steering memories
+
+Most steering memories belong in `shared` scope because they apply to all agents. But you can also scope steering to specific agents:
+
+```json
+{
+  "trigger": "writing SQL queries",
+  "learning": "Always use parameterized queries. Never concatenate user input into SQL strings.",
+  "confidence": 0.99,
+  "scope": "agent:code-reviewer",
+  "reason": "Steering: reviewer should always flag raw SQL"
+}
+```
+
+This way the steering only affects the code review agent, not the deployment agent or the support bot.

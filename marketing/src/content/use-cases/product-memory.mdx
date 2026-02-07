@@ -1,0 +1,229 @@
+---
+title: "Product Decision Memory"
+description: "Use deja to maintain the full history of product decisions — what was decided, what was tried, what failed, and why. Give agents the context that usually lives in people's heads."
+keywords: "product memory, decision history, institutional knowledge, product management, decision log"
+tags: ["product", "decisions", "institutional-knowledge", "context", "history"]
+agentSummary: "Guide to using deja as a product decision memory system. Agents store the reasoning behind product decisions (not just the outcome), what alternatives were considered and rejected, and what experiments failed. When an agent later encounters a related context, it retrieves why things are the way they are, preventing repeated mistakes and relitigated decisions."
+featured: false
+order: 3
+industry: "Product"
+---
+
+Product teams make hundreds of decisions that shape a codebase. Six months later, nobody remembers why the billing page uses a wizard instead of a single form, or why the team rejected GraphQL in favor of REST. deja gives agents the "why" behind the "what."
+
+## The problem
+
+Every product decision has context that evaporates over time:
+
+- "We tried infinite scroll and it killed conversion — stick with pagination"
+- "The billing wizard exists because users abandoned the single-form version at a 40% rate"
+- "We rejected GraphQL because our mobile clients need predictable response sizes for offline caching"
+
+This context lives in Notion docs nobody reads, Slack threads nobody can find, and the heads of people who may have left the company. When an agent (or a new engineer) encounters the same question, the decision gets relitigated from scratch.
+
+## The deja approach
+
+Store product decisions as memories with rich context. When an agent encounters a related situation, it gets the full history before proposing changes.
+
+## What to store
+
+### Decisions and their reasoning
+
+```bash
+curl -X POST https://deja.example.com/learn \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "changing the checkout flow or billing page layout",
+    "learning": "The billing page uses a multi-step wizard (not a single form) because A/B test in Q2 2024 showed 40% drop-off on the single-form version. The wizard breaks the process into: 1) plan selection, 2) payment details, 3) confirmation. Do not consolidate these steps without running a new A/B test.",
+    "confidence": 0.95,
+    "scope": "shared",
+    "reason": "Product decision from Q2 2024 A/B test results",
+    "source": "product-team"
+  }'
+```
+
+### Rejected alternatives
+
+```bash
+curl -X POST https://deja.example.com/learn \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "suggesting GraphQL or changing the API architecture",
+    "learning": "GraphQL was evaluated and rejected in 2024-01. Reasons: 1) mobile clients need predictable response sizes for offline caching, 2) our CDN cannot cache GraphQL POST requests effectively, 3) the team does not have GraphQL expertise. REST with JSON:API conventions was chosen instead. Revisit only if these constraints change.",
+    "confidence": 0.9,
+    "scope": "shared",
+    "reason": "Architecture decision record ADR-2024-003",
+    "source": "product-team"
+  }'
+```
+
+### Failed experiments
+
+```bash
+curl -X POST https://deja.example.com/learn \
+  -H "Authorization: Bearer $DEJA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trigger": "implementing infinite scroll or virtual scrolling for lists",
+    "learning": "Infinite scroll was tried on the dashboard in Q3 2023 and reverted. Problems: 1) users could not bookmark specific items, 2) browser back button lost scroll position, 3) accessibility audit failed because screen readers could not navigate the dynamic content. Stick with pagination (20 items per page) with URL-based page numbers.",
+    "confidence": 0.92,
+    "scope": "shared",
+    "reason": "Experiment results from Q3 2023, accessibility audit findings",
+    "source": "product-team"
+  }'
+```
+
+## Using product memory in practice
+
+### Scenario: agent proposes a redesign
+
+An agent is tasked with improving the checkout experience. Before making changes, it injects context:
+
+```typescript
+const memories = await mem.inject(
+  "redesigning the checkout and billing flow for better conversion"
+);
+```
+
+Returned memories:
+
+```
+When changing the checkout flow or billing page layout,
+the billing page uses a multi-step wizard (not a single form)
+because A/B test in Q2 2024 showed 40% drop-off on the single-form version...
+
+When implementing infinite scroll or virtual scrolling for lists,
+infinite scroll was tried on the dashboard in Q3 2023 and reverted...
+```
+
+The agent now knows:
+- The wizard format is intentional and backed by data
+- Infinite scroll has been tried and failed for specific reasons
+- Any proposed changes should address these known issues, not repeat them
+
+### Scenario: agent suggests a technology change
+
+A code assistant suggests migrating to GraphQL:
+
+```typescript
+const memories = await mem.inject(
+  "migrating the API from REST to GraphQL"
+);
+```
+
+Returned:
+
+```
+When suggesting GraphQL or changing the API architecture,
+GraphQL was evaluated and rejected in 2024-01. Reasons:
+1) mobile clients need predictable response sizes...
+```
+
+The agent adjusts its recommendation or flags that this was previously considered with specific reasons for rejection.
+
+## Building the decision log
+
+### Manual entries
+
+Product managers or tech leads store decisions as they are made:
+
+```typescript
+// After a product decision meeting
+await mem.learn(
+  "adding real-time features or WebSocket support",
+  "Real-time was deprioritized for 2024. Reasons: 1) polling every 30s is sufficient for current use cases, 2) WebSocket infrastructure adds operational complexity we cannot support with current team size, 3) SSE (Server-Sent Events) is the preferred approach if real-time becomes necessary — simpler than WebSockets and works through our CDN.",
+  {
+    confidence: 0.85,
+    scope: "shared",
+    reason: "Product roadmap decision, Q1 2024 planning",
+    source: "product-lead",
+  }
+);
+```
+
+### Automated capture from documents
+
+Parse your existing decision documents and import them:
+
+```typescript
+// Import decisions from ADR (Architecture Decision Records)
+const adrs = await loadADRDocuments("./docs/adrs/");
+
+for (const adr of adrs) {
+  await mem.learn(
+    adr.context,  // "When considering X"
+    `${adr.decision} Reasoning: ${adr.reasoning}. Status: ${adr.status}.`,
+    {
+      confidence: adr.status === "accepted" ? 0.9 : 0.6,
+      scope: "shared",
+      reason: `Imported from ${adr.filename}`,
+      source: "adr-import",
+    }
+  );
+}
+```
+
+### Capture from PR discussions
+
+When a PR discussion reveals important context, store it:
+
+```typescript
+// After a significant PR discussion
+await mem.learn(
+  "modifying the email sending pipeline or changing email providers",
+  "We use a queue-based email pipeline (not direct sending) because: 1) SendGrid rate-limits at 100/second, 2) email content needs to be rendered with user locale, which requires a DB lookup, 3) failed sends need retry logic with exponential backoff. The queue is in src/jobs/email-queue.ts.",
+  {
+    confidence: 0.9,
+    scope: "shared",
+    reason: "Context from PR #234 discussion, email pipeline refactor",
+    source: "engineering",
+  }
+);
+```
+
+## Maintaining product memory
+
+### Regular review
+
+Periodically review stored decisions to update confidence and remove outdated ones:
+
+```bash
+# List all product-team memories
+curl "https://deja.example.com/learnings?scope=shared" \
+  -H "Authorization: Bearer $DEJA_API_KEY" | \
+  jq '.[] | select(.source == "product-team") | {trigger, confidence, createdAt}'
+```
+
+### Expiring outdated decisions
+
+When a decision is reversed or the context changes:
+
+```typescript
+// The team decided to try GraphQL after all
+// First, lower confidence on the old decision
+await mem.learn(
+  "suggesting GraphQL or changing the API architecture",
+  "UPDATED: GraphQL was previously rejected (2024-01) but is now being evaluated again for the new mobile app. The original concerns about response size are addressed by persisted queries. Decision pending — check with the platform team before starting GraphQL work.",
+  {
+    confidence: 0.7,  // Lower confidence since the decision is in flux
+    scope: "shared",
+    reason: "Decision under review as of 2024-09",
+    source: "product-team",
+  }
+);
+```
+
+### Confidence as a signal
+
+Use confidence levels to indicate decision strength:
+
+| Confidence | Meaning |
+|------------|---------|
+| 0.95+ | Hard rule, backed by data, do not change without new evidence |
+| 0.8-0.95 | Strong decision, well-reasoned, but open to review |
+| 0.6-0.8 | Soft preference, could change with new information |
+| Below 0.5 | Historical note, may be outdated |
+
+This lets agents weigh memories appropriately. A 0.95 confidence "do not use infinite scroll" carries more weight than a 0.6 confidence "we prefer Tailwind over CSS modules."

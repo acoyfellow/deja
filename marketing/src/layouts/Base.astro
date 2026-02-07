@@ -3,13 +3,17 @@ interface Props {
   title: string;
   description?: string;
   image?: string;
+  variant?: 'hero' | 'content';
 }
 
 const {
   title,
   description = "deja is an open source Cloudflare Worker that gives agents durable recall. Store, query, and inject learnings with precision.",
-  image = "/meta.jpg"
+  image = "/meta.jpg",
+  variant = "hero"
 } = Astro.props;
+
+const isContent = variant === 'content';
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? "https://deja.coey.dev");
 const imageURL = new URL(image, canonicalURL);
@@ -50,25 +54,31 @@ const imageURL = new URL(image, canonicalURL);
     <header class="sticky top-0 z-10 backdrop-blur-md backdrop-saturate-50 bg-void/95 border-b border-brass/10 shadow-[0_1px_0_rgba(201,169,97,0.1)]">
       <div class="flex justify-between items-center px-6 py-4 max-w-[1160px] mx-auto">
         <a href="/" class="font-mono font-bold uppercase tracking-[0.32em] text-[11px] hover:text-brass transition-colors">deja</a>
-        <nav class="flex gap-[18px] text-[13px] text-chrome-dark">
-          <a href="/docs" class="hover:text-brass transition-colors">Docs</a>
+        <nav class="flex items-center gap-[18px] text-[13px] text-chrome-dark">
+          <a href="/integrations" class="hover:text-brass transition-colors">Integrations</a>
           <a href="/patterns" class="hover:text-brass transition-colors">Patterns</a>
+          <a href="/docs" class="hover:text-brass transition-colors">Docs</a>
+          <a href="/guides" class="hover:text-brass transition-colors hidden sm:inline">Guides</a>
           <a href="https://github.com/acoyfellow/deja" target="_blank" rel="noreferrer" class="hover:text-brass transition-colors">GitHub</a>
         </nav>
       </div>
     </header>
 
-    <main class="relative z-[1] max-w-[1160px] mx-auto px-6 pb-20">
+    <main class="relative z-1 max-w-[1160px] mx-auto px-6 pb-20">
       <slot />
     </main>
 
-    <!-- Bottom background -->
-    <div class="absolute top-0 left-0 right-0 h-[80vh] bg-cover bg-center bg-no-repeat -z-10 pointer-events-none" style="background-image: url('/orb.jpg');"></div>
-    <div class="absolute top-[80vh] left-0 right-0 h-[200px] bg-gradient-to-t from-void to-transparent -z-10 pointer-events-none"></div>
+    {isContent ? (
+      <div class="absolute inset-0 bg-void -z-10 pointer-events-none"></div>
+    ) : (
+      <>
+        <div class="absolute top-0 left-0 right-0 h-[80vh] bg-cover bg-center bg-no-repeat -z-10 pointer-events-none" style="background-image: url('/orb.jpg');"></div>
+        <div class="absolute top-[80vh] left-0 right-0 h-[200px] bg-linear-to-t from-void to-transparent -z-10 pointer-events-none"></div>
 
-    <!-- Bottom background -->
-    <div class="absolute bottom-0 left-0 right-0 h-[60vh] bg-cover bg-center bg-no-repeat -z-10 pointer-events-none" style="background-image: url('/connected.jpg');"></div>
-    <div class="absolute bottom-[40vh] left-0 right-0 h-[200px] bg-gradient-to-b from-void to-transparent -z-10 pointer-events-none"></div>
+        <div class="absolute bottom-0 left-0 right-0 h-[60vh] bg-cover bg-center bg-no-repeat -z-10 pointer-events-none" style="background-image: url('/connected.jpg');"></div>
+        <div class="absolute bottom-[40vh] left-0 right-0 h-[200px] bg-linear-to-b from-void to-transparent -z-10 pointer-events-none"></div>
+      </>
+    )}
   </body>
 </html>
 

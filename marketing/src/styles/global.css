@@ -34,9 +34,9 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.02) 2px, rgba(255,255,255,0.02) 4px),
-    radial-gradient(circle at 30% 20%, rgba(201, 169, 97, 0.03), transparent 50%),
-    radial-gradient(circle at 70% 80%, rgba(232, 232, 232, 0.02), transparent 50%);
+    repeating-linear-linear(0deg, transparent, transparent 2px, rgba(255,255,255,0.02) 2px, rgba(255,255,255,0.02) 4px),
+    radial-linear(circle at 30% 20%, rgba(201, 169, 97, 0.03), transparent 50%),
+    radial-linear(circle at 70% 80%, rgba(232, 232, 232, 0.02), transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
@@ -52,7 +52,7 @@ body::before {
   position: absolute;
   inset: 0;
   width: 45%;
-  background: linear-gradient(90deg, transparent, var(--color-brass), var(--color-brass-light));
+  background: linear-linear(90deg, transparent, var(--color-brass), var(--color-brass-light));
   box-shadow: 0 0 12px var(--color-brass);
   animation: glide 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
@@ -149,7 +149,7 @@ body::before {
   left: 0;
   width: 60px;
   height: 4px;
-  background: linear-gradient(90deg, transparent, var(--color-brass), var(--color-brass-light), transparent);
+  background: linear-linear(90deg, transparent, var(--color-brass), var(--color-brass-light), transparent);
   border-radius: 2px;
   box-shadow: 0 0 12px var(--color-brass), 0 0 24px rgba(201, 169, 97, 0.4);
   animation: data-pulse 4s ease-in-out infinite;
@@ -277,6 +277,167 @@ body::before {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Prose styling for MDX content
+   ═══════════════════════════════════════════════════════════ */
+
+.prose-deja {
+  font-family: var(--font-family-serif);
+  color: var(--color-chrome);
+  line-height: 1.75;
+}
+
+.prose-deja h2 {
+  font-family: var(--font-family-serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 2.5rem 0 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(201, 169, 97, 0.1);
+  color: var(--color-chrome);
+}
+
+.prose-deja h2::before {
+  content: "# ";
+  color: var(--color-brass);
+}
+
+.prose-deja h3 {
+  font-family: var(--font-family-serif);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 2rem 0 0.5rem;
+  color: var(--color-chrome);
+}
+
+.prose-deja h4 {
+  font-family: var(--font-family-mono);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--color-brass);
+}
+
+.prose-deja p {
+  margin: 0 0 1.25rem;
+  color: var(--color-chrome-dark);
+}
+
+.prose-deja a {
+  color: var(--color-brass);
+  text-decoration: underline;
+  text-decoration-color: rgba(201, 169, 97, 0.3);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.2s;
+}
+
+.prose-deja a:hover {
+  text-decoration-color: var(--color-brass);
+}
+
+.prose-deja strong {
+  color: var(--color-chrome);
+  font-weight: 600;
+}
+
+.prose-deja code {
+  font-family: var(--font-family-mono);
+  font-size: 0.8em;
+  background: var(--color-void-deep);
+  border: 1px solid rgba(201, 169, 97, 0.1);
+  border-radius: 2px;
+  padding: 0.15em 0.4em;
+  color: var(--color-brass-light);
+}
+
+.prose-deja pre {
+  background: var(--color-void-deep);
+  border: 1px solid rgba(201, 169, 97, 0.1);
+  border-radius: 2px;
+  padding: 1rem 1.25rem;
+  margin: 0 0 1.5rem;
+  overflow-x: auto;
+  font-family: var(--font-family-mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-chrome-dark);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.8),
+    inset 0 0 0 1px rgba(201, 169, 97, 0.05);
+}
+
+.prose-deja pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.prose-deja ul,
+.prose-deja ol {
+  margin: 0 0 1.25rem;
+  padding-left: 1.5rem;
+  color: var(--color-chrome-dark);
+}
+
+.prose-deja li {
+  margin-bottom: 0.35rem;
+}
+
+.prose-deja blockquote {
+  border-left: 3px solid var(--color-brass);
+  margin: 1.5rem 0;
+  padding: 0.75rem 1rem;
+  background: rgba(201, 169, 97, 0.03);
+  color: var(--color-chrome-dark);
+}
+
+.prose-deja blockquote p {
+  margin: 0;
+}
+
+.prose-deja hr {
+  border: none;
+  border-top: 1px solid rgba(201, 169, 97, 0.1);
+  margin: 2rem 0;
+}
+
+.prose-deja table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.9rem;
+}
+
+.prose-deja th {
+  font-family: var(--font-family-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid rgba(201, 169, 97, 0.2);
+  color: var(--color-brass);
+}
+
+.prose-deja td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(201, 169, 97, 0.06);
+  color: var(--color-chrome-dark);
+}
+
+.prose-deja img {
+  max-width: 100%;
+  border-radius: 2px;
+  border: 1px solid rgba(201, 169, 97, 0.1);
+  margin: 1.5rem 0;
+}
+
 /* Mobile: stack vertically */
 @media (max-width: 640px) {
   .flow-container {
@@ -299,7 +460,7 @@ body::before {
     left: -1px;
     width: 4px;
     height: 60px;
-    background: linear-gradient(180deg, transparent, var(--color-brass), var(--color-brass-light), transparent);
+    background: linear-linear(180deg, transparent, var(--color-brass), var(--color-brass-light), transparent);
     animation: data-pulse-vertical 4s ease-in-out infinite;
   }
 

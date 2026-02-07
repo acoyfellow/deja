@@ -11,7 +11,8 @@
     "db:init": "wrangler d1 execute deja-db --file=schema.sql --remote",
     "test": "jest",
     "test:do": "jest test/deja-do.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gates": "bun run prd.ts"
   },
   "keywords": [
     "ai",
@@ -29,6 +30,7 @@
     "jest": "^30.2.0",
     "ts-jest": "^29.4.6",
     "typescript": "^5.4.0",
+    "gateproof": "^0.2.2",
     "wrangler": "^4.61.1"
   },
   "dependencies": {
