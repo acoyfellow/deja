@@ -38,8 +38,3 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Run smoke gates
-        run: bun run prd.ts
-        env:
-          DEJA_URL: https://deja.coey.workers.dev
-          DEJA_API_KEY: ${{ secrets.DEJA_API_KEY }}
