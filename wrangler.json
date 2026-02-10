@@ -25,7 +25,5 @@
     "directory": "./public",
     "binding": "ASSETS"
   },
-  "vars": {
-    "PUBLIC_ROUTES": "/inject,/query"
-  }
+  "vars": {}
 }

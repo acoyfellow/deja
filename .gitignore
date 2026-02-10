@@ -8,7 +8,17 @@ marketing/.astro/
 public/index.html
 public/_astro/
 public/docs/
+public/guides/
+public/integrations/
+public/patterns/*/
+public/patterns/llms.txt
+public/prompts/
+public/use-cases/
+public/collections/
 public/llms.txt
+public/robots.txt
+public/sitemap-*.xml
+public/sitemap-index.xml
 public/content-assets.mjs
 public/content-modules.mjs
 

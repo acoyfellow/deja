@@ -34,7 +34,7 @@ const RED_FLAGS = [
 
 async function aiEvaluate(action) {
   try {
-    const res = await fetch('https://deja.coey.dev/evaluate', {
+    const res = await fetch('https://deja-api.coey.dev/evaluate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action }),

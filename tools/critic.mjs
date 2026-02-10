@@ -34,7 +34,7 @@ const RED_FLAGS = [
 
 async function queryDeja(context) {
   try {
-    const res = await fetch('https://deja.coey.dev/inject', {
+    const res = await fetch('https://deja-api.coey.dev/inject', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ context, format: 'prompt', limit: 2 })

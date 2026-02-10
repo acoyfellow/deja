@@ -44,7 +44,7 @@ async function persistToDeja(entry, apiKey) {
     ? `FAILURE: ${entry.result}. PREVENTION: ${entry.learned || 'TBD'}`
     : entry.learned || entry.result || 'No details';
   
-  const res = await fetch('https://deja.coey.dev/learn', {
+  const res = await fetch('https://deja-api.coey.dev/learn', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

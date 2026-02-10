@@ -10,7 +10,6 @@ import { cleanup } from './cleanup';
 interface Env {
   DEJA: DurableObjectNamespace;
   API_KEY?: string;
-  PUBLIC_ROUTES?: string; // Comma-separated paths to expose without auth, e.g., "/inject,/query"
   VECTORIZE: VectorizeIndex;
   AI: any;
   ASSETS: Fetcher;
@@ -245,7 +244,13 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // Check auth helper
+    // Marketing domain: serve static Astro site, no auth required
+    if (url.hostname === 'deja.coey.dev') {
+      return env.ASSETS.fetch(request);
+    }
+
+    // API domain (deja-api.coey.dev, workers.dev, localhost, etc.)
+    // All routes require authentication
     const checkAuth = (): boolean => {
       if (!env.API_KEY) return true; // No API key configured = open access
       const authHeader = request.headers.get('Authorization');
@@ -253,30 +258,11 @@ export default {
       return providedKey === env.API_KEY;
     };
 
-    // Parse PUBLIC_ROUTES env var (comma-separated paths, e.g., "/inject,/query,/mcp")
-    // By default, ALL routes require authentication
-    const publicRoutes = env.PUBLIC_ROUTES?.split(',').map(r => r.trim()) ?? [];
-    const isPublicRoute = publicRoutes.includes(path) && request.method !== 'DELETE';
-
-    if (!isPublicRoute && !checkAuth()) {
+    if (!checkAuth()) {
       return new Response(
         JSON.stringify({ error: 'unauthorized - API key required' }),
         { status: 401, headers: corsHeaders }
       );
-    }
-
-    // Static marketing routes served from assets
-    const staticRoutes = ['/', '/docs', '/patterns', '/llms.txt'];
-    const isStaticAsset = path.startsWith('/_astro/') ||
-                          path.endsWith('.jpg') ||
-                          path.endsWith('.png') ||
-                          path.endsWith('.css') ||
-                          path.endsWith('.js');
-
-    if (staticRoutes.includes(path) || isStaticAsset) {
-      // For / route, serve index.html
-      const assetPath = path === '/' ? '/index.html' : path;
-      return env.ASSETS.fetch(new Request(new URL(assetPath, request.url), request));
     }
 
     // Get user ID from API key or use 'anonymous'
@@ -298,6 +284,11 @@ export default {
         endpoint: `${url.origin}/mcp`,
         tools: MCP_TOOLS.map(t => t.name),
       }), { headers: corsHeaders });
+    }
+
+    // Health check at API root
+    if (path === '/') {
+      return new Response(JSON.stringify({ status: 'ok', service: 'deja' }), { headers: corsHeaders });
     }
 
     // Forward all other requests to the Durable Object
