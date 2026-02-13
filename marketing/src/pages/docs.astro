@@ -35,49 +35,39 @@ wrangler secret put API_KEY
 # Deploy
 wrangler deploy`;
 
-const skillExample = `---
-description: Persistent memory via deja MCP server
-triggers:
-  - remember this
-  - what do you know about
-  - recall memories
-  - inject context
-  - learn from this
----
+const universalMcpConfig = `{
+  "mcpServers": {
+    "deja": {
+      "type": "http",
+      "url": "https://deja.your-subdomain.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer \${DEJA_API_KEY}"
+      }
+    }
+  }
+}`;
 
-# deja - Persistent Memory (MCP)
+const claudeCliInstall = `claude mcp add --transport http deja https://deja.your-subdomain.workers.dev/mcp \
+  --header "Authorization: Bearer $DEJA_API_KEY"`;
 
-You have access to deja via MCP at \`\${DEJA_URL}/mcp\`.
+const continueInstall = `mcpServers:
+  - name: deja
+    type: streamable-http
+    url: https://deja.your-subdomain.workers.dev/mcp
+    headers:
+      Authorization: Bearer \${secrets.DEJA_API_KEY}`;
 
-## MCP Tools
-
-Use these tools directly:
-
-- **learn** — Store a memory: \`{trigger, learning, confidence?, scope?}\`
-- **inject** — Get relevant memories: \`{context, scopes?, limit?}\`
-- **query** — Search memories: \`{query, scopes?, limit?}\`
-- **forget** — Delete a memory: \`{id}\`
-- **list** — List memories: \`{scope?, limit?}\`
-- **stats** — Get statistics
-
-## When to use
-
-- **After tasks**: Call \`learn\` with what worked or failed
-- **Before tasks**: Call \`inject\` with current context
-- **On request**: When user says "remember this"
-
-## Scopes
-
-- \`shared\` — All agents (default)
-- \`agent:<name>\` — Agent-specific
-- \`session:<id>\` — Temporary (7 day TTL)
-
-## Confidence
-
-- 0.9+ = Critical, verified
-- 0.7-0.9 = High confidence
-- 0.5-0.7 = Moderate
-- <0.3 = Auto-cleaned`;
+const clineInstall = `{
+  "mcpServers": {
+    "deja": {
+      "type": "http",
+      "url": "https://deja.your-subdomain.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer \${DEJA_API_KEY}"
+      }
+    }
+  }
+}`;
 ---
 
 <Base title="Documentation — deja" variant="content">
@@ -128,59 +118,51 @@ Use these tools directly:
 
   <section class="mt-12">
     <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> MCP Integration
+      <span class="text-brass">#</span> Universal MCP Setup (Any Agent)
     </h2>
     <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-      <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
       <p class="font-serif font-light text-chrome-dark m-0 mb-4">
-        deja speaks <a href="https://modelcontextprotocol.io" target="_blank" rel="noreferrer" class="text-brass hover:text-brass-light underline">Model Context Protocol</a> natively. Connect Claude Desktop, Cursor, or any MCP client directly.
+        deja is an MCP server. If your assistant supports MCP, it can use deja.
+        Point your client to <code class="text-brass">/mcp</code> and pass your bearer token.
       </p>
 
       <div class="mb-6">
-        <h3 class="font-mono text-sm text-brass mb-3">Claude Desktop config</h3>
-        <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{`// ~/Library/Application Support/Claude/claude_desktop_config.json
-{
-  "mcpServers": {
-    "deja": {
-      "url": "https://deja.your-subdomain.workers.dev/mcp",
-      "transport": "http"
-    }
-  }
-}`}</pre>
+        <h3 class="font-mono text-sm text-brass mb-3">Generic MCP config</h3>
+        <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{universalMcpConfig}</pre>
+      </div>
+
+      <div class="mb-6">
+        <h3 class="font-mono text-sm text-brass mb-3">Install examples by client</h3>
+        <div class="grid md:grid-cols-3 gap-4">
+          <div>
+            <p class="font-mono text-xs text-brass mb-2">Claude Code CLI</p>
+            <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-3 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{claudeCliInstall}</pre>
+          </div>
+          <div>
+            <p class="font-mono text-xs text-brass mb-2">Continue (config.yaml)</p>
+            <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-3 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{continueInstall}</pre>
+          </div>
+          <div>
+            <p class="font-mono text-xs text-brass mb-2">Cline / JSON clients</p>
+            <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-3 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{clineInstall}</pre>
+          </div>
+        </div>
       </div>
 
       <div class="mb-6">
         <h3 class="font-mono text-sm text-brass mb-3">Available MCP Tools</h3>
         <div class="space-y-3">
-          <div class="flex items-start gap-3">
-            <code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">learn</code>
-            <span class="font-serif text-sm text-chrome-dark">Store a memory for future recall</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">inject</code>
-            <span class="font-serif text-sm text-chrome-dark">Get relevant memories for current context</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">query</code>
-            <span class="font-serif text-sm text-chrome-dark">Search memories semantically</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">forget</code>
-            <span class="font-serif text-sm text-chrome-dark">Delete a specific memory</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">list</code>
-            <span class="font-serif text-sm text-chrome-dark">List memories by scope</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">stats</code>
-            <span class="font-serif text-sm text-chrome-dark">Get memory statistics</span>
-          </div>
+          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">learn</code><span class="font-serif text-sm text-chrome-dark">Store a memory for future recall</span></div>
+          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">inject</code><span class="font-serif text-sm text-chrome-dark">Retrieve context-relevant memories</span></div>
+          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">query</code><span class="font-serif text-sm text-chrome-dark">Semantic search across memory</span></div>
+          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">forget</code><span class="font-serif text-sm text-chrome-dark">Delete a specific memory</span></div>
+          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">list</code><span class="font-serif text-sm text-chrome-dark">List memories by scope</span></div>
+          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">stats</code><span class="font-serif text-sm text-chrome-dark">Read memory usage/statistics</span></div>
         </div>
       </div>
 
       <p class="font-serif font-light text-chrome-dark m-0 text-sm">
-        Once connected, just say <code class="text-brass">"remember this for next time"</code> — the agent handles the rest.
+        If it speaks MCP, it works with deja.
       </p>
     </div>
   </section>
@@ -294,39 +276,15 @@ Use these tools directly:
 
   <section class="mt-12 mb-8">
     <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> Claude Code Skill
+      <span class="text-brass">#</span> Compatibility Notes
     </h2>
     <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-      <p class="font-serif font-light text-chrome-dark m-0 mb-4">
-        Create a skill file to teach Claude Code how to use deja automatically. Skills are markdown files that get injected into Claude's context when triggered.
-      </p>
-
-      <div class="mb-6">
-        <h3 class="font-mono text-sm text-brass mb-3">1. Create the skill file</h3>
-        <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code">.claude/skills/deja.md</pre>
-      </div>
-
-      <div class="mb-6">
-        <h3 class="font-mono text-sm text-brass mb-3">2. Add the skill content</h3>
-        <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{skillExample}</pre>
-      </div>
-
-      <div class="mb-6">
-        <h3 class="font-mono text-sm text-brass mb-3">3. Set environment variables</h3>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-3">Add to your shell profile or <code class="text-brass">.claude/.env</code>:</p>
-        <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code">DEJA_URL=https://deja.your-subdomain.workers.dev
-DEJA_API_KEY=your-api-key</pre>
-      </div>
-
-      <div>
-        <h3 class="font-mono text-sm text-brass mb-3">How it works</h3>
-        <ul class="font-serif font-light text-chrome-dark pl-4 space-y-2">
-          <li>The <code class="text-brass">triggers</code> in frontmatter tell Claude when to load this skill</li>
-          <li>When you say "remember this for next time", Claude matches against triggers</li>
-          <li>The skill content gets injected, teaching Claude the API</li>
-          <li>Claude makes the curl calls directly using Bash</li>
-        </ul>
-      </div>
+      <ul class="font-serif font-light text-chrome-dark pl-4 space-y-2 m-0">
+        <li>Use <code class="text-brass">type: http</code>, <code class="text-brass">transport: http</code>, or your client's equivalent key.</li>
+        <li>Always target <code class="text-brass">https://.../mcp</code> (not the root URL).</li>
+        <li>Pass <code class="text-brass">Authorization: Bearer ...</code> in headers/env as your client expects.</li>
+        <li>If tools don’t show up, fully restart your MCP client after config changes.</li>
+      </ul>
     </div>
   </section>
 </Base>
