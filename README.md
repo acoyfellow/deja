@@ -84,6 +84,20 @@ Published deja (1.0.0)
   https://deja.<your-subdomain>.workers.dev
 ```
 
+### Schema & migrations (Drizzle-first)
+
+`src/schema.ts` is the schema source of truth.
+
+```bash
+# Generate SQL artifacts from Drizzle schema
+bun run db:generate
+
+# Apply live working-state migration (repo artifact)
+bun run db:migrate:state
+```
+
+Migration artifacts live under `drizzle/`.
+
 ### Configuration
 
 Edit `wrangler.json` before deploying:
