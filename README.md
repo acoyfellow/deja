@@ -5,7 +5,7 @@
 deja is a self-hosted memory layer for agents.
 It exposes durable memory via REST + MCP, with scoped recall and optional live working state.
 
-## Start here (Diátaxis index)
+## Start here
 
 ### 1) Tutorial (learning-oriented)
 - **Quickstart**: https://deja.coey.dev/guides/quickstart
