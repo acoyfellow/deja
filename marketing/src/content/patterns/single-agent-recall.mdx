@@ -183,3 +183,11 @@ function extractLearnings(llmResponse: string): RawLearning[] {
 - **Use meaningful triggers.** The trigger is what deja uses for semantic matching. Make it descriptive: "deploying Python apps with Poetry" is better than "deployment."
 - **Inject before, learn after.** Never reverse the order. If you learn before injecting, the agent may immediately recall its own just-stored learning without validating it.
 - **Add a source field.** Tagging learnings with a source (e.g., `"postmortem-2026-02"` or `"user-feedback"`) makes debugging and pruning much easier later.
+
+## Explore the research
+
+The single-agent recall loop is the foundation for many memory interfaces. See how it evolves in our [Memory Interface Research](/research):
+
+- [Journal](/research/journal) — a timeline view of an agent's learn/inject cycle
+- [Agent's Diary](/research/agents-diary) — narrative synthesis of an agent's accumulated knowledge
+- [Déjà Vu Moment](/research/deja-vu-moment) — push-based recall that surfaces memories before the agent asks

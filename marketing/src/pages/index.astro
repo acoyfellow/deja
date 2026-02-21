@@ -699,6 +699,38 @@ const integrationCategories = [
     </section>
   )}
 
+  <!-- Research -->
+  <section class="mt-18">
+    <div class="flex items-center justify-between mb-6">
+      <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass">Memory Interface Research</div>
+      <a href="/research" class="font-mono text-[11px] text-chrome-dark/60 hover:text-brass transition-colors">All 20 explorations &rarr;</a>
+    </div>
+    <div class="bg-steel border border-brass/10 rounded-sm p-6 md:p-8 relative shadow-card">
+      <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+      <p class="font-serif font-light text-chrome-dark m-0 mb-6 max-w-2xl">
+        20 explorations of how humans and agents might interact with persistent memory.
+        From filing cabinets to mycelial networks — each one is a standalone interactive research page.
+      </p>
+      <div class="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <a href="/research#layer-a" class="group block bg-void-deep/60 border border-brass/10 rounded-sm p-4 hover:border-brass/25 transition-colors">
+          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-2">Layer A</div>
+          <div class="font-serif text-sm text-chrome-dark">Human Patterns</div>
+          <div class="font-serif text-xs text-chrome-dark/50 mt-1">Filing cabinets, journals, search, constellations</div>
+        </a>
+        <a href="/research#layer-b" class="group block bg-void-deep/60 border border-blue-500/10 rounded-sm p-4 hover:border-blue-500/25 transition-colors">
+          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-blue-400 mb-2">Layer B</div>
+          <div class="font-serif text-sm text-chrome-dark">Agent Memory</div>
+          <div class="font-serif text-xs text-chrome-dark/50 mt-1">Debuggers, diffs, heatmaps, instincts</div>
+        </a>
+        <a href="/research#layer-c" class="group block bg-void-deep/60 border border-emerald-500/10 rounded-sm p-4 hover:border-emerald-500/25 transition-colors">
+          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-emerald-400 mb-2">Layer C</div>
+          <div class="font-serif text-sm text-chrome-dark">Multi-Agent</div>
+          <div class="font-serif text-xs text-chrome-dark/50 mt-1">Commons, handoffs, meshes, networks</div>
+        </a>
+      </div>
+    </div>
+  </section>
+
   <!-- Featured Prompt -->
   {featuredPrompt && (
     <section class="mt-18">
@@ -792,6 +824,12 @@ const integrationCategories = [
           class="font-mono px-5 py-2.5 rounded-sm text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
         >
           See Patterns
+        </a>
+        <a
+          href="/research"
+          class="font-mono px-5 py-2.5 rounded-sm text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+        >
+          Research
         </a>
         <a
           href="/docs"

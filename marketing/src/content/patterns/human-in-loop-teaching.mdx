@@ -268,3 +268,10 @@ function formatTeachingConfirmation(teaching: ParsedTeaching): string {
 - **Tag the source as `human-teaching` or `human-correction`.** This lets you filter and prioritize human-provided knowledge during inject.
 - **Give human teachings higher confidence.** A human explicitly saying "remember this" is more reliable than an agent's self-generated learning. Use 0.9-1.0 confidence.
 - **Pair with Memory Hygiene.** Human teachings with confidence 1.0 should be exempt from automatic confidence decay. See [Memory Hygiene](/patterns/memory-hygiene).
+
+## Explore the research
+
+Human-in-the-loop teaching is a rich design space. See how it evolves in our [Memory Interface Research](/research):
+
+- [Learning Proposal Flow](/research/learning-proposal-flow) — an approval queue where agents propose memories and humans accept, edit, or reject
+- [Forgetting Ritual](/research/forgetting-ritual) — a Tinder-style swipe interface for curating what stays and what goes

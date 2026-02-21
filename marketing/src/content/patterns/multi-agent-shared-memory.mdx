@@ -196,6 +196,7 @@ Deciding what goes into `shared` vs. `agent:<name>` is the key design decision.
 - **Start with everything in `shared`** and move to agent-specific scopes only when you see cross-contamination (learnings that confuse agents with different roles).
 - **Limit inject results.** When injecting from multiple scopes, set a reasonable limit (5-10). deja returns the most semantically relevant results, but too many memories dilute the agent's focus.
 - **Monitor with `/stats`.** Check the scope breakdown regularly to ensure no single agent is flooding shared memory.
+- **Explore the research.** Our [Memory Interface Research](/research) has several concepts that build on multi-agent shared memory: [Memory Commons](/research/memory-commons) (wiki-style collaborative editing), [Handoff Packet](/research/handoff-packet) (structured briefing between agents), and [Memory Mesh](/research/memory-mesh) (network flow visualization of how knowledge travels between agents).
 
 ```bash
 # Check memory distribution across scopes

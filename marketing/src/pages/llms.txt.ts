@@ -28,6 +28,10 @@ It provides durable memory + optional live working state via REST and MCP.
 - https://deja.coey.dev/guides/architecture-and-self-hosting
 - https://deja.coey.dev/use-cases
 
+### Research
+- https://deja.coey.dev/research
+- https://deja.coey.dev/research/llms.txt
+
 ## Core API
 - POST /learn
 - POST /inject
