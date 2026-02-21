@@ -26,14 +26,14 @@ jobs:
       - name: Build marketing site
         run: cd marketing && bun install && bun run build
 
-      - name: Set Worker secrets
-        run: echo "${{ secrets.DEJA_API_KEY }}" | bunx wrangler secret put API_KEY
+      - name: Deploy to Cloudflare
+        run: bunx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Deploy to Cloudflare
-        run: bunx wrangler deploy
+      - name: Set Worker secrets
+        run: echo "${{ secrets.DEJA_API_KEY }}" | bunx wrangler secret put API_KEY
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
