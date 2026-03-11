@@ -354,3 +354,35 @@ The most impactful near-term additions to deja would likely be:
 4. A unified timeline endpoint (enables 2, 9, 10)
 
 These four primitives unlock the majority of the 20 interfaces described here.
+
+---
+
+## The Triangle: deja + filepath + gateproof
+
+Three independent systems, each doing one thing well, connected by `do`:
+
+```mermaid
+graph LR
+    U((You)) -->|intent| DO[deja /do]
+    DO -->|enriched prompt| FP[filepath]
+    DO -->|assertions| GP[gateproof]
+    FP -->|result| DO
+    GP -->|proof| DO
+    DO -->|auto-learn| DEJA[(deja memory)]
+    DEJA -->|inject| DO
+
+    style DO fill:#f59e0b,stroke:#000,color:#000
+    style FP fill:#3b82f6,stroke:#000,color:#fff
+    style GP fill:#10b981,stroke:#000,color:#fff
+    style DEJA fill:#f59e0b,stroke:#000,color:#000
+    style U fill:#fff,stroke:#000,color:#000
+```
+
+| System | Role | Stays simple because... |
+|--------|------|------------------------|
+| **deja** | Remembers | Doesn't run agents, doesn't validate |
+| **filepath** | Runs agents | Doesn't remember, doesn't validate |
+| **gateproof** | Proves outcomes | Doesn't remember, doesn't run agents |
+| **`do`** | Connects the three | ~30 lines of dispatch, not a platform |
+
+The loop tightens over time: gateproof tells deja what worked, deja tells filepath what to try first.
