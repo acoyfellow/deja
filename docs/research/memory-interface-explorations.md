@@ -359,30 +359,48 @@ These four primitives unlock the majority of the 20 interfaces described here.
 
 ## The Triangle: deja + filepath + gateproof
 
-Three independent systems, each doing one thing well, connected by `do`:
-
 ```mermaid
 graph LR
-    U((You)) -->|intent| DO[deja /do]
-    DO -->|enriched prompt| FP[filepath]
-    DO -->|assertions| GP[gateproof]
-    FP -->|result| DO
-    GP -->|proof| DO
-    DO -->|auto-learn| DEJA[(deja memory)]
-    DEJA -->|inject| DO
-
-    style DO fill:#f59e0b,stroke:#000,color:#000
-    style FP fill:#3b82f6,stroke:#000,color:#fff
-    style GP fill:#10b981,stroke:#000,color:#fff
-    style DEJA fill:#f59e0b,stroke:#000,color:#000
-    style U fill:#fff,stroke:#000,color:#000
+    deja[deja\nremembers] -->|prompt + memories| filepath[filepath\nruns agents]
+    filepath -->|result| gateproof[gateproof\nproves it worked]
+    gateproof -->|what worked| deja
 ```
 
-| System | Role | Stays simple because... |
-|--------|------|------------------------|
-| **deja** | Remembers | Doesn't run agents, doesn't validate |
-| **filepath** | Runs agents | Doesn't remember, doesn't validate |
-| **gateproof** | Proves outcomes | Doesn't remember, doesn't run agents |
-| **`do`** | Connects the three | ~30 lines of dispatch, not a platform |
+### The literal interface
 
-The loop tightens over time: gateproof tells deja what worked, deja tells filepath what to try first.
+"Intent" is just a string. It's what you'd type in a chat box.
+
+```bash
+curl -X POST https://deja.coey.dev/do \
+  -H "Authorization: Bearer $KEY" \
+  -d '{ "do": "add rate limiting to /api/users" }'
+```
+
+That's it. One field. A sentence. deja figures out the rest from memory.
+
+What happens inside:
+
+```jsonc
+// 1. deja injects memories for "add rate limiting to /api/users"
+//    finds: "last time used express-rate-limit, 100req/15min"
+
+// 2. deja sends to filepath
+POST filepath.coey.dev/api/session
+{
+  "prompt": "Add rate limiting to /api/users.\n\nContext from memory:\n- express-rate-limit, 100req/15min was used previously",
+  "harness": "claude-code"
+}
+
+// 3. filepath runs the agent, returns result
+
+// 4. deja sends to gateproof
+POST gateproof.dev/api/gate
+{
+  "observe": "GET /api/users 101 times in 15 minutes",
+  "assert": "last response is 429"
+}
+
+// 5. gateproof proves it, deja learns from the outcome
+```
+
+Steps 2-5 are optional and progressive. The simplest `do` is just step 1: inject memories and return the enriched prompt. Filepath and gateproof plug in when configured.
