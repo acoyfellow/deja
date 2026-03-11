@@ -7,7 +7,9 @@ const root = new URL('../', import.meta.url);
 const steps = [
   { label: 'typecheck', cmd: 'bun', args: ['run', 'typecheck'], cwd: root },
   { label: 'worker tests', cmd: 'bun', args: ['run', 'test:worker'], cwd: root },
+  { label: 'client install', cmd: 'bun', args: ['install'], cwd: new URL('../packages/deja-client/', import.meta.url) },
   { label: 'client tests', cmd: 'bun', args: ['run', 'test'], cwd: new URL('../packages/deja-client/', import.meta.url) },
+  { label: 'marketing install', cmd: 'bun', args: ['install'], cwd: new URL('../marketing/', import.meta.url) },
   { label: 'marketing build', cmd: 'bun', args: ['run', 'build'], cwd: new URL('../marketing/', import.meta.url) },
 ];
 
