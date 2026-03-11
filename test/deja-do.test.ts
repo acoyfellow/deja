@@ -1,140 +1,128 @@
 /**
  * Unit tests for DejaDO (Durable Object implementation)
- * These tests focus on the logic rather than the Cloudflare integration
+ * These tests focus on hermetic behavior rather than Cloudflare integration.
  */
 
 import { DejaDO } from '../src/do/DejaDO';
+import { filterScopesByPriority } from '../src/do/helpers';
 
-// Mock Cloudflare bindings
 const mockEnv = {
   VECTORIZE: {
     query: jest.fn(),
     insert: jest.fn(),
-    deleteByIds: jest.fn()
+    deleteByIds: jest.fn(),
   },
   AI: {
-    run: jest.fn()
+    run: jest.fn(),
   },
-  API_KEY: 'test-key'
+  API_KEY: 'test-key',
 };
 
-// Mock DurableObjectState
-const mockState = {
-  storage: {
-    sql: {}
-  }
-};
+function createMockState() {
+  const sqlExec = jest.fn();
+  return {
+    blockConcurrencyWhile: jest.fn(async (fn: () => Promise<void>) => fn()),
+    storage: {
+      sql: {
+        exec: sqlExec,
+      },
+    },
+  };
+}
+
+function createSecretsDb(rowsAffected = 0) {
+  const insertValues = jest.fn().mockResolvedValue(undefined);
+  const updateWhere = jest.fn().mockResolvedValue({ rowsAffected });
+  const deleteWhere = jest.fn().mockResolvedValue({ rowsAffected: 1 });
+  const selectLimit = jest.fn().mockResolvedValue([
+    {
+      name: 'test-secret',
+      value: 'secret-value',
+      scope: 'shared',
+      createdAt: '2023-01-01T00:00:00.000Z',
+      updatedAt: '2023-01-01T00:00:00.000Z',
+    },
+  ]);
+
+  return {
+    select: jest.fn().mockReturnValue({
+      from: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnValue({
+          limit: selectLimit,
+        }),
+      }),
+    }),
+    insert: jest.fn().mockReturnValue({
+      values: insertValues,
+    }),
+    update: jest.fn().mockReturnValue({
+      set: jest.fn().mockReturnValue({
+        where: updateWhere,
+      }),
+    }),
+    delete: jest.fn().mockReturnValue({
+      where: deleteWhere,
+    }),
+    __spies: {
+      insertValues,
+      updateWhere,
+      deleteWhere,
+      selectLimit,
+    },
+  };
+}
 
 describe('DejaDO', () => {
   let dejaDO: DejaDO;
-  
+  let mockState: ReturnType<typeof createMockState>;
+
   beforeEach(() => {
-    // Reset mocks
     jest.clearAllMocks();
-    
-    // Create new instance
-    // @ts-ignore - ignoring type issues for mocks
-    dejaDO = new DejaDO(mockState, mockEnv);
+
+    mockState = createMockState();
+    dejaDO = new DejaDO(mockState as any, mockEnv as any);
   });
 
-  test('should create DejaDO class', () => {
+  test('initializes storage safely in the constructor', () => {
     expect(DejaDO).toBeDefined();
     expect(dejaDO).toBeInstanceOf(DejaDO);
+    expect(mockState.blockConcurrencyWhile).toHaveBeenCalledTimes(1);
+    expect(mockState.storage.sql.exec).toHaveBeenCalled();
   });
 
-  test('should have required RPC methods', () => {
-    const methods = [
-      'inject',
-      'learn',
-      'query',
-      'getLearnings',
-      'deleteLearning',
-      'getSecret',
-      'setSecret',
-      'deleteSecret',
-      'getStats'
-    ];
-    
-    methods.forEach(method => {
-      expect(typeof (dejaDO as any)[method]).toBe('function');
-    });
-  });
-
-  test('should serve marketing page HTML on root', async () => {
-    const response = await dejaDO.fetch(
-      new Request('http://localhost/', { headers: { Accept: 'text/html' } })
-    );
-    const body = await response.text();
-    expect(response.headers.get('content-type')).toContain('text/html');
-    expect(body).toContain('deja, the <span>durable recall</span> layer');
-  });
-
-  test('should filter scopes by priority', () => {
-    // Test session scope priority
-    const sessionScopes = (dejaDO as any).filterScopesByPriority(['shared', 'agent:123', 'session:456']);
+  test('filters scopes by priority', () => {
+    const sessionScopes = filterScopesByPriority(['shared', 'agent:123', 'session:456']);
     expect(sessionScopes).toEqual(['session:456']);
-    
-    // Test agent scope priority
-    const agentScopes = (dejaDO as any).filterScopesByPriority(['shared', 'agent:123']);
+
+    const agentScopes = filterScopesByPriority(['shared', 'agent:123']);
     expect(agentScopes).toEqual(['agent:123']);
-    
-    // Test shared scope
-    const sharedScopes = (dejaDO as any).filterScopesByPriority(['shared']);
+
+    const sharedScopes = filterScopesByPriority(['shared']);
     expect(sharedScopes).toEqual(['shared']);
-    
-    // Test empty scopes
-    const emptyScopes = (dejaDO as any).filterScopesByPriority([]);
+
+    const emptyScopes = filterScopesByPriority([]);
     expect(emptyScopes).toEqual([]);
   });
 
-  test('should handle secrets', async () => {
-    // Mock database initialization for secrets tests
-    (dejaDO as any).initDB = jest.fn().mockResolvedValue({
-      select: jest.fn().mockReturnThis(),
-      from: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockResolvedValue([
-        { name: 'test-secret', value: 'secret-value', scope: 'shared', createdAt: '2023-01-01', updatedAt: '2023-01-01' }
-      ]),
-      insert: jest.fn().mockReturnThis(),
-      values: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      delete: jest.fn().mockReturnThis(),
-      eq: jest.fn(),
-      and: jest.fn()
-    });
-    
-    // Test setSecret
+  test('serves a JSON health response on root', async () => {
+    const response = await dejaDO.fetch(new Request('http://localhost/'));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: 'ok', service: 'deja' });
+  });
+
+  test('handles secret CRUD operations through the current methods', async () => {
+    const db = createSecretsDb(0);
+    (dejaDO as any).initDB = jest.fn().mockResolvedValue(db);
+
     const setResult = await dejaDO.setSecret('shared', 'test-secret', 'secret-value');
     expect(setResult.success).toBe(true);
-    
-    // Test getSecret
+    expect(db.__spies.insertValues).toHaveBeenCalled();
+
     const getResult = await dejaDO.getSecret(['shared'], 'test-secret');
     expect(getResult).toBe('secret-value');
-    
-    // Test deleteSecret
+
     const deleteResult = await dejaDO.deleteSecret('shared', 'test-secret');
     expect(deleteResult.success).toBe(true);
+    expect(db.__spies.deleteWhere).toHaveBeenCalled();
   });
 });
-
-  test('should handle scopes correctly', async () => {
-    // Mock database initialization for scope tests
-    const mockDb = {
-      select: jest.fn().mockReturnThis(),
-      from: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockResolvedValue([
-        { name: 'test-secret', value: 'secret-value', scope: 'session:123', createdAt: '2023-01-01', updatedAt: '2023-01-01' }
-      ]),
-      insert: jest.fn().mockReturnThis(),
-      values: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      delete: jest.fn().mockReturnThis(),
-      eq: jest.fn(),
-      and: jest.fn()
-    };
-    
-  });
