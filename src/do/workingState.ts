@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import * as schema from '../schema';
 import type {
   ResolveStateOptions,
+  SharedRunIdentity,
   WorkingStateOperationsContext,
   WorkingStatePayload,
   WorkingStateResponse,
@@ -33,6 +34,7 @@ export async function getStateByRunId(
     createdAt: current.createdAt,
     updatedAt: current.updatedAt,
     resolvedAt: current.resolvedAt ?? undefined,
+    identity: ctx.normalizeRunIdentityPayload(current),
   };
 }
 
@@ -42,6 +44,7 @@ export async function upsertWorkingState(
   payload: WorkingStatePayload,
   updatedBy?: string,
   changeSummary: string = 'state upsert',
+  identity?: SharedRunIdentity,
 ): Promise<WorkingStateResponse> {
   const db = await ctx.initDB();
   const now = new Date().toISOString();
@@ -49,6 +52,7 @@ export async function upsertWorkingState(
   const existing = await getStateByRunId(ctx, runId);
   const nextRevision = (existing?.revision ?? 0) + 1;
   const stateJson = JSON.stringify(normalized);
+  const nextIdentity = identity ?? existing?.identity;
 
   if (existing) {
     await db
@@ -58,6 +62,11 @@ export async function upsertWorkingState(
         stateJson,
         status: existing.status,
         updatedBy,
+        traceId: nextIdentity?.traceId ?? null,
+        workspaceId: nextIdentity?.workspaceId ?? null,
+        conversationId: nextIdentity?.conversationId ?? null,
+        proofRunId: nextIdentity?.proofRunId ?? null,
+        proofIterationId: nextIdentity?.proofIterationId ?? null,
         updatedAt: now,
       })
       .where(eq(schema.stateRuns.runId, runId));
@@ -68,6 +77,11 @@ export async function upsertWorkingState(
       stateJson,
       status: 'active',
       updatedBy,
+      traceId: nextIdentity?.traceId ?? null,
+      workspaceId: nextIdentity?.workspaceId ?? null,
+      conversationId: nextIdentity?.conversationId ?? null,
+      proofRunId: nextIdentity?.proofRunId ?? null,
+      proofIterationId: nextIdentity?.proofIterationId ?? null,
       createdAt: now,
       updatedAt: now,
       resolvedAt: null,
@@ -81,6 +95,11 @@ export async function upsertWorkingState(
     stateJson,
     changeSummary,
     updatedBy,
+    traceId: nextIdentity?.traceId ?? null,
+    workspaceId: nextIdentity?.workspaceId ?? null,
+    conversationId: nextIdentity?.conversationId ?? null,
+    proofRunId: nextIdentity?.proofRunId ?? null,
+    proofIterationId: nextIdentity?.proofIterationId ?? null,
     createdAt: now,
   } as any);
 
@@ -92,6 +111,7 @@ export async function patchWorkingState(
   runId: string,
   patch: any,
   updatedBy?: string,
+  identity?: SharedRunIdentity,
 ): Promise<WorkingStateResponse> {
   const current = (await getStateByRunId(ctx, runId)) ?? {
     runId,
@@ -105,7 +125,7 @@ export async function patchWorkingState(
     ...current.state,
     ...ctx.normalizeWorkingStatePayload({ ...current.state, ...patch }),
   };
-  return upsertWorkingState(ctx, runId, next, updatedBy, 'state patch');
+  return upsertWorkingState(ctx, runId, next, updatedBy, 'state patch', identity ?? current.identity);
 }
 
 export async function addWorkingStateEvent(
@@ -114,6 +134,7 @@ export async function addWorkingStateEvent(
   eventType: string,
   payload: Record<string, unknown>,
   createdBy?: string,
+  identity?: SharedRunIdentity,
 ): Promise<{ success: true; id: string }> {
   const db = await ctx.initDB();
   const now = new Date().toISOString();
@@ -125,6 +146,11 @@ export async function addWorkingStateEvent(
     eventType,
     payloadJson: JSON.stringify(payload ?? {}),
     createdBy,
+    traceId: identity?.traceId ?? null,
+    workspaceId: identity?.workspaceId ?? null,
+    conversationId: identity?.conversationId ?? null,
+    proofRunId: identity?.proofRunId ?? null,
+    proofIterationId: identity?.proofIterationId ?? null,
     createdAt: now,
   } as any);
 
@@ -174,6 +200,7 @@ export async function resolveWorkingState(
         typeof current.state.confidence === 'number' ? current.state.confidence : 0.8,
         'Derived from working state resolve',
         `state:${runId}`,
+        opts.identity,
       );
     }
   }

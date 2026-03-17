@@ -4,6 +4,15 @@ export interface Env {
   API_KEY?: string;
 }
 
+export interface SharedRunIdentity {
+  traceId?: string | null;
+  workspaceId?: string | null;
+  conversationId?: string | null;
+  runId?: string | null;
+  proofRunId?: string | null;
+  proofIterationId?: string | null;
+}
+
 export interface Learning {
   id: string;
   trigger: string;
@@ -16,6 +25,7 @@ export interface Learning {
   createdAt: string;
   lastRecalledAt?: string;
   recallCount: number;
+  identity?: SharedRunIdentity;
 }
 
 export interface Secret {
@@ -81,6 +91,7 @@ export interface WorkingStateResponse {
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
+  identity?: SharedRunIdentity;
 }
 
 export interface ResolveStateOptions {
@@ -88,6 +99,7 @@ export interface ResolveStateOptions {
   scope?: string;
   summaryStyle?: 'compact' | 'full';
   updatedBy?: string;
+  identity?: SharedRunIdentity;
 }
 
 export interface MemoryOperationsContext {
@@ -110,6 +122,7 @@ export interface StatsOperationsContext {
 export interface WorkingStateOperationsContext {
   initDB(): Promise<any>;
   normalizeWorkingStatePayload(payload: any): WorkingStatePayload;
+  normalizeRunIdentityPayload(payload: any): SharedRunIdentity | undefined;
   learn(
     scope: string,
     trigger: string,
@@ -117,5 +130,6 @@ export interface WorkingStateOperationsContext {
     confidence?: number,
     reason?: string,
     source?: string,
+    identity?: SharedRunIdentity,
   ): Promise<Learning>;
 }

@@ -9,6 +9,7 @@ import type {
   QueryResult,
   ResolveStateOptions,
   Secret,
+  SharedRunIdentity,
   Stats,
   WorkingStatePayload,
   WorkingStateResponse,
@@ -23,19 +24,22 @@ interface RouteHandlers {
     confidence?: number,
     reason?: string,
     source?: string,
+    identity?: SharedRunIdentity,
   ): Promise<Learning>;
-  query(scopes: string[], text: string, limit?: number): Promise<QueryResult>;
+  query(scopes: string[], text: string, limit?: number, identity?: SharedRunIdentity): Promise<QueryResult>;
   inject(
     scopes: string[],
     context: string,
     limit?: number,
     format?: 'prompt' | 'learnings',
+    identity?: SharedRunIdentity,
   ): Promise<{ prompt: string; learnings: Learning[]; state?: WorkingStateResponse }>;
   injectTrace(
     scopes: string[],
     context: string,
     limit?: number,
     threshold?: number,
+    identity?: SharedRunIdentity,
   ): Promise<InjectTraceResult>;
   getStats(): Promise<Stats>;
   getState(runId: string): Promise<WorkingStateResponse | null>;
@@ -44,13 +48,15 @@ interface RouteHandlers {
     payload: WorkingStatePayload,
     updatedBy?: string,
     changeSummary?: string,
+    identity?: SharedRunIdentity,
   ): Promise<WorkingStateResponse>;
-  patchState(runId: string, patch: any, updatedBy?: string): Promise<WorkingStateResponse>;
+  patchState(runId: string, patch: any, updatedBy?: string, identity?: SharedRunIdentity): Promise<WorkingStateResponse>;
   addStateEvent(
     runId: string,
     eventType: string,
     payload: Record<string, unknown>,
     createdBy?: string,
+    identity?: SharedRunIdentity,
   ): Promise<{ success: true; id: string }>;
   resolveState(runId: string, opts?: ResolveStateOptions): Promise<WorkingStateResponse | null>;
   getLearnings(filter?: { scope?: string; limit?: number }): Promise<Learning[]>;
@@ -86,13 +92,14 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.confidence,
       body.reason,
       body.source,
+      body.identity,
     );
     return c.json(result);
   });
 
   app.post('/query', async (c) => {
     const body: any = await c.req.json();
-    return c.json(await handlers.query(body.scopes || ['shared'], body.text, body.limit));
+    return c.json(await handlers.query(body.scopes || ['shared'], body.text, body.limit, body.identity));
   });
 
   app.post('/inject', async (c) => {
@@ -102,10 +109,20 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.context,
       body.limit,
       body.format,
+      body.identity,
     );
 
-    if (body.includeState && typeof body.runId === 'string' && body.runId.trim()) {
-      const state = await handlers.getState(body.runId.trim());
+    const stateRunId =
+      typeof body.runId === 'string' && body.runId.trim()
+        ? body.runId.trim()
+        : typeof body.identity?.proofRunId === 'string' && body.identity.proofRunId.trim()
+          ? body.identity.proofRunId.trim()
+          : typeof body.identity?.runId === 'string' && body.identity.runId.trim()
+            ? body.identity.runId.trim()
+            : '';
+
+    if (body.includeState && stateRunId) {
+      const state = await handlers.getState(stateRunId);
       if (state) {
         const statePrompt = formatStatePrompt(state);
         if (result.prompt) {
@@ -135,6 +152,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
         body.context || '',
         body.limit ?? 5,
         Number.isFinite(threshold) ? threshold : 0,
+        body.identity,
       ),
     );
   });
@@ -157,13 +175,14 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
         body,
         body.updatedBy,
         body.changeSummary || 'state put',
+        body.identity,
       ),
     );
   });
 
   app.patch('/state/:runId', async (c) => {
     const body: any = await c.req.json();
-    return c.json(await handlers.patchState(c.req.param('runId'), body, body.updatedBy));
+    return c.json(await handlers.patchState(c.req.param('runId'), body, body.updatedBy, body.identity));
   });
 
   app.post('/state/:runId/events', async (c) => {
@@ -174,6 +193,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
         body.eventType || 'note',
         body.payload || body,
         body.createdBy,
+        body.identity,
       ),
     );
   });
@@ -185,6 +205,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       scope: body.scope,
       summaryStyle: body.summaryStyle,
       updatedBy: body.updatedBy,
+      identity: body.identity,
     });
     if (!result) {
       return c.json({ error: 'not found' }, 404);

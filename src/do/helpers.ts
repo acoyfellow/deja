@@ -1,5 +1,6 @@
 import type {
   Learning,
+  SharedRunIdentity,
   WorkingStatePayload,
   WorkingStateResponse,
 } from './types';
@@ -16,7 +17,13 @@ export function initializeStorage(state: DurableObjectState) {
         source TEXT,
         scope TEXT NOT NULL,
         embedding TEXT,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        trace_id TEXT,
+        workspace_id TEXT,
+        conversation_id TEXT,
+        run_id TEXT,
+        proof_run_id TEXT,
+        proof_iteration_id TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_learnings_trigger ON learnings(trigger);
       CREATE INDEX IF NOT EXISTS idx_learnings_confidence ON learnings(confidence);
@@ -31,6 +38,24 @@ export function initializeStorage(state: DurableObjectState) {
     } catch (_) {}
     try {
       state.storage.sql.exec(`CREATE INDEX IF NOT EXISTS idx_learnings_last_recalled_at ON learnings(last_recalled_at)`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN trace_id TEXT`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN workspace_id TEXT`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN conversation_id TEXT`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN run_id TEXT`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN proof_run_id TEXT`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN proof_iteration_id TEXT`);
     } catch (_) {}
 
     state.storage.sql.exec(`
@@ -51,6 +76,11 @@ export function initializeStorage(state: DurableObjectState) {
         state_json TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'active',
         updated_by TEXT,
+        trace_id TEXT,
+        workspace_id TEXT,
+        conversation_id TEXT,
+        proof_run_id TEXT,
+        proof_iteration_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         resolved_at TEXT
@@ -62,6 +92,11 @@ export function initializeStorage(state: DurableObjectState) {
         state_json TEXT NOT NULL,
         change_summary TEXT,
         updated_by TEXT,
+        trace_id TEXT,
+        workspace_id TEXT,
+        conversation_id TEXT,
+        proof_run_id TEXT,
+        proof_iteration_id TEXT,
         created_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS state_events (
@@ -70,9 +105,21 @@ export function initializeStorage(state: DurableObjectState) {
         event_type TEXT NOT NULL,
         payload_json TEXT NOT NULL,
         created_by TEXT,
+        trace_id TEXT,
+        workspace_id TEXT,
+        conversation_id TEXT,
+        proof_run_id TEXT,
+        proof_iteration_id TEXT,
         created_at TEXT NOT NULL
       );
     `);
+    for (const table of ['state_runs', 'state_revisions', 'state_events']) {
+      for (const column of ['trace_id', 'workspace_id', 'conversation_id', 'proof_run_id', 'proof_iteration_id']) {
+        try {
+          state.storage.sql.exec(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`);
+        } catch (_) {}
+      }
+    }
   });
 }
 
@@ -102,7 +149,35 @@ export function convertDbLearning(dbLearning: any): Learning {
     createdAt: dbLearning.createdAt,
     lastRecalledAt: dbLearning.lastRecalledAt ?? undefined,
     recallCount: dbLearning.recallCount ?? 0,
+    identity: normalizeRunIdentityPayload(dbLearning),
   };
+}
+
+export function normalizeRunIdentityPayload(payload: any): SharedRunIdentity | undefined {
+  if (!payload || typeof payload !== 'object') {
+    return undefined;
+  }
+
+  const identity: SharedRunIdentity = {
+    traceId: typeof payload.traceId === 'string' ? payload.traceId : payload.trace_id ?? null,
+    workspaceId:
+      typeof payload.workspaceId === 'string' ? payload.workspaceId : payload.workspace_id ?? null,
+    conversationId:
+      typeof payload.conversationId === 'string'
+        ? payload.conversationId
+        : payload.conversation_id ?? null,
+    runId: typeof payload.runId === 'string' ? payload.runId : payload.run_id ?? null,
+    proofRunId:
+      typeof payload.proofRunId === 'string' ? payload.proofRunId : payload.proof_run_id ?? null,
+    proofIterationId:
+      typeof payload.proofIterationId === 'string'
+        ? payload.proofIterationId
+        : payload.proof_iteration_id ?? null,
+  };
+
+  return Object.values(identity).some((value) => typeof value === 'string' && value.length > 0)
+    ? identity
+    : undefined;
 }
 
 export function normalizeWorkingStatePayload(payload: any): WorkingStatePayload {

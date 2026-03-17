@@ -8,6 +8,7 @@ import type {
   Learning,
   MemoryOperationsContext,
   QueryResult,
+  SharedRunIdentity,
 } from './types';
 
 export async function cleanupLearnings(
@@ -93,6 +94,7 @@ export async function injectMemories(
   context: string,
   limit: number = 5,
   format: 'prompt' | 'learnings' = 'prompt',
+  _identity?: SharedRunIdentity,
 ): Promise<InjectResult> {
   const db = await ctx.initDB();
   const filteredScopes = ctx.filterScopesByPriority(scopes);
@@ -159,6 +161,7 @@ export async function injectMemoriesWithTrace(
   context: string,
   limit: number = 5,
   threshold: number = 0,
+  _identity?: SharedRunIdentity,
 ): Promise<InjectTraceResult> {
   const startTime = Date.now();
   const db = await ctx.initDB();
@@ -276,6 +279,7 @@ export async function learnMemory(
   confidence: number = 0.5,
   reason?: string,
   source?: string,
+  identity?: SharedRunIdentity,
 ): Promise<Learning> {
   const db = await ctx.initDB();
   const id = createLearningId();
@@ -291,6 +295,7 @@ export async function learnMemory(
     embedding,
     createdAt: new Date().toISOString(),
     recallCount: 0,
+    identity,
   };
 
   await db.insert(schema.learnings).values({
@@ -303,6 +308,12 @@ export async function learnMemory(
     scope: newLearning.scope,
     embedding: newLearning.embedding ? JSON.stringify(newLearning.embedding) : null,
     createdAt: newLearning.createdAt,
+    traceId: identity?.traceId ?? null,
+    workspaceId: identity?.workspaceId ?? null,
+    conversationId: identity?.conversationId ?? null,
+    runId: identity?.runId ?? null,
+    proofRunId: identity?.proofRunId ?? null,
+    proofIterationId: identity?.proofIterationId ?? null,
   });
 
   await ctx.env.VECTORIZE.insert([
@@ -357,6 +368,7 @@ export async function queryLearnings(
   scopes: string[],
   text: string,
   limit: number = 10,
+  _identity?: SharedRunIdentity,
 ): Promise<QueryResult> {
   const db = await ctx.initDB();
   const filteredScopes = ctx.filterScopesByPriority(scopes);

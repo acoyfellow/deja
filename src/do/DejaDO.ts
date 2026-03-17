@@ -7,11 +7,11 @@ import { DurableObject } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { Hono } from 'hono';
 import { cleanupLearnings, deleteLearningById, deleteLearningsByFilter, getLearningNeighbors, injectMemories, injectMemoriesWithTrace, learnMemory, listLearnings, queryLearnings } from './memory';
-import { convertDbLearning, filterScopesByPriority, initializeStorage, normalizeWorkingStatePayload } from './helpers';
+import { convertDbLearning, filterScopesByPriority, initializeStorage, normalizeRunIdentityPayload, normalizeWorkingStatePayload } from './helpers';
 import { createDejaApp } from './routes';
 import { deleteSecretValue, getSecretValue, listSecrets, setSecretValue } from './secrets';
 import { getStatsSnapshot } from './stats';
-import type { Env, InjectResult, InjectTraceResult, Learning, QueryResult, ResolveStateOptions, Secret, Stats, WorkingStatePayload, WorkingStateResponse } from './types';
+import type { Env, InjectResult, InjectTraceResult, Learning, QueryResult, ResolveStateOptions, Secret, SharedRunIdentity, Stats, WorkingStatePayload, WorkingStateResponse } from './types';
 import { addWorkingStateEvent, getStateByRunId, patchWorkingState, resolveWorkingState, upsertWorkingState } from './workingState';
 
 export class DejaDO extends DurableObject<Env> {
@@ -81,6 +81,7 @@ export class DejaDO extends DurableObject<Env> {
     return {
       initDB: () => this.initDB(),
       normalizeWorkingStatePayload,
+      normalizeRunIdentityPayload,
       learn: this.learn.bind(this),
     };
   }
@@ -89,29 +90,30 @@ export class DejaDO extends DurableObject<Env> {
     return cleanupLearnings(this.getMemoryContext());
   }
 
-  async inject(scopes: string[], context: string, limit: number = 5, format: 'prompt' | 'learnings' = 'prompt'): Promise<InjectResult> {
-    return injectMemories(this.getMemoryContext(), scopes, context, limit, format);
+  async inject(scopes: string[], context: string, limit: number = 5, format: 'prompt' | 'learnings' = 'prompt', identity?: SharedRunIdentity): Promise<InjectResult> {
+    return injectMemories(this.getMemoryContext(), scopes, context, limit, format, identity);
   }
 
   async injectTrace(
     scopes: string[],
     context: string,
     limit: number = 5,
-    threshold: number = 0
+    threshold: number = 0,
+    identity?: SharedRunIdentity,
   ): Promise<InjectTraceResult> {
-    return injectMemoriesWithTrace(this.getMemoryContext(), scopes, context, limit, threshold);
+    return injectMemoriesWithTrace(this.getMemoryContext(), scopes, context, limit, threshold, identity);
   }
 
-  async learn(scope: string, trigger: string, learning: string, confidence: number = 0.5, reason?: string, source?: string): Promise<Learning> {
-    return learnMemory(this.getMemoryContext(), scope, trigger, learning, confidence, reason, source);
+  async learn(scope: string, trigger: string, learning: string, confidence: number = 0.5, reason?: string, source?: string, identity?: SharedRunIdentity): Promise<Learning> {
+    return learnMemory(this.getMemoryContext(), scope, trigger, learning, confidence, reason, source, identity);
   }
 
   async getLearningNeighbors(id: string, threshold: number = 0.85, limit: number = 10): Promise<Array<Learning & { similarity_score: number }>> {
     return getLearningNeighbors(this.getMemoryContext(), id, threshold, limit);
   }
 
-  async query(scopes: string[], text: string, limit: number = 10): Promise<QueryResult> {
-    return queryLearnings(this.getMemoryContext(), scopes, text, limit);
+  async query(scopes: string[], text: string, limit: number = 10, identity?: SharedRunIdentity): Promise<QueryResult> {
+    return queryLearnings(this.getMemoryContext(), scopes, text, limit, identity);
   }
 
   async getLearnings(filter?: { scope?: string; limit?: number }): Promise<Learning[]> {
@@ -155,12 +157,13 @@ export class DejaDO extends DurableObject<Env> {
     payload: WorkingStatePayload,
     updatedBy?: string,
     changeSummary: string = 'state upsert',
+    identity?: SharedRunIdentity,
   ): Promise<WorkingStateResponse> {
-    return upsertWorkingState(this.getWorkingStateContext(), runId, payload, updatedBy, changeSummary);
+    return upsertWorkingState(this.getWorkingStateContext(), runId, payload, updatedBy, changeSummary, identity);
   }
 
-  async patchState(runId: string, patch: any, updatedBy?: string): Promise<WorkingStateResponse> {
-    return patchWorkingState(this.getWorkingStateContext(), runId, patch, updatedBy);
+  async patchState(runId: string, patch: any, updatedBy?: string, identity?: SharedRunIdentity): Promise<WorkingStateResponse> {
+    return patchWorkingState(this.getWorkingStateContext(), runId, patch, updatedBy, identity);
   }
 
   async addStateEvent(
@@ -168,8 +171,9 @@ export class DejaDO extends DurableObject<Env> {
     eventType: string,
     payload: Record<string, unknown>,
     createdBy?: string,
+    identity?: SharedRunIdentity,
   ): Promise<{ success: true; id: string }> {
-    return addWorkingStateEvent(this.getWorkingStateContext(), runId, eventType, payload, createdBy);
+    return addWorkingStateEvent(this.getWorkingStateContext(), runId, eventType, payload, createdBy, identity);
   }
 
   async resolveState(runId: string, opts: ResolveStateOptions = {}): Promise<WorkingStateResponse | null> {
