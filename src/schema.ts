@@ -12,6 +12,12 @@ export const learnings = sqliteTable('learnings', {
   createdAt: text('created_at').notNull(),
   lastRecalledAt: text('last_recalled_at'),
   recallCount: integer('recall_count').default(0),
+  traceId: text('trace_id'),
+  workspaceId: text('workspace_id'),
+  conversationId: text('conversation_id'),
+  runId: text('run_id'),
+  proofRunId: text('proof_run_id'),
+  proofIterationId: text('proof_iteration_id'),
 });
 
 export const secrets = sqliteTable('secrets', {
@@ -29,6 +35,11 @@ export const stateRuns = sqliteTable('state_runs', {
   stateJson: text('state_json').notNull(),
   status: text('status').notNull().default('active'),
   updatedBy: text('updated_by'),
+  traceId: text('trace_id'),
+  workspaceId: text('workspace_id'),
+  conversationId: text('conversation_id'),
+  proofRunId: text('proof_run_id'),
+  proofIterationId: text('proof_iteration_id'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   resolvedAt: text('resolved_at'),
@@ -42,6 +53,11 @@ export const stateRevisions = sqliteTable('state_revisions', {
   stateJson: text('state_json').notNull(),
   changeSummary: text('change_summary'),
   updatedBy: text('updated_by'),
+  traceId: text('trace_id'),
+  workspaceId: text('workspace_id'),
+  conversationId: text('conversation_id'),
+  proofRunId: text('proof_run_id'),
+  proofIterationId: text('proof_iteration_id'),
   createdAt: text('created_at').notNull(),
 });
 
@@ -52,5 +68,10 @@ export const stateEvents = sqliteTable('state_events', {
   eventType: text('event_type').notNull(),
   payloadJson: text('payload_json').notNull(),
   createdBy: text('created_by'),
+  traceId: text('trace_id'),
+  workspaceId: text('workspace_id'),
+  conversationId: text('conversation_id'),
+  proofRunId: text('proof_run_id'),
+  proofIterationId: text('proof_iteration_id'),
   createdAt: text('created_at').notNull(),
 });

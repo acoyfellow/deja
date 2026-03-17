@@ -1,9 +1,17 @@
-# deja
+# deja 0.05
 
 *What survives a run.*
 
 deja is a self-hosted memory layer for agents.
 It exposes durable memory via REST + MCP, with scoped recall and optional live working state.
+
+In 0.05, Deja is the memory rail in a three-layer stack:
+
+- filepath does bounded work
+- Gateproof decides whether the work is true
+- Deja carries recall and working state across runs
+
+Shared run identity is now part of that contract: learnings and working state can carry `traceId`, `workspaceId`, `conversationId`, `runId`, `proofRunId`, and `proofIterationId`.
 
 ## Start here
 

@@ -4,7 +4,7 @@
  */
 
 import { DejaDO } from '../src/do/DejaDO';
-import { filterScopesByPriority } from '../src/do/helpers';
+import { filterScopesByPriority, normalizeRunIdentityPayload } from '../src/do/helpers';
 
 const mockEnv = {
   VECTORIZE: {
@@ -102,6 +102,26 @@ describe('DejaDO', () => {
 
     const emptyScopes = filterScopesByPriority([]);
     expect(emptyScopes).toEqual([]);
+  });
+
+  test('normalizes shared run identity payloads from snake and camel keys', () => {
+    expect(
+      normalizeRunIdentityPayload({
+        trace_id: 'trace-1',
+        workspaceId: 'workspace-1',
+        conversation_id: 'conversation-1',
+        runId: 'run-1',
+        proof_run_id: 'proof-run-1',
+        proofIterationId: 'proof-run-1:1',
+      }),
+    ).toEqual({
+      traceId: 'trace-1',
+      workspaceId: 'workspace-1',
+      conversationId: 'conversation-1',
+      runId: 'run-1',
+      proofRunId: 'proof-run-1',
+      proofIterationId: 'proof-run-1:1',
+    });
   });
 
   test('serves a JSON health response on root', async () => {

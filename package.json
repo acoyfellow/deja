@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "description": "Persistent memory for agents",
   "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./packages/deja-client/src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
   "scripts": {
     "dev": "wrangler dev",
     "dev:marketing": "cd marketing && bun run dev",
