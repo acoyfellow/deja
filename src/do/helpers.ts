@@ -124,6 +124,8 @@ export function initializeStorage(state: DurableObjectState) {
 }
 
 export function filterScopesByPriority(scopes: string[]): string[] {
+  if (scopes.length === 0) return [];
+
   const priority = ['session:', 'agent:', 'shared'];
 
   for (const prefix of priority) {
@@ -133,7 +135,8 @@ export function filterScopesByPriority(scopes: string[]): string[] {
     }
   }
 
-  return scopes.includes('shared') ? ['shared'] : [];
+  // Pass through custom scopes (e.g. workspace-specific scopes from filepath)
+  return scopes;
 }
 
 export function convertDbLearning(dbLearning: any): Learning {
