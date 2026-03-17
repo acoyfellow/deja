@@ -12,7 +12,7 @@ interface Env {
   API_KEY?: string;
   VECTORIZE: VectorizeIndex;
   AI: any;
-  ASSETS: Fetcher;
+  ASSETS?: Fetcher;
 }
 
 export { DejaDO };
@@ -408,6 +408,9 @@ export default {
 
     // Marketing domain: serve static Astro site, no auth required
     if (url.hostname === 'deja.coey.dev') {
+      if (!env.ASSETS) {
+        return new Response('Marketing site not configured', { status: 404, headers: corsHeaders });
+      }
       return env.ASSETS.fetch(request);
     }
 
