@@ -1,43 +1,25 @@
-# deja 0.05
+# deja
 
-*What survives a run.*
+> Persistent memory for agents. Store learnings, recall context.
 
-deja is a self-hosted memory layer for agents.
-It exposes durable memory via REST + MCP, with scoped recall and optional live working state.
+[Docs](https://deja.coey.dev/docs) · [Quickstart](https://deja.coey.dev/guides/quickstart)
 
-In 0.05, Deja is the memory rail in a three-layer stack:
+## What Deja does
 
-- filepath does bounded work
-- Gateproof decides whether the work is true
-- Deja carries recall and working state across runs
+Agents learn from runs. Deja remembers across them.
 
-Shared run identity is now part of that contract: learnings and working state can carry `traceId`, `workspaceId`, `conversationId`, `runId`, `proofRunId`, and `proofIterationId`.
+- **Learn** — store a learning with trigger, context, and confidence
+- **Recall** — semantic search returns relevant learnings before the next run
+- **Working state** — live snapshots and event streams for in-progress work
+- **Scoped** — learnings are isolated by scope (`shared`, `agent:<id>`, `session:<id>`, or custom)
 
-## Start here
+## Install
 
-### 1) Tutorial (learning-oriented)
-- **Quickstart**: https://deja.coey.dev/guides/quickstart
+### As part of filepath (recommended)
 
-### 2) How-to guides (task-oriented)
-- **Connect an MCP client**: https://deja.coey.dev/docs
-- **Integrations index**: https://deja.coey.dev/integrations
-- **Cursor integration**: https://deja.coey.dev/integrations/cursor
-- **Claude Code integration**: https://deja.coey.dev/integrations/claude-code
-- **GitHub Actions integration**: https://deja.coey.dev/integrations/github-actions
+Deja is an npm-installable Cloudflare Worker. When used with [filepath](https://github.com/acoyfellow/filepath), add it to `alchemy.run.ts` and it deploys alongside your filepath instance. See the [filepath README](https://github.com/acoyfellow/filepath#how-to-enable-memory-deja) for setup.
 
-### 3) Reference (information-oriented)
-- **REST + MCP reference**: https://deja.coey.dev/docs
-- **OpenAPI (working state)**: `docs/openapi-working-state.yaml`
-- **Drizzle schema source of truth**: `src/schema.ts`
-- **Migration artifacts**: `drizzle/`
-
-### 4) Explanation (understanding-oriented)
-- **Architecture & self-hosting**: https://deja.coey.dev/guides/architecture-and-self-hosting
-- **Use cases**: https://deja.coey.dev/use-cases
-
----
-
-## Minimal deploy
+### Standalone
 
 ```bash
 git clone https://github.com/acoyfellow/deja
@@ -49,23 +31,29 @@ wrangler secret put API_KEY
 bun run deploy
 ```
 
----
+## Connect
 
-## Minimal MCP config (agent-agnostic)
+### REST
 
-Any MCP-capable agent can connect to:
+```
+POST /learn         — store a learning
+POST /inject        — recall relevant learnings for a context
+POST /inject/trace  — recall with debug info
+POST /query         — search learnings
+GET  /learnings     — list learnings (filterable by scope)
+GET  /stats         — counts by scope
+```
 
-- Endpoint: `https://<your-host>/mcp`
-- Header: `Authorization: Bearer <API_KEY>`
+### MCP
 
-Example:
+Any MCP-capable agent can connect:
 
 ```json
 {
   "mcpServers": {
     "deja": {
       "type": "http",
-      "url": "https://deja.your-subdomain.workers.dev/mcp",
+      "url": "https://your-deja-instance.workers.dev/mcp",
       "headers": {
         "Authorization": "Bearer ${DEJA_API_KEY}"
       }
@@ -74,14 +62,29 @@ Example:
 }
 ```
 
----
+Integration guides: [Cursor](https://deja.coey.dev/integrations/cursor) · [Claude Code](https://deja.coey.dev/integrations/claude-code) · [GitHub Actions](https://deja.coey.dev/integrations/github-actions)
 
-## Core API surface
+## API surface
 
-- Memory: `/learn`, `/inject`, `/inject/trace`, `/query`, `/learnings`, `/learning/:id`, `/learning/:id/neighbors`, `/stats`, `DELETE /learning/:id`, `DELETE /learnings`
-- Working state: `/state/:runId`, `/state/:runId/events`, `/state/:runId/resolve`
-- Secrets: `/secret`, `/secret/:name`, `/secrets`
+- **Memory**: `/learn`, `/inject`, `/inject/trace`, `/query`, `/learnings`, `/learning/:id`, `/learning/:id/neighbors`, `/stats`, `DELETE /learning/:id`, `DELETE /learnings`
+- **Working state**: `/state/:runId`, `/state/:runId/events`, `/state/:runId/resolve`
+- **Secrets**: `/secret`, `/secret/:name`, `/secrets`
 
-Learnings include `last_recalled_at`, `recall_count` for tracking. Bulk delete: `DELETE /learnings?confidence_lt=0.5` or `?not_recalled_in_days=90` or `?scope=shared` (requires at least one filter).
+Learnings track `lastRecalledAt` and `recallCount`. Bulk delete supports filters: `?confidence_lt=0.5`, `?not_recalled_in_days=90`, `?scope=shared`.
 
-For full payloads and examples, use: https://deja.coey.dev/docs
+Full reference: https://deja.coey.dev/docs
+
+## Architecture
+
+- **Runtime**: Cloudflare Worker + Durable Object (per-user SQLite)
+- **Embeddings**: Workers AI (`@cf/baai/bge-small-en-v1.5`, 384 dimensions)
+- **Search**: Cloudflare Vectorize (cosine similarity)
+- **Auth**: optional `API_KEY` secret; open access if not set
+
+## Reference
+
+- Schema: `src/schema.ts`
+- Worker entry: `src/index.ts`
+- Durable Object: `src/do/DejaDO.ts`
+- Client package: `packages/deja-client/`
+- Architecture guide: https://deja.coey.dev/guides/architecture-and-self-hosting
