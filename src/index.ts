@@ -187,6 +187,32 @@ const MCP_TOOLS = [
       required: ['runId'],
     },
   },
+  {
+    name: 'record_run',
+    description: 'Record the outcome of an optimization loop run. Automatically fires learn() to persist the result as a memory for future runs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        outcome: { type: 'string', enum: ['pass', 'fail', 'exhausted'], description: 'Run outcome' },
+        attempts: { type: 'number', description: 'Number of attempts taken' },
+        scope: { type: 'string', description: 'Memory scope', default: 'shared' },
+        code: { type: 'string', description: 'Code produced by the run (stored truncated at 500 chars in memory)' },
+        error: { type: 'string', description: 'Error message if outcome is fail or exhausted' },
+      },
+      required: ['outcome', 'attempts'],
+    },
+  },
+  {
+    name: 'get_runs',
+    description: 'Get run history and convergence stats for an optimization loop.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scope: { type: 'string', description: 'Filter by scope' },
+        limit: { type: 'number', description: 'Max runs to return', default: 50 },
+      },
+    },
+  },
 ];
 
 // Handle MCP tool calls
@@ -312,6 +338,27 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
           updatedBy: args.updatedBy,
         }),
       }));
+      return response.json();
+    }
+    case 'record_run': {
+      const response = await stub.fetch(new Request('http://internal/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outcome: args.outcome,
+          attempts: args.attempts,
+          scope: args.scope ?? 'shared',
+          code: args.code,
+          error: args.error,
+        }),
+      }));
+      return response.json();
+    }
+    case 'get_runs': {
+      const params = new URLSearchParams();
+      if (args.scope) params.set('scope', args.scope);
+      if (args.limit) params.set('limit', String(args.limit));
+      const response = await stub.fetch(new Request(`http://internal/runs?${params}`));
       return response.json();
     }
     default:

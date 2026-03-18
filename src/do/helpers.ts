@@ -113,6 +113,20 @@ export function initializeStorage(state: DurableObjectState) {
         created_at TEXT NOT NULL
       );
     `);
+    state.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS loop_runs (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        attempts INTEGER NOT NULL,
+        code TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_loop_runs_scope ON loop_runs(scope);
+      CREATE INDEX IF NOT EXISTS idx_loop_runs_created_at ON loop_runs(created_at);
+    `);
+
     for (const table of ['state_runs', 'state_revisions', 'state_events']) {
       for (const column of ['trace_id', 'workspace_id', 'conversation_id', 'proof_run_id', 'proof_iteration_id']) {
         try {

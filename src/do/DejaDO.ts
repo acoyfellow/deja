@@ -8,10 +8,11 @@ import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { Hono } from 'hono';
 import { cleanupLearnings, deleteLearningById, deleteLearningsByFilter, getLearningNeighbors, injectMemories, injectMemoriesWithTrace, learnMemory, listLearnings, queryLearnings } from './memory';
 import { convertDbLearning, filterScopesByPriority, initializeStorage, normalizeRunIdentityPayload, normalizeWorkingStatePayload } from './helpers';
+import { recordLoopRun, queryLoopRuns } from './loopRuns';
 import { createDejaApp } from './routes';
 import { deleteSecretValue, getSecretValue, listSecrets, setSecretValue } from './secrets';
 import { getStatsSnapshot } from './stats';
-import type { Env, InjectResult, InjectTraceResult, Learning, QueryResult, ResolveStateOptions, Secret, SharedRunIdentity, Stats, WorkingStatePayload, WorkingStateResponse } from './types';
+import type { Env, InjectResult, InjectTraceResult, Learning, LoopRun, QueryResult, RecordRunPayload, ResolveStateOptions, RunsQueryResult, Secret, SharedRunIdentity, Stats, WorkingStatePayload, WorkingStateResponse } from './types';
 import { addWorkingStateEvent, getStateByRunId, patchWorkingState, resolveWorkingState, upsertWorkingState } from './workingState';
 
 export class DejaDO extends DurableObject<Env> {
@@ -74,6 +75,13 @@ export class DejaDO extends DurableObject<Env> {
   private getStatsContext() {
     return {
       initDB: () => this.initDB(),
+    };
+  }
+
+  private getLoopRunsContext() {
+    return {
+      initDB: () => this.initDB(),
+      learn: this.learn.bind(this),
     };
   }
 
@@ -180,6 +188,14 @@ export class DejaDO extends DurableObject<Env> {
     return resolveWorkingState(this.getWorkingStateContext(), runId, opts);
   }
 
+  async recordRun(payload: RecordRunPayload): Promise<LoopRun> {
+    return recordLoopRun(this.getLoopRunsContext(), payload);
+  }
+
+  async getRuns(scope?: string, limit?: number): Promise<RunsQueryResult> {
+    return queryLoopRuns(this.getLoopRunsContext(), scope, limit);
+  }
+
   async listSecrets(scope?: string): Promise<Secret[]> {
     return listSecrets(this.getSecretsContext(), scope);
   }
@@ -206,6 +222,8 @@ export class DejaDO extends DurableObject<Env> {
       getSecret: this.getSecret.bind(this),
       deleteSecret: this.deleteSecret.bind(this),
       listSecrets: this.listSecrets.bind(this),
+      recordRun: this.recordRun.bind(this),
+      getRuns: this.getRuns.bind(this),
     });
     return this.app;
   }

@@ -61,6 +61,17 @@ export const stateRevisions = sqliteTable('state_revisions', {
   createdAt: text('created_at').notNull(),
 });
 
+// Immutable loop run ledger
+export const loopRuns = sqliteTable('loop_runs', {
+  id: text('id').primaryKey(),
+  scope: text('scope').notNull(),
+  outcome: text('outcome').notNull(), // 'pass' | 'fail' | 'exhausted'
+  attempts: integer('attempts').notNull(),
+  code: text('code'),
+  error: text('error'),
+  createdAt: text('created_at').notNull(),
+});
+
 // Immutable event stream attached to runs
 export const stateEvents = sqliteTable('state_events', {
   id: text('id').primaryKey(),

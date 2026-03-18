@@ -6,8 +6,11 @@ import type {
   Env,
   InjectTraceResult,
   Learning,
+  LoopRun,
   QueryResult,
+  RecordRunPayload,
   ResolveStateOptions,
+  RunsQueryResult,
   Secret,
   SharedRunIdentity,
   Stats,
@@ -75,6 +78,8 @@ interface RouteHandlers {
   getSecret(scopes: string[], name: string): Promise<string | null>;
   deleteSecret(scope: string, name: string): Promise<{ success: boolean; error?: string }>;
   listSecrets(scope?: string): Promise<Secret[]>;
+  recordRun(payload: RecordRunPayload): Promise<LoopRun>;
+  getRuns(scope?: string, limit?: number): Promise<RunsQueryResult>;
 }
 
 export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> {
@@ -303,6 +308,18 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       console.error('Get secrets error:', error);
       return c.json({ error: 'Failed to get secrets' }, 500);
     }
+  });
+
+  app.post('/run', async (c) => {
+    const body: any = await c.req.json();
+    const result = await handlers.recordRun(body);
+    return c.json(result, 201);
+  });
+
+  app.get('/runs', async (c) => {
+    const scope = c.req.query('scope');
+    const limit = c.req.query('limit');
+    return c.json(await handlers.getRuns(scope, limit ? parseInt(limit, 10) : undefined));
   });
 
   app.post('/cleanup', async (c) => c.json(await handlers.cleanup()));

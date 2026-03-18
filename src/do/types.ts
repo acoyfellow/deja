@@ -102,6 +102,52 @@ export interface ResolveStateOptions {
   identity?: SharedRunIdentity;
 }
 
+export interface LoopRun {
+  id: string;
+  scope: string;
+  outcome: 'pass' | 'fail' | 'exhausted';
+  attempts: number;
+  code?: string;
+  error?: string;
+  createdAt: string;
+}
+
+export interface RecordRunPayload {
+  scope?: string;
+  outcome: 'pass' | 'fail' | 'exhausted';
+  attempts: number;
+  code?: string;
+  error?: string;
+}
+
+export type RunTrend = 'improving' | 'regressing' | 'stable' | 'insufficient_data';
+
+export interface RunsQueryResult {
+  runs: LoopRun[];
+  stats: {
+    total: number;
+    pass: number;
+    fail: number;
+    exhausted: number;
+    mean_attempts: number;
+    best_attempts: number;
+    trend: RunTrend;
+  };
+}
+
+export interface LoopRunsOperationsContext {
+  initDB(): Promise<any>;
+  learn(
+    scope: string,
+    trigger: string,
+    learning: string,
+    confidence?: number,
+    reason?: string,
+    source?: string,
+    identity?: SharedRunIdentity,
+  ): Promise<Learning>;
+}
+
 export interface MemoryOperationsContext {
   env: Env;
   initDB(): Promise<any>;

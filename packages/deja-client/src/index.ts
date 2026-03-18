@@ -69,6 +69,42 @@ export interface ListOptions {
   limit?: number
 }
 
+export interface LoopRun {
+  id: string
+  scope: string
+  outcome: 'pass' | 'fail' | 'exhausted'
+  attempts: number
+  code?: string
+  error?: string
+  createdAt: string
+}
+
+export interface RecordRunOptions {
+  scope?: string
+  code?: string
+  error?: string
+}
+
+export type RunTrend = 'improving' | 'regressing' | 'stable' | 'insufficient_data'
+
+export interface RunsResult {
+  runs: LoopRun[]
+  stats: {
+    total: number
+    pass: number
+    fail: number
+    exhausted: number
+    mean_attempts: number
+    best_attempts: number
+    trend: RunTrend
+  }
+}
+
+export interface RunsOptions {
+  scope?: string
+  limit?: number
+}
+
 export interface ClientOptions {
   apiKey?: string
   fetch?: typeof fetch
@@ -122,6 +158,22 @@ export interface DejaClient {
    * Get memory statistics
    */
   stats(): Promise<Stats>
+
+  /**
+   * Record the outcome of an optimization loop run
+   *
+   * @param outcome - 'pass', 'fail', or 'exhausted'
+   * @param attempts - Number of attempts taken
+   * @param options - Optional: scope, code, error
+   */
+  recordRun(outcome: LoopRun['outcome'], attempts: number, options?: RecordRunOptions): Promise<LoopRun>
+
+  /**
+   * Get run history and convergence stats
+   *
+   * @param options - Optional: scope filter, limit
+   */
+  getRuns(options?: RunsOptions): Promise<RunsResult>
 }
 
 /**
@@ -220,6 +272,24 @@ export function deja(url: string, options: ClientOptions = {}): DejaClient {
 
     async stats() {
       return get<Stats>('/stats')
+    },
+
+    async recordRun(outcome, attempts, opts = {}) {
+      return post<LoopRun>('/run', {
+        outcome,
+        attempts,
+        scope: opts.scope ?? 'shared',
+        code: opts.code,
+        error: opts.error,
+      })
+    },
+
+    async getRuns(opts = {}) {
+      const params = new URLSearchParams()
+      if (opts.scope) params.set('scope', opts.scope)
+      if (opts.limit) params.set('limit', String(opts.limit))
+      const qs = params.toString()
+      return get<RunsResult>(`/runs${qs ? `?${qs}` : ''}`)
     },
   }
 }

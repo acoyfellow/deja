@@ -5,6 +5,7 @@
 
 import { DejaDO } from '../src/do/DejaDO';
 import { filterScopesByPriority, normalizeRunIdentityPayload } from '../src/do/helpers';
+import { recordLoopRun, queryLoopRuns } from '../src/do/loopRuns';
 
 const mockEnv = {
   VECTORIZE: {
@@ -72,6 +73,72 @@ function createSecretsDb(rowsAffected = 0) {
   };
 }
 
+describe('loopRuns', () => {
+  function makeCtx(rows: any[] = []) {
+    const insertValues = jest.fn().mockResolvedValue(undefined);
+    const learnFn = jest.fn().mockResolvedValue({});
+    const mockDb = {
+      insert: jest.fn().mockReturnValue({ values: insertValues }),
+      select: jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            orderBy: jest.fn().mockReturnValue({ limit: jest.fn().mockResolvedValue(rows) }),
+          }),
+          orderBy: jest.fn().mockReturnValue({ limit: jest.fn().mockResolvedValue(rows) }),
+        }),
+      }),
+    };
+    return { ctx: { initDB: jest.fn().mockResolvedValue(mockDb), learn: learnFn }, insertValues, learnFn, mockDb };
+  }
+
+  test('recordLoopRun returns a run with correct fields and fires learn', async () => {
+    const { ctx, insertValues, learnFn } = makeCtx();
+    const run = await recordLoopRun(ctx, { outcome: 'pass', attempts: 1, scope: 'test', code: 'x = 1' });
+    expect(run.outcome).toBe('pass');
+    expect(run.attempts).toBe(1);
+    expect(run.scope).toBe('test');
+    expect(run.id).toMatch(/^run-/);
+    expect(insertValues).toHaveBeenCalledTimes(1);
+    // learn fires async; give it a tick
+    await Promise.resolve();
+    expect(learnFn).toHaveBeenCalledWith('test', 'loop run: test', expect.stringContaining('passed'), expect.any(Number), undefined, expect.stringContaining('loop_run:'));
+  });
+
+  test('confidence is 1.0 on first-attempt pass and 0.6 on fail', async () => {
+    const { ctx, learnFn } = makeCtx();
+    await recordLoopRun(ctx, { outcome: 'pass', attempts: 1 });
+    await Promise.resolve();
+    expect(learnFn).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), expect.any(String), 1.0, undefined, expect.any(String));
+
+    await recordLoopRun(ctx, { outcome: 'fail', attempts: 3 });
+    await Promise.resolve();
+    expect(learnFn).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), expect.any(String), 0.6, undefined, expect.any(String));
+  });
+
+  test('queryLoopRuns returns insufficient_data when fewer than 4 runs', async () => {
+    const rows = [{ id: 'r1', scope: 'shared', outcome: 'pass', attempts: 2, code: null, error: null, createdAt: '2024-01-01T00:00:00.000Z' }];
+    const { ctx } = makeCtx(rows);
+    const result = await queryLoopRuns(ctx, 'shared');
+    expect(result.stats.total).toBe(1);
+    expect(result.stats.trend).toBe('insufficient_data');
+    expect(result.stats.best_attempts).toBe(2);
+    expect(result.stats.pass).toBe(1);
+  });
+
+  test('queryLoopRuns detects improving trend', async () => {
+    // newer (first half, index 0-1) has fewer attempts than older (second half, index 2-3)
+    const rows = [
+      { id: 'r4', scope: 'shared', outcome: 'pass', attempts: 1, code: null, error: null, createdAt: '2024-01-04T00:00:00.000Z' },
+      { id: 'r3', scope: 'shared', outcome: 'pass', attempts: 1, code: null, error: null, createdAt: '2024-01-03T00:00:00.000Z' },
+      { id: 'r2', scope: 'shared', outcome: 'pass', attempts: 5, code: null, error: null, createdAt: '2024-01-02T00:00:00.000Z' },
+      { id: 'r1', scope: 'shared', outcome: 'pass', attempts: 5, code: null, error: null, createdAt: '2024-01-01T00:00:00.000Z' },
+    ];
+    const { ctx } = makeCtx(rows);
+    const result = await queryLoopRuns(ctx, 'shared');
+    expect(result.stats.trend).toBe('improving');
+  });
+});
+
 describe('DejaDO', () => {
   let dejaDO: DejaDO;
   let mockState: ReturnType<typeof createMockState>;
@@ -128,6 +195,48 @@ describe('DejaDO', () => {
     const response = await dejaDO.fetch(new Request('http://localhost/'));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ status: 'ok', service: 'deja' });
+  });
+
+  test('exposes recordRun and getRuns via HTTP routes', async () => {
+    const insertValues = jest.fn().mockResolvedValue(undefined);
+    const selectRows = jest.fn().mockResolvedValue([]);
+    const mockDb = {
+      insert: jest.fn().mockReturnValue({ values: insertValues }),
+      select: jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            orderBy: jest.fn().mockReturnValue({
+              limit: selectRows,
+            }),
+          }),
+          orderBy: jest.fn().mockReturnValue({
+            limit: selectRows,
+          }),
+        }),
+      }),
+    };
+    (dejaDO as any).initDB = jest.fn().mockResolvedValue(mockDb);
+    (dejaDO as any).learn = jest.fn().mockResolvedValue({});
+
+    const postResp = await dejaDO.fetch(
+      new Request('http://localhost/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcome: 'pass', attempts: 2, scope: 'shared', code: 'console.log("hi")' }),
+      }),
+    );
+    expect(postResp.status).toBe(201);
+    const postBody = await postResp.json() as any;
+    expect(postBody.outcome).toBe('pass');
+    expect(postBody.attempts).toBe(2);
+    expect(postBody.id).toBeDefined();
+
+    const getResp = await dejaDO.fetch(new Request('http://localhost/runs?scope=shared'));
+    expect(getResp.status).toBe(200);
+    const getBody = await getResp.json() as any;
+    expect(Array.isArray(getBody.runs)).toBe(true);
+    expect(getBody.stats).toBeDefined();
+    expect(getBody.stats.total).toBe(0); // mocked to return []
   });
 
   test('handles secret CRUD operations through the current methods', async () => {
