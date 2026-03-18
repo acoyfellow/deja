@@ -1,331 +1,222 @@
 ---
 import Base from '../layouts/Base.astro';
 import SEO from '../components/SEO.astro';
-
-const learnExample = `{
-  "trigger": "deploying to production",
-  "learning": "always run wrangler deploy --dry-run first",
-  "confidence": 0.9,
-  "scope": "shared",
-  "reason": "caught a typo in wrangler.toml",
-  "source": "deploy-agent"
-}`;
-
-const injectExample = `{
-  "context": "about to deploy the worker",
-  "scopes": ["shared", "agent:deploy-bot"],
-  "limit": 5
-}`;
-
-const queryExample = `{
-  "query": "deployment issues",
-  "scopes": ["shared"],
-  "limit": 10
-}`;
-
-const quickStartCode = `# Install wrangler
-npm install -g wrangler
-
-# Create vectorize index
-wrangler vectorize create deja-embeddings --dimensions 384 --metric cosine
-
-# Set your API key
-wrangler secret put API_KEY
-
-# Deploy
-wrangler deploy`;
-
-const universalMcpConfig = `{
-  "mcpServers": {
-    "deja": {
-      "type": "http",
-      "url": "https://deja.your-subdomain.workers.dev/mcp",
-      "headers": {
-        "Authorization": "Bearer \${DEJA_API_KEY}"
-      }
-    }
-  }
-}`;
-
-const claudeCliInstall = `claude mcp add --transport http deja https://deja.your-subdomain.workers.dev/mcp \
-  --header "Authorization: Bearer $DEJA_API_KEY"`;
-
-const continueInstall = `mcpServers:
-  - name: deja
-    type: streamable-http
-    url: https://deja.your-subdomain.workers.dev/mcp
-    headers:
-      Authorization: Bearer \${secrets.DEJA_API_KEY}`;
-
-const clineInstall = `{
-  "mcpServers": {
-    "deja": {
-      "type": "http",
-      "url": "https://deja.your-subdomain.workers.dev/mcp",
-      "headers": {
-        "Authorization": "Bearer \${DEJA_API_KEY}"
-      }
-    }
-  }
-}`;
 ---
 
-<Base title="Documentation — deja" variant="content">
+<Base title="API Reference — deja" variant="content">
   <SEO
     slot="head"
-    title="Documentation — deja"
-    description="API reference and integration guides for deja. Learn how to use the REST API, MCP protocol, and client library for persistent agent memory."
-    keywords="deja api, mcp server, agent memory api, cloudflare workers api, vectorize, semantic search api"
+    title="API Reference — deja"
+    description="deja REST API reference. Base URL, authentication, endpoints, and the JS/TS client."
+    keywords="deja api, agent memory api, cloudflare workers, inject, learn"
     path="/docs"
     type="article"
     section="Documentation"
     breadcrumbs={[{ name: 'Docs', path: '/docs' }]}
   />
-  <section class="pt-16 pb-8">
-    <div class="bg-void/90 backdrop-blur-sm border border-brass/10 rounded-sm p-8 md:p-10 shadow-hero">
-      <div class="font-mono text-[11px] font-bold tracking-widest uppercase text-brass mb-4">Documentation</div>
-      <h1 class="font-serif-sc text-4xl md:text-5xl font-bold tracking-tight m-0 mb-4">
-        API Reference
-      </h1>
-      <p class="font-serif font-light text-lg text-chrome-dark max-w-3xl m-0">
-        Everything you need to give your agents durable memory.
-      </p>
-    </div>
+
+  <section class="pt-16 pb-12 max-w-2xl">
+    <div class="font-mono text-[11px] font-bold tracking-widest uppercase text-brass mb-4">API Reference</div>
+    <h1 class="font-serif-sc text-4xl font-bold tracking-tight m-0 mb-4">deja</h1>
+    <p class="font-serif font-light text-lg text-chrome-dark m-0">
+      HTTP API for persistent agent memory. Two core operations: <code class="text-brass">inject</code> before a task, <code class="text-brass">learn</code> after.
+    </p>
   </section>
 
-  <section class="mt-12">
-    <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> Quick Start
-    </h2>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-      <p class="font-serif font-light text-chrome-dark m-0 mb-4">Deploy deja to your Cloudflare account:</p>
-      <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code">{quickStartCode}</pre>
-    </div>
-  </section>
+  {/* ── Setup ───────────────────────────────────────────────── */}
+  <section class="mb-12 max-w-2xl">
+    <h2 class="font-mono text-xs font-bold tracking-widest uppercase text-brass mb-5">Setup</h2>
 
-  <section class="mt-12">
-    <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> Authentication
-    </h2>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-      <p class="font-serif font-light text-chrome-dark m-0 mb-4">All mutating endpoints require a Bearer token:</p>
-      <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code">Authorization: Bearer YOUR_API_KEY</pre>
-      <p class="font-serif font-light text-chrome-dark m-0 mt-4 text-sm">
-        Public endpoints (<code class="text-brass">/</code>, <code class="text-brass">/inject</code>, <code class="text-brass">/query</code>) work without auth for read operations.
-      </p>
-    </div>
-  </section>
-
-  <section class="mt-12">
-    <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> Universal MCP Setup (Any Agent)
-    </h2>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-      <p class="font-serif font-light text-chrome-dark m-0 mb-4">
-        deja is an MCP server. If your assistant supports MCP, it can use deja.
-        Point your client to <code class="text-brass">/mcp</code> and pass your bearer token.
-      </p>
-
-      <div class="mb-6">
-        <h3 class="font-mono text-sm text-brass mb-3">Generic MCP config</h3>
-        <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{universalMcpConfig}</pre>
+    <div class="space-y-4">
+      <div>
+        <p class="font-mono text-xs text-chrome-dark mb-2">Base URL</p>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-sm text-chrome overflow-x-auto">https://deja-worker.coy.workers.dev</pre>
       </div>
 
-      <div class="mb-6">
-        <h3 class="font-mono text-sm text-brass mb-3">Install examples by client</h3>
-        <div class="grid md:grid-cols-3 gap-4">
-          <div>
-            <p class="font-mono text-xs text-brass mb-2">Claude Code CLI</p>
-            <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-3 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{claudeCliInstall}</pre>
-          </div>
-          <div>
-            <p class="font-mono text-xs text-brass mb-2">Continue (config.yaml)</p>
-            <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-3 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{continueInstall}</pre>
-          </div>
-          <div>
-            <p class="font-mono text-xs text-brass mb-2">Cline / JSON clients</p>
-            <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-3 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code whitespace-pre-wrap">{clineInstall}</pre>
-          </div>
-        </div>
+      <div>
+        <p class="font-mono text-xs text-chrome-dark mb-2">Authentication — all requests</p>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-sm text-chrome overflow-x-auto">Authorization: Bearer YOUR_API_KEY</pre>
       </div>
 
-      <div class="mb-6">
-        <h3 class="font-mono text-sm text-brass mb-3">Available MCP Tools</h3>
-        <div class="space-y-3">
-          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">learn</code><span class="font-serif text-sm text-chrome-dark">Store a memory for future recall</span></div>
-          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">inject</code><span class="font-serif text-sm text-chrome-dark">Retrieve context-relevant memories</span></div>
-          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">inject_trace</code><span class="font-serif text-sm text-chrome-dark">Debug retrieval: candidates, scores, threshold (observability)</span></div>
-          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">query</code><span class="font-serif text-sm text-chrome-dark">Semantic search across memory</span></div>
-          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">forget</code><span class="font-serif text-sm text-chrome-dark">Delete a specific memory</span></div>
-          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">forget_bulk</code><span class="font-serif text-sm text-chrome-dark">Bulk delete by confidence, staleness, or scope</span></div>
-          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">learning_neighbors</code><span class="font-serif text-sm text-chrome-dark">Find semantically similar memories (contradiction checks)</span></div>
-          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">list</code><span class="font-serif text-sm text-chrome-dark">List memories by scope</span></div>
-          <div class="flex items-start gap-3"><code class="font-mono text-xs text-brass bg-brass/10 px-2 py-0.5 rounded">stats</code><span class="font-serif text-sm text-chrome-dark">Read memory usage/statistics</span></div>
-        </div>
+      <div>
+        <p class="font-mono text-xs text-chrome-dark mb-2">Self-host (optional)</p>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-sm text-chrome-dark leading-relaxed overflow-x-auto">{`git clone https://github.com/acoyfellow/deja
+cd deja && bun install
+wrangler vectorize create deja-embeddings --dimensions 384 --metric cosine
+wrangler secret put API_KEY
+wrangler deploy`}</pre>
       </div>
-
-      <p class="font-serif font-light text-chrome-dark m-0 text-sm">
-        If it speaks MCP, it works with deja.
-      </p>
     </div>
   </section>
 
-  <section class="mt-12">
-    <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> REST Endpoints
-    </h2>
+  {/* ── Core loop ───────────────────────────────────────────── */}
+  <section class="mb-12 max-w-2xl">
+    <h2 class="font-mono text-xs font-bold tracking-widest uppercase text-brass mb-5">Core loop</h2>
 
     <div class="space-y-6">
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="font-mono text-xs font-bold px-2 py-1 bg-brass/20 text-brass rounded">POST</span>
-          <code class="font-mono text-sm text-chrome">/learn</code>
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">Store a new learning with semantic embedding.</p>
-        <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code">{learnExample}</pre>
-        <div class="mt-4 text-sm">
-          <p class="font-mono text-brass mb-2">Parameters:</p>
-          <ul class="font-serif font-light text-chrome-dark pl-4 space-y-1">
-            <li><code class="text-brass">trigger</code> (required) — What triggers this memory</li>
-            <li><code class="text-brass">learning</code> (required) — What was learned</li>
-            <li><code class="text-brass">confidence</code> — 0.0 to 1.0 (default 0.5), memories below 0.3 are auto-cleaned</li>
-            <li><code class="text-brass">scope</code> — "shared", "agent:id", or "session:id" (default: "shared")</li>
-            <li><code class="text-brass">reason</code> — Optional context</li>
-            <li><code class="text-brass">source</code> — Optional source identifier</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="font-mono text-xs font-bold px-2 py-1 bg-brass/20 text-brass rounded">POST</span>
+      <div>
+        <div class="flex items-center gap-3 mb-3">
+          <span class="font-mono text-xs font-bold px-2 py-0.5 bg-brass/20 text-brass rounded">POST</span>
           <code class="font-mono text-sm text-chrome">/inject</code>
+          <span class="font-mono text-xs text-chrome-dark">— recall before</span>
         </div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">Get relevant memories formatted for prompt injection. Each recalled memory gets <code class="text-brass">last_recalled_at</code> and <code class="text-brass">recall_count</code> updated.</p>
-        <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code">{injectExample}</pre>
-        <p class="font-serif font-light text-chrome-dark m-0 mt-4 text-sm">
-          Returns a formatted string ready to inject into your agent's system prompt. Learnings include <code class="text-brass">last_recalled_at</code>, <code class="text-brass">recall_count</code>.
-        </p>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto">{`curl -X POST https://deja-worker.coy.workers.dev/inject \\
+  -H "Authorization: Bearer $API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"context": "deploying the auth service", "scopes": ["shared"]}'`}</pre>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto mt-2">{`{
+  "prompt": "Past learnings:\\n- always run migrations inside a transaction\\n...",
+  "learnings": [{ "id": "...", "trigger": "...", "learning": "...", "confidence": 0.9 }]
+}`}</pre>
       </div>
 
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="font-mono text-xs font-bold px-2 py-1 bg-brass/20 text-brass rounded">POST</span>
-          <code class="font-mono text-sm text-chrome">/inject/trace</code>
+      <div>
+        <div class="flex items-center gap-3 mb-3">
+          <span class="font-mono text-xs font-bold px-2 py-0.5 bg-brass/20 text-brass rounded">POST</span>
+          <code class="font-mono text-sm text-chrome">/learn</code>
+          <span class="font-mono text-xs text-chrome-dark">— store after</span>
         </div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">Full retrieval pipeline for debugging. Returns candidates, similarity scores, threshold pass/fail, and timing. Use <code class="text-brass">?threshold=0.X</code> or body to experiment with cutoffs.</p>
-      </div>
-
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="font-mono text-xs font-bold px-2 py-1 bg-brass/20 text-brass rounded">POST</span>
-          <code class="font-mono text-sm text-chrome">/query</code>
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">Semantic search over stored memories.</p>
-        <pre class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto shadow-code">{queryExample}</pre>
-      </div>
-
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="font-mono text-xs font-bold px-2 py-1 bg-void-deep text-chrome-dark border border-brass/20 rounded">GET</span>
-          <code class="font-mono text-sm text-chrome">/stats</code>
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0">Returns counts of learnings and secrets by scope.</p>
-      </div>
-
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="font-mono text-xs font-bold px-2 py-1 bg-void-deep text-chrome-dark border border-brass/20 rounded">GET</span>
-          <code class="font-mono text-sm text-chrome">/learnings?scope=shared</code>
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0">List all learnings, optionally filtered by scope. Each learning includes <code class="text-brass">last_recalled_at</code>, <code class="text-brass">recall_count</code>.</p>
-      </div>
-
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="font-mono text-xs font-bold px-2 py-1 bg-void-deep text-chrome-dark border border-brass/20 rounded">GET</span>
-          <code class="font-mono text-sm text-chrome">/learning/:id/neighbors?threshold=0.85&amp;limit=10</code>
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0">Find semantically similar memories for a learning. Use before saving to check for contradictions. Default threshold 0.85.</p>
-      </div>
-
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="font-mono text-xs font-bold px-2 py-1 bg-red-500/20 text-red-400 rounded">DELETE</span>
-          <code class="font-mono text-sm text-chrome">/learning/:id</code>
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0">Delete a specific learning by ID. Requires authentication.</p>
-      </div>
-
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-        <div class="flex items-center gap-3 mb-4">
-          <span class="font-mono text-xs font-bold px-2 py-1 bg-red-500/20 text-red-400 rounded">DELETE</span>
-          <code class="font-mono text-sm text-chrome">/learnings?confidence_lt=0.5&amp;not_recalled_in_days=90&amp;scope=shared</code>
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0">Bulk delete memories. Requires at least one filter: <code class="text-brass">confidence_lt</code>, <code class="text-brass">not_recalled_in_days</code>, or <code class="text-brass">scope</code>. Returns <code class="text-brass">&#123; deleted, ids &#125;</code>.</p>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto">{`curl -X POST https://deja-worker.coy.workers.dev/learn \\
+  -H "Authorization: Bearer $API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "trigger": "deploying auth service",
+    "learning": "always run migrations inside a transaction",
+    "confidence": 0.9,
+    "scope": "shared"
+  }'`}</pre>
       </div>
     </div>
   </section>
 
-  <section class="mt-12">
-    <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> Memory Tracking
-    </h2>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-      <p class="font-serif font-light text-chrome-dark m-0 mb-4">Each learning tracks usage for observability and pruning:</p>
-      <div class="space-y-2">
-        <div class="flex items-start gap-4"><code class="font-mono text-sm text-brass whitespace-nowrap">last_recalled_at</code><span class="font-serif text-chrome-dark">ISO timestamp of last /inject recall</span></div>
-        <div class="flex items-start gap-4"><code class="font-mono text-sm text-brass whitespace-nowrap">recall_count</code><span class="font-serif text-chrome-dark">Number of times this memory was injected</span></div>
+  {/* ── All endpoints ───────────────────────────────────────── */}
+  <section class="mb-12 max-w-2xl">
+    <h2 class="font-mono text-xs font-bold tracking-widest uppercase text-brass mb-5">All endpoints</h2>
+
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-brass/10">
+          <th class="font-mono text-xs text-chrome-dark text-left pb-2 pr-4 font-normal">Method</th>
+          <th class="font-mono text-xs text-chrome-dark text-left pb-2 pr-4 font-normal">Path</th>
+          <th class="font-mono text-xs text-chrome-dark text-left pb-2 font-normal">Description</th>
+        </tr>
+      </thead>
+      <tbody class="font-serif font-light">
+        {[
+          { method: 'POST', path: '/inject', desc: 'Retrieve context-relevant memories, formatted for prompt injection' },
+          { method: 'POST', path: '/learn', desc: 'Store a memory with semantic embedding' },
+          { method: 'POST', path: '/query', desc: 'Semantic search — returns raw matches with scores' },
+          { method: 'POST', path: '/inject/trace', desc: 'Debug retrieval: full candidate list, scores, threshold pass/fail' },
+          { method: 'POST', path: '/run', desc: 'Record a loop run outcome (pass/fail/exhausted). Auto-fires learn.' },
+          { method: 'GET',  path: '/runs', desc: 'Run history + convergence stats (mean attempts, trend)' },
+          { method: 'GET',  path: '/learnings', desc: 'List memories, optionally filtered by ?scope=' },
+          { method: 'GET',  path: '/stats', desc: 'Memory counts by scope' },
+          { method: 'GET',  path: '/learning/:id/neighbors', desc: 'Semantically similar memories — use to detect contradictions' },
+          { method: 'DELETE', path: '/learning/:id', desc: 'Delete one memory' },
+          { method: 'DELETE', path: '/learnings', desc: 'Bulk delete by ?scope=, ?confidence_lt=, ?not_recalled_in_days=' },
+        ].map(({ method, path, desc }) => (
+          <tr class="border-b border-brass/5">
+            <td class="py-2.5 pr-4">
+              <span class={`font-mono text-xs px-1.5 py-0.5 rounded ${
+                method === 'DELETE' ? 'bg-red-500/10 text-red-400' :
+                method === 'GET'    ? 'bg-void-deep text-chrome-dark border border-brass/10' :
+                                     'bg-brass/10 text-brass'
+              }`}>{method}</span>
+            </td>
+            <td class="py-2.5 pr-4">
+              <code class="font-mono text-xs text-chrome whitespace-nowrap">{path}</code>
+            </td>
+            <td class="py-2.5 text-chrome-dark text-sm">{desc}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+
+    <div class="mt-6 space-y-4">
+      <div>
+        <p class="font-mono text-xs text-chrome-dark mb-2">POST /learn — body</p>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto">{`{
+  "trigger":    "string (required) — when this applies",
+  "learning":   "string (required) — what was learned",
+  "confidence": 0.9,       // 0–1, default 0.5. Below 0.3 = auto-pruned
+  "scope":      "shared",  // "shared" | "agent:<id>" | "session:<id>"
+  "reason":     "string",  // optional
+  "source":     "string"   // optional
+}`}</pre>
       </div>
-      <p class="font-serif font-light text-chrome-dark m-0 mt-4 text-sm">Use <code class="text-brass">DELETE /learnings?not_recalled_in_days=90</code> to prune stale memories.</p>
-    </div>
-  </section>
 
-  <section class="mt-12">
-    <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> Scopes
-    </h2>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-      <p class="font-serif font-light text-chrome-dark m-0 mb-4">Memories are organized by scope for isolation and relevance:</p>
-      <div class="space-y-4">
-        <div class="flex items-start gap-4">
-          <code class="font-mono text-sm text-brass whitespace-nowrap">shared</code>
-          <p class="font-serif font-light text-chrome-dark m-0">Global memories accessible by all agents. Auto-cleaned after 30 days with low confidence.</p>
-        </div>
-        <div class="flex items-start gap-4">
-          <code class="font-mono text-sm text-brass whitespace-nowrap">agent:&lt;id&gt;</code>
-          <p class="font-serif font-light text-chrome-dark m-0">Agent-specific memories. Use for learnings unique to a particular agent's behavior.</p>
-        </div>
-        <div class="flex items-start gap-4">
-          <code class="font-mono text-sm text-brass whitespace-nowrap">session:&lt;id&gt;</code>
-          <p class="font-serif font-light text-chrome-dark m-0">Temporary session memories. Auto-cleaned after 7 days — use for ephemeral context.</p>
-        </div>
+      <div>
+        <p class="font-mono text-xs text-chrome-dark mb-2">POST /inject — body</p>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto">{`{
+  "context": "string (required)",
+  "scopes":  ["shared"],  // default ["shared"]
+  "limit":   5,           // default 5
+  "format":  "prompt"     // "prompt" | "learnings"
+}`}</pre>
+      </div>
+
+      <div>
+        <p class="font-mono text-xs text-chrome-dark mb-2">POST /run — body</p>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto">{`{
+  "outcome":  "pass",    // "pass" | "fail" | "exhausted"
+  "attempts": 3,
+  "scope":    "shared",
+  "code":     "string",  // optional — stored truncated at 500 chars
+  "error":    "string"   // optional — included on fail/exhausted
+}`}</pre>
       </div>
     </div>
   </section>
 
-  <section class="mt-12">
-    <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> For AI Agents
-    </h2>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-      <p class="font-serif font-light text-chrome-dark m-0">
-        A machine-readable summary is available at <a href="/llms.txt" class="text-brass hover:text-brass-light underline">/llms.txt</a> for AI agents to quickly understand deja's API.
-      </p>
+  {/* ── Client library ──────────────────────────────────────── */}
+  <section class="mb-12 max-w-2xl">
+    <h2 class="font-mono text-xs font-bold tracking-widest uppercase text-brass mb-5">JS / TS client</h2>
+
+    <div class="space-y-4">
+      <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-sm text-chrome-dark overflow-x-auto">npm install deja-client</pre>
+
+      <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto">{`import deja from 'deja-client'
+
+const mem = deja('https://deja-worker.coy.workers.dev', { apiKey: process.env.API_KEY })
+
+// before a task
+const { learnings } = await mem.inject('deploying auth service')
+
+// after a task
+await mem.learn('deploying auth service', 'always run migrations in a transaction')
+
+// track loop convergence
+await mem.recordRun('pass', 3, { scope: 'shared', code: '...' })
+const { stats } = await mem.getRuns({ scope: 'shared' })
+// stats.trend → 'improving' | 'regressing' | 'stable'`}</pre>
     </div>
   </section>
 
-  <section class="mt-12 mb-8">
-    <h2 class="font-serif font-semibold text-2xl tracking-tight m-0 mb-6 flex items-center gap-3">
-      <span class="text-brass">#</span> Compatibility Notes
-    </h2>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 shadow-card">
-      <ul class="font-serif font-light text-chrome-dark pl-4 space-y-2 m-0">
-        <li>Use <code class="text-brass">type: http</code>, <code class="text-brass">transport: http</code>, or your client's equivalent key.</li>
-        <li>Always target <code class="text-brass">https://.../mcp</code> (not the root URL).</li>
-        <li>Pass <code class="text-brass">Authorization: Bearer ...</code> in headers/env as your client expects.</li>
-        <li>If tools don’t show up, fully restart your MCP client after config changes.</li>
-      </ul>
-    </div>
+  {/* ── MCP ─────────────────────────────────────────────────── */}
+  <section class="mb-16 max-w-2xl">
+    <h2 class="font-mono text-xs font-bold tracking-widest uppercase text-brass mb-5">MCP</h2>
+
+    <p class="font-serif font-light text-chrome-dark mb-4">
+      deja exposes all endpoints as MCP tools at <code class="text-brass">/mcp</code>. Works with Claude Code, Continue, Cursor, Cline, and any client that supports streamable HTTP MCP.
+    </p>
+
+    <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto mb-4">{`# Claude Code
+claude mcp add --transport http deja https://deja-worker.coy.workers.dev/mcp \\
+  --header "Authorization: Bearer $API_KEY"`}</pre>
+
+    <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto">{`# Generic MCP config
+{
+  "mcpServers": {
+    "deja": {
+      "type": "http",
+      "url": "https://deja-worker.coy.workers.dev/mcp",
+      "headers": { "Authorization": "Bearer YOUR_API_KEY" }
+    }
+  }
+}`}</pre>
+
+    <p class="font-mono text-xs text-chrome-dark mt-4">
+      Available tools: <code class="text-brass">learn</code>, <code class="text-brass">inject</code>, <code class="text-brass">inject_trace</code>, <code class="text-brass">query</code>, <code class="text-brass">forget</code>, <code class="text-brass">forget_bulk</code>, <code class="text-brass">list</code>, <code class="text-brass">stats</code>, <code class="text-brass">record_run</code>, <code class="text-brass">get_runs</code>
+    </p>
   </section>
 </Base>
