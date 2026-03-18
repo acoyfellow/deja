@@ -1,11 +1,12 @@
 import { describe, test, expect, beforeEach } from 'bun:test'
 import { dejaLocal, type DejaLocalClient } from '../src/index'
 
+// All tests use 'ngram' mode — fast, no model download needed
 describe('deja-local', () => {
   let mem: DejaLocalClient
 
   beforeEach(() => {
-    mem = dejaLocal()
+    mem = dejaLocal({ embed: 'ngram' })
   })
 
   test('learn stores a memory', async () => {
@@ -33,7 +34,6 @@ describe('deja-local', () => {
 
     const result = await mem.inject('deploying to production')
     expect(result.learnings.length).toBeGreaterThan(0)
-    // deploy-related memory should rank highest
     expect(result.learnings[0].learning).toBe('check wrangler.toml first')
   })
 
@@ -91,7 +91,6 @@ describe('deja-local', () => {
     expect(s.totalLearnings).toBe(3)
     expect(s.scopes['shared']).toBe(2)
     expect(s.scopes['agent:1']).toBe(1)
-    expect(s.dimensions).toBe(384)
   })
 
   test('clear wipes everything', async () => {
@@ -116,7 +115,6 @@ describe('deja-local', () => {
   })
 
   test('custom embed function works', async () => {
-    // Trivial 3-dim embedder
     const trivialEmbed = (text: string) => {
       const len = text.length
       return [len / 100, (len % 10) / 10, text.includes('fail') ? 1 : 0]
@@ -130,25 +128,23 @@ describe('deja-local', () => {
 
   test('persistence round-trip', async () => {
     const path = '/tmp/deja-local-test-' + Date.now() + '.json'
-    const mem1 = dejaLocal({ persistPath: path })
+    const mem1 = dejaLocal({ persistPath: path, embed: 'ngram' })
     await mem1.learn('test', 'persisted learning')
     await mem1.save()
 
-    const mem2 = dejaLocal({ persistPath: path })
+    const mem2 = dejaLocal({ persistPath: path, embed: 'ngram' })
     await mem2.load()
     expect(mem2.size).toBe(1)
     const list = await mem2.list()
     expect(list[0].learning).toBe('persisted learning')
 
-    // Cleanup
     const fs = await import('fs')
     fs.unlinkSync(path)
   })
 
-  test('inject with threshold filters low-similarity results', async () => {
+  test('inject with high threshold filters low-similarity results', async () => {
     await mem.learn('javascript closures', 'variables are captured by reference')
     const result = await mem.inject('kubernetes deployment yaml', { threshold: 0.9 })
-    // Very different topics — should get filtered at high threshold
     expect(result.learnings.length).toBe(0)
   })
 })

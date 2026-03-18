@@ -1,20 +1,22 @@
 /**
  * deja-local — Local in-process vector memory for agents
  *
- * Zero network calls. Zero eventual consistency. Instant recall.
+ * Real semantic embeddings (all-MiniLM-L6-v2 via ONNX). No network after first model download.
+ * Zero eventual consistency. Instant recall.
  *
  * @example
  * ```ts
  * import { dejaLocal } from 'deja-local'
  *
- * const mem = dejaLocal()
+ * const mem = await dejaLocal()
  *
- * // Immediately available — no waiting
  * await mem.learn('deploy failed', 'check wrangler.toml first')
  * const { learnings } = await mem.inject('deploying to production')
  * // learnings[0].learning === 'check wrangler.toml first'
  * ```
  */
+
+import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers'
 
 // ============================================================================
 // Types
@@ -46,7 +48,6 @@ export interface QueryResult {
 export interface Stats {
   totalLearnings: number
   scopes: Record<string, number>
-  dimensions: number
 }
 
 export interface LearnOptions {
@@ -77,16 +78,20 @@ export interface ListOptions {
 export type EmbedFn = (text: string) => number[] | Promise<number[]>
 
 export interface DejaLocalOptions {
-  /** Custom embedding function. Default: built-in character n-gram hasher (384 dims, no deps) */
-  embed?: EmbedFn
+  /**
+   * Custom embedding function. Default: all-MiniLM-L6-v2 via ONNX (384 dims).
+   * First call downloads ~23MB model, cached locally after that.
+   * Pass 'ngram' for zero-dep fallback (fast but lower quality).
+   */
+  embed?: EmbedFn | 'ngram'
+  /** HuggingFace model ID for embeddings. Default: 'Xenova/all-MiniLM-L6-v2' */
+  model?: string
   /** Path to persist memory as JSON. Default: in-memory only */
   persistPath?: string
   /** Auto-save after every learn/forget. Default: true (only if persistPath set) */
   autoSave?: boolean
-  /** Minimum similarity threshold for recall. Default: 0.1 */
+  /** Minimum similarity threshold for recall. Default: 0.3 */
   threshold?: number
-  /** Vector dimensions (only used for built-in embedder). Default: 384 */
-  dimensions?: number
 }
 
 interface StoredEntry {
@@ -95,60 +100,63 @@ interface StoredEntry {
 }
 
 // ============================================================================
-// Built-in embedder: character n-gram hash projection
-//
-// No dependencies. No model loading. ~0.1ms per embed.
-// Quality is "good enough" for short trigger/learning text.
-// For better quality, pass in an OpenAI/Anthropic/local model embed function.
+// Embedding: real model via transformers.js (default)
 // ============================================================================
 
-function builtinEmbed(dimensions: number): EmbedFn {
+function createModelEmbed(modelId: string): EmbedFn {
+  let extractor: FeatureExtractionPipeline | null = null
+
+  return async (text: string): Promise<number[]> => {
+    if (!extractor) {
+      // @ts-expect-error - pipeline() union type too complex for TS, runtime works fine
+      extractor = await pipeline('feature-extraction', modelId, {
+        dtype: 'fp32',
+      })
+    }
+    const output = await extractor!(text, { pooling: 'mean', normalize: true })
+    return Array.from(output.data as Float32Array)
+  }
+}
+
+// ============================================================================
+// Embedding: n-gram hash fallback (zero deps, ~0.1ms, lower quality)
+// ============================================================================
+
+function createNgramEmbed(dimensions = 384): EmbedFn {
   return (text: string): number[] => {
     const vec = new Float64Array(dimensions)
     const lower = text.toLowerCase()
 
-    // Character trigrams + bigrams + words
     const ngrams: string[] = []
     for (let i = 0; i < lower.length - 1; i++) {
-      ngrams.push(lower.slice(i, i + 2)) // bigrams
-      if (i < lower.length - 2) {
-        ngrams.push(lower.slice(i, i + 3)) // trigrams
-      }
+      ngrams.push(lower.slice(i, i + 2))
+      if (i < lower.length - 2) ngrams.push(lower.slice(i, i + 3))
     }
-    // Word unigrams
     for (const word of lower.split(/\s+/)) {
       if (word.length > 0) ngrams.push(`w:${word}`)
     }
 
-    // Hash each n-gram to a position and accumulate
     for (const ng of ngrams) {
-      const h = fnv1a(ng)
-      const idx = ((h >>> 0) % dimensions)
-      // Use sign bit for +1/-1 projection (simulates random hyperplane)
-      vec[idx] += (h & 1) ? 1 : -1
+      let h = 0x811c9dc5
+      for (let i = 0; i < ng.length; i++) {
+        h ^= ng.charCodeAt(i)
+        h = Math.imul(h, 0x01000193)
+      }
+      vec[((h >>> 0) % dimensions)] += (h & 1) ? 1 : -1
     }
 
-    // L2 normalize
     let norm = 0
     for (let i = 0; i < dimensions; i++) norm += vec[i] * vec[i]
     norm = Math.sqrt(norm)
-    if (norm > 0) {
-      for (let i = 0; i < dimensions; i++) vec[i] /= norm
-    }
+    if (norm > 0) for (let i = 0; i < dimensions; i++) vec[i] /= norm
 
     return Array.from(vec)
   }
 }
 
-/** FNV-1a hash for strings — fast, good distribution */
-function fnv1a(str: string): number {
-  let h = 0x811c9dc5
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i)
-    h = Math.imul(h, 0x01000193)
-  }
-  return h
-}
+// ============================================================================
+// Shared math
+// ============================================================================
 
 function cosine(a: number[], b: number[]): number {
   let dot = 0, normA = 0, normB = 0
@@ -166,7 +174,7 @@ function genId(): string {
 }
 
 // ============================================================================
-// Persistence helpers
+// Persistence
 // ============================================================================
 
 interface Snapshot {
@@ -192,7 +200,7 @@ async function saveToFile(path: string, entries: StoredEntry[]): Promise<void> {
 }
 
 // ============================================================================
-// DejaLocal client
+// DejaLocal
 // ============================================================================
 
 export interface DejaLocalClient {
@@ -202,22 +210,26 @@ export interface DejaLocalClient {
   list(options?: ListOptions): Promise<Learning[]>
   forget(id: string): Promise<{ success: boolean }>
   stats(): Promise<Stats>
-
-  /** Save to disk (only if persistPath was set) */
   save(): Promise<void>
-  /** Load from disk (only if persistPath was set) */
   load(): Promise<void>
-  /** Clear all memories */
   clear(): void
-
-  /** Number of stored memories */
   readonly size: number
 }
 
+/**
+ * Create a local vector memory instance.
+ *
+ * Default: uses all-MiniLM-L6-v2 for real semantic embeddings (~23MB, cached after first run).
+ * Pass embed: 'ngram' for zero-dep mode (faster, lower quality).
+ * Pass embed: yourFn for custom embeddings (OpenAI, etc).
+ */
 export function dejaLocal(opts: DejaLocalOptions = {}): DejaLocalClient {
-  const dimensions = opts.dimensions ?? 384
-  const embedFn = opts.embed ?? builtinEmbed(dimensions)
-  const defaultThreshold = opts.threshold ?? 0.1
+  const embedFn: EmbedFn =
+    opts.embed === 'ngram' ? createNgramEmbed() :
+    typeof opts.embed === 'function' ? opts.embed :
+    createModelEmbed(opts.model ?? 'Xenova/all-MiniLM-L6-v2')
+
+  const defaultThreshold = opts.threshold ?? 0.3
   const persistPath = opts.persistPath
   const autoSave = opts.autoSave ?? true
 
@@ -227,10 +239,27 @@ export function dejaLocal(opts: DejaLocalOptions = {}): DejaLocalClient {
     if (persistPath && autoSave) await saveToFile(persistPath, entries)
   }
 
+  const search = async (
+    text: string,
+    scopes: string[] | undefined,
+    limit: number,
+    threshold: number,
+  ) => {
+    const queryVec = await embedFn(text)
+    const scored: Array<{ entry: StoredEntry; score: number }> = []
+
+    for (const entry of entries) {
+      if (scopes && scopes.length > 0 && !scopes.includes(entry.learning.scope)) continue
+      const score = cosine(queryVec, entry.embedding)
+      if (score >= threshold) scored.push({ entry, score })
+    }
+
+    scored.sort((a, b) => b.score - a.score)
+    return scored.slice(0, limit)
+  }
+
   return {
-    get size() {
-      return entries.length
-    },
+    get size() { return entries.length },
 
     async learn(trigger, learning, options = {}) {
       const embedding = await embedFn(`${trigger} ${learning}`)
@@ -251,25 +280,13 @@ export function dejaLocal(opts: DejaLocalOptions = {}): DejaLocalClient {
     },
 
     async inject(context, options = {}) {
-      const limit = options.limit ?? 5
-      const threshold = options.threshold ?? defaultThreshold
-      const scopes = options.scopes
+      const top = await search(
+        context,
+        options.scopes,
+        options.limit ?? 5,
+        options.threshold ?? defaultThreshold,
+      )
 
-      const queryVec = await embedFn(context)
-      const scored: Array<{ entry: StoredEntry; score: number }> = []
-
-      for (const entry of entries) {
-        if (scopes && scopes.length > 0 && !scopes.includes(entry.learning.scope)) continue
-        const score = cosine(queryVec, entry.embedding)
-        if (score >= threshold) {
-          scored.push({ entry, score })
-        }
-      }
-
-      scored.sort((a, b) => b.score - a.score)
-      const top = scored.slice(0, limit)
-
-      // Update recall stats
       const now = new Date().toISOString()
       for (const { entry } of top) {
         entry.learning.recallCount++
@@ -285,37 +302,22 @@ export function dejaLocal(opts: DejaLocalOptions = {}): DejaLocalClient {
     },
 
     async query(text, options = {}) {
-      const limit = options.limit ?? 10
-      const threshold = options.threshold ?? defaultThreshold
-      const scopes = options.scopes
-
-      const queryVec = await embedFn(text)
-      const scored: Array<{ entry: StoredEntry; score: number }> = []
-
-      for (const entry of entries) {
-        if (scopes && scopes.length > 0 && !scopes.includes(entry.learning.scope)) continue
-        const score = cosine(queryVec, entry.embedding)
-        if (score >= threshold) {
-          scored.push({ entry, score })
-        }
+      const top = await search(
+        text,
+        options.scopes,
+        options.limit ?? 10,
+        options.threshold ?? defaultThreshold,
+      )
+      return {
+        learnings: top.map(s => s.entry.learning),
+        scores: new Map(top.map(s => [s.entry.learning.id, s.score])),
       }
-
-      scored.sort((a, b) => b.score - a.score)
-      const top = scored.slice(0, limit)
-      const learnings = top.map(s => s.entry.learning)
-      const scores = new Map(top.map(s => [s.entry.learning.id, s.score]))
-
-      return { learnings, scores }
     },
 
     async list(options = {}) {
       let result = entries.map(e => e.learning)
-      if (options.scope) {
-        result = result.filter(l => l.scope === options.scope)
-      }
-      if (options.limit) {
-        result = result.slice(0, options.limit)
-      }
+      if (options.scope) result = result.filter(l => l.scope === options.scope)
+      if (options.limit) result = result.slice(0, options.limit)
       return result
     },
 
@@ -334,11 +336,7 @@ export function dejaLocal(opts: DejaLocalOptions = {}): DejaLocalClient {
       for (const entry of entries) {
         scopes[entry.learning.scope] = (scopes[entry.learning.scope] ?? 0) + 1
       }
-      return {
-        totalLearnings: entries.length,
-        scopes,
-        dimensions,
-      }
+      return { totalLearnings: entries.length, scopes }
     },
 
     async save() {
@@ -349,10 +347,9 @@ export function dejaLocal(opts: DejaLocalOptions = {}): DejaLocalClient {
       if (persistPath) entries = await loadFromFile(persistPath)
     },
 
-    clear() {
-      entries = []
-    },
+    clear() { entries = [] },
   }
 }
 
+export { createModelEmbed, createNgramEmbed }
 export default dejaLocal
