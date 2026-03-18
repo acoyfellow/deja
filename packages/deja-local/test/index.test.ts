@@ -1,150 +1,106 @@
-import { describe, test, expect, beforeEach } from 'bun:test'
-import { dejaLocal, type DejaLocalClient } from '../src/index'
+import { describe, test, expect } from 'bun:test'
+import { createMemory } from '../src/index'
 
-// All tests use 'ngram' mode — fast, no model download needed
-describe('deja-local', () => {
-  let mem: DejaLocalClient
+describe('createMemory', () => {
+  test('learn + recall', async () => {
+    const mem = createMemory({ embed: 'ngram' })
 
-  beforeEach(() => {
-    mem = dejaLocal({ embed: 'ngram' })
+    await mem.learn('check wrangler.toml before deploying')
+    const results = await mem.recall('deploy is failing')
+
+    expect(results.length).toBe(1)
+    expect(results[0].memory.text).toBe('check wrangler.toml before deploying')
+    expect(results[0].score).toBeGreaterThan(0)
   })
 
-  test('learn stores a memory', async () => {
-    const l = await mem.learn('deploy fails', 'check wrangler.toml first')
-    expect(l.id).toBeTruthy()
-    expect(l.trigger).toBe('deploy fails')
-    expect(l.learning).toBe('check wrangler.toml first')
-    expect(l.confidence).toBe(0.8)
-    expect(l.scope).toBe('shared')
-    expect(mem.size).toBe(1)
+  test('recall ranks by relevance', async () => {
+    const mem = createMemory({ embed: 'ngram' })
+
+    await mem.learn('always backup before running migrations')
+    await mem.learn('check wrangler.toml before deploying')
+    await mem.learn('clear build cache when css looks wrong')
+
+    const results = await mem.recall('deploying to production')
+    expect(results[0].memory.text).toBe('check wrangler.toml before deploying')
   })
 
-  test('learn → inject immediately (no eventual consistency)', async () => {
-    await mem.learn('deploy fails', 'check wrangler.toml first')
-    const result = await mem.inject('deploying and it failed')
-    expect(result.learnings.length).toBe(1)
-    expect(result.learnings[0].learning).toBe('check wrangler.toml first')
-    expect(result.prompt).toContain('check wrangler.toml first')
+  test('recall respects threshold', async () => {
+    const mem = createMemory({ embed: 'ngram' })
+    await mem.learn('javascript closures capture by reference')
+
+    const results = await mem.recall('kubernetes yaml config', { threshold: 0.9 })
+    expect(results.length).toBe(0)
   })
 
-  test('inject returns most relevant memories', async () => {
-    await mem.learn('database migration', 'always backup before migrating')
-    await mem.learn('deploy fails', 'check wrangler.toml first')
-    await mem.learn('css broken', 'clear the build cache')
+  test('recall respects limit', async () => {
+    const mem = createMemory({ embed: 'ngram' })
+    for (let i = 0; i < 10; i++) await mem.learn(`memory number ${i}`)
 
-    const result = await mem.inject('deploying to production')
-    expect(result.learnings.length).toBeGreaterThan(0)
-    expect(result.learnings[0].learning).toBe('check wrangler.toml first')
-  })
-
-  test('query returns scored results', async () => {
-    await mem.learn('tests fail', 'check for env vars')
-    await mem.learn('build slow', 'enable turbo cache')
-
-    const result = await mem.query('test failures')
-    expect(result.learnings.length).toBeGreaterThan(0)
-    expect(result.scores.size).toBeGreaterThan(0)
-  })
-
-  test('scope filtering works', async () => {
-    await mem.learn('global tip', 'always lint', { scope: 'shared' })
-    await mem.learn('agent tip', 'use gpt-4', { scope: 'agent:1' })
-
-    const shared = await mem.inject('any task', { scopes: ['shared'] })
-    const agent = await mem.inject('any task', { scopes: ['agent:1'] })
-
-    expect(shared.learnings.every(l => l.scope === 'shared')).toBe(true)
-    expect(agent.learnings.every(l => l.scope === 'agent:1')).toBe(true)
+    const results = await mem.recall('memory', { limit: 3 })
+    expect(results.length).toBe(3)
   })
 
   test('forget removes a memory', async () => {
-    const l = await mem.learn('test', 'test learning')
+    const mem = createMemory({ embed: 'ngram' })
+    const m = await mem.learn('test memory')
     expect(mem.size).toBe(1)
-    const result = await mem.forget(l.id)
-    expect(result.success).toBe(true)
+
+    const ok = await mem.forget(m.id)
+    expect(ok).toBe(true)
     expect(mem.size).toBe(0)
   })
 
   test('forget returns false for unknown id', async () => {
-    const result = await mem.forget('nonexistent')
-    expect(result.success).toBe(false)
+    const mem = createMemory({ embed: 'ngram' })
+    expect(await mem.forget('nope')).toBe(false)
   })
 
   test('list returns all memories', async () => {
-    await mem.learn('a', 'learning a')
-    await mem.learn('b', 'learning b', { scope: 'agent:1' })
-
-    const all = await mem.list()
-    expect(all.length).toBe(2)
-
-    const scoped = await mem.list({ scope: 'agent:1' })
-    expect(scoped.length).toBe(1)
-    expect(scoped[0].learning).toBe('learning b')
-  })
-
-  test('stats returns correct counts', async () => {
-    await mem.learn('a', 'a', { scope: 'shared' })
-    await mem.learn('b', 'b', { scope: 'shared' })
-    await mem.learn('c', 'c', { scope: 'agent:1' })
-
-    const s = await mem.stats()
-    expect(s.totalLearnings).toBe(3)
-    expect(s.scopes['shared']).toBe(2)
-    expect(s.scopes['agent:1']).toBe(1)
+    const mem = createMemory({ embed: 'ngram' })
+    await mem.learn('a')
+    await mem.learn('b')
+    expect(mem.list().length).toBe(2)
   })
 
   test('clear wipes everything', async () => {
-    await mem.learn('a', 'b')
-    await mem.learn('c', 'd')
-    expect(mem.size).toBe(2)
+    const mem = createMemory({ embed: 'ngram' })
+    await mem.learn('a')
+    await mem.learn('b')
     mem.clear()
     expect(mem.size).toBe(0)
   })
 
-  test('recall count increments on inject', async () => {
-    const l = await mem.learn('test trigger', 'test learning')
-    expect(l.recallCount).toBe(0)
-
-    await mem.inject('test trigger')
-    const list = await mem.list()
-    expect(list[0].recallCount).toBe(1)
-
-    await mem.inject('test trigger')
-    const list2 = await mem.list()
-    expect(list2[0].recallCount).toBe(2)
-  })
-
-  test('custom embed function works', async () => {
-    const trivialEmbed = (text: string) => {
-      const len = text.length
-      return [len / 100, (len % 10) / 10, text.includes('fail') ? 1 : 0]
-    }
-
-    const custom = dejaLocal({ embed: trivialEmbed })
-    await custom.learn('failure mode', 'restart the service')
-    const result = await custom.inject('it failed')
-    expect(result.learnings.length).toBeGreaterThan(0)
+  test('custom embed function', async () => {
+    const mem = createMemory({
+      embed: (text) => [text.length / 100, text.includes('fail') ? 1 : 0],
+    })
+    await mem.learn('failure mode — restart the service')
+    const results = await mem.recall('it failed')
+    expect(results.length).toBeGreaterThan(0)
   })
 
   test('persistence round-trip', async () => {
-    const path = '/tmp/deja-local-test-' + Date.now() + '.json'
-    const mem1 = dejaLocal({ persistPath: path, embed: 'ngram' })
-    await mem1.learn('test', 'persisted learning')
+    const p = `/tmp/deja-test-${Date.now()}.json`
+
+    const mem1 = createMemory({ embed: 'ngram', path: p })
+    await mem1.learn('persisted memory')
     await mem1.save()
 
-    const mem2 = dejaLocal({ persistPath: path, embed: 'ngram' })
+    const mem2 = createMemory({ embed: 'ngram', path: p })
     await mem2.load()
     expect(mem2.size).toBe(1)
-    const list = await mem2.list()
-    expect(list[0].learning).toBe('persisted learning')
+    expect(mem2.list()[0].text).toBe('persisted memory')
 
     const fs = await import('fs')
-    fs.unlinkSync(path)
+    fs.unlinkSync(p)
   })
 
-  test('inject with high threshold filters low-similarity results', async () => {
-    await mem.learn('javascript closures', 'variables are captured by reference')
-    const result = await mem.inject('kubernetes deployment yaml', { threshold: 0.9 })
-    expect(result.learnings.length).toBe(0)
+  test('immediately available (no eventual consistency)', async () => {
+    const mem = createMemory({ embed: 'ngram' })
+
+    // Learn and recall in the same tick — no waiting
+    await mem.learn('the sky is blue')
+    const results = await mem.recall('what color is the sky')
+    expect(results.length).toBe(1)
   })
 })
