@@ -1,13 +1,17 @@
 /**
- * deja-local — Vector memory for agents. That's it.
+ * deja-local — Trusted vector memory for agents.
+ *
+ * SQLite-backed. Real embeddings. Audit trail. ACID durable.
  *
  * ```ts
- * const mem = createMemory()
+ * const mem = await createMemory({ path: './agent-memory.db' })
  * await mem.learn("check wrangler.toml before deploying")
  * const results = await mem.recall("deploying to production")
+ * // results[0] = { id, text, score, createdAt }
  * ```
  */
 
+import { Database } from 'bun:sqlite'
 import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers'
 
 // ============================================================================
@@ -23,47 +27,53 @@ export interface Memory {
 }
 
 export interface RecallResult {
-  memory: Memory
+  id: string
+  text: string
   score: number
+  createdAt: string
+}
+
+export interface RecallLogEntry {
+  id: number
+  context: string
+  results: Array<{ memoryId: string; score: number }>
+  timestamp: string
 }
 
 export interface MemoryStore {
-  /** Store a memory. Immediately available for recall. */
+  /** Store a memory. Persisted to disk before returning. */
   learn(text: string): Promise<Memory>
 
-  /** Find relevant memories for the given context. */
+  /** Find relevant memories. Every recall is logged for auditing. */
   recall(context: string, options?: { limit?: number; threshold?: number }): Promise<RecallResult[]>
 
   /** Remove a memory by id. */
   forget(id: string): Promise<boolean>
 
-  /** Dump all memories (for debugging / export). */
-  list(): Memory[]
+  /** All memories, newest first. */
+  list(options?: { limit?: number; offset?: number }): Memory[]
 
-  /** Persist to disk (only if path was configured). */
-  save(): Promise<void>
-
-  /** Load from disk (only if path was configured). */
-  load(): Promise<void>
-
-  /** Wipe everything. */
-  clear(): void
+  /** View the recall audit log. See what the agent recalled and when. */
+  recallLog(options?: { limit?: number }): RecallLogEntry[]
 
   /** How many memories are stored. */
   readonly size: number
+
+  /** Close the database connection. */
+  close(): void
 }
 
 export interface CreateMemoryOptions {
+  /** Path to SQLite database file. Required — memory is always durable. */
+  path: string
   /** Embedding function. Default: all-MiniLM-L6-v2 via ONNX (~23MB, cached locally). */
-  embed?: EmbedFn | 'ngram'
+  embed?: EmbedFn
   /** HuggingFace model ID. Default: 'Xenova/all-MiniLM-L6-v2' */
   model?: string
-  /** File path to persist memories as JSON. Default: in-memory only. */
-  path?: string
-  /** Auto-save after learn/forget. Default: true when path is set. */
-  autoSave?: boolean
   /** Minimum similarity score for recall. Default: 0.3 */
   threshold?: number
+  /** Similarity threshold for deduplication. Default: 0.95 */
+  dedupeThreshold?: number
 }
 
 // ============================================================================
@@ -82,29 +92,6 @@ function createModelEmbed(modelId: string): EmbedFn {
   }
 }
 
-function createNgramEmbed(dims = 384): EmbedFn {
-  return (text: string): number[] => {
-    const vec = new Float64Array(dims)
-    const lower = text.toLowerCase()
-    const tokens: string[] = []
-    for (let i = 0; i < lower.length - 1; i++) {
-      tokens.push(lower.slice(i, i + 2))
-      if (i < lower.length - 2) tokens.push(lower.slice(i, i + 3))
-    }
-    for (const w of lower.split(/\s+/)) if (w) tokens.push(`w:${w}`)
-    for (const t of tokens) {
-      let h = 0x811c9dc5
-      for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) }
-      vec[(h >>> 0) % dims] += (h & 1) ? 1 : -1
-    }
-    let norm = 0
-    for (let i = 0; i < dims; i++) norm += vec[i] * vec[i]
-    norm = Math.sqrt(norm)
-    if (norm > 0) for (let i = 0; i < dims; i++) vec[i] /= norm
-    return Array.from(vec)
-  }
-}
-
 function cosine(a: number[], b: number[]): number {
   let dot = 0, na = 0, nb = 0
   for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i] }
@@ -113,55 +100,103 @@ function cosine(a: number[], b: number[]): number {
 }
 
 // ============================================================================
-// Persistence
+// Vector serialization — Float32Array ↔ Buffer
 // ============================================================================
 
-interface Entry { memory: Memory; vec: number[] }
-interface Snapshot { v: 1; entries: Entry[] }
-
-async function loadFile(path: string): Promise<Entry[]> {
-  try {
-    const raw = await (await import('fs')).promises.readFile(path, 'utf-8')
-    const snap: Snapshot = JSON.parse(raw)
-    return snap.v === 1 ? snap.entries : []
-  } catch { return [] }
+function vecToBuffer(vec: number[]): Buffer {
+  const f32 = new Float32Array(vec)
+  return Buffer.from(f32.buffer)
 }
 
-async function saveFile(path: string, entries: Entry[]): Promise<void> {
-  const fs = await import('fs')
-  await fs.promises.writeFile(path, JSON.stringify({ v: 1, entries } satisfies Snapshot), 'utf-8')
+function bufferToVec(buf: Buffer): number[] {
+  const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4)
+  return Array.from(f32)
 }
+
+// ============================================================================
+// Schema
+// ============================================================================
+
+const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    text TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS recall_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    context TEXT NOT NULL,
+    results TEXT NOT NULL,
+    timestamp TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
+  CREATE INDEX IF NOT EXISTS idx_recall_log_ts ON recall_log(timestamp);
+`
 
 // ============================================================================
 // createMemory
 // ============================================================================
 
-export function createMemory(opts: CreateMemoryOptions = {}): MemoryStore {
-  const embed: EmbedFn =
-    opts.embed === 'ngram' ? createNgramEmbed() :
-    typeof opts.embed === 'function' ? opts.embed :
-    createModelEmbed(opts.model ?? 'Xenova/all-MiniLM-L6-v2')
-
+export function createMemory(opts: CreateMemoryOptions): MemoryStore {
+  const embed = opts.embed ?? createModelEmbed(opts.model ?? 'Xenova/all-MiniLM-L6-v2')
   const threshold = opts.threshold ?? 0.3
-  const path = opts.path
-  const autoSave = opts.autoSave ?? true
-  let entries: Entry[] = []
+  const dedupeThreshold = opts.dedupeThreshold ?? 0.95
 
-  const persist = async () => { if (path && autoSave) await saveFile(path, entries) }
+  // Open database, enable WAL mode, create schema
+  const db = new Database(opts.path)
+  db.exec('PRAGMA journal_mode = WAL')
+  db.exec('PRAGMA synchronous = NORMAL')
+  db.exec(SCHEMA)
+
+  // Prepared statements
+  const insertMemory = db.prepare(
+    'INSERT INTO memories (id, text, embedding, created_at) VALUES (?, ?, ?, ?)'
+  )
+  const deleteMemory = db.prepare('DELETE FROM memories WHERE id = ?')
+  const selectAll = db.prepare('SELECT id, text, embedding, created_at FROM memories')
+  const countMemories = db.prepare('SELECT COUNT(*) as count FROM memories')
+  const insertRecall = db.prepare(
+    'INSERT INTO recall_log (context, results, timestamp) VALUES (?, ?, ?)'
+  )
+
+  // In-memory vector index — loaded from DB on startup
+  interface IndexEntry { id: string; text: string; vec: number[]; createdAt: string }
+  const index: IndexEntry[] = []
+
+  // Load existing memories into index
+  for (const row of selectAll.all() as Array<{ id: string; text: string; embedding: Buffer; created_at: string }>) {
+    index.push({
+      id: row.id,
+      text: row.text,
+      vec: bufferToVec(row.embedding),
+      createdAt: row.created_at,
+    })
+  }
 
   return {
-    get size() { return entries.length },
+    get size() { return (countMemories.get() as { count: number }).count },
 
     async learn(text) {
       const vec = await embed(text)
-      const memory: Memory = {
-        id: Math.random().toString(36).slice(2) + Date.now().toString(36),
-        text,
-        createdAt: new Date().toISOString(),
+
+      // Deduplication: if a near-identical memory exists, skip
+      for (const entry of index) {
+        if (cosine(vec, entry.vec) >= dedupeThreshold) {
+          return { id: entry.id, text: entry.text, createdAt: entry.createdAt }
+        }
       }
-      entries.push({ memory, vec })
-      await persist()
-      return memory
+
+      const id = crypto.randomUUID()
+      const createdAt = new Date().toISOString()
+      const buf = vecToBuffer(vec)
+
+      insertMemory.run(id, text, buf, createdAt)
+      index.push({ id, text, vec, createdAt })
+
+      return { id, text, createdAt }
     },
 
     async recall(context, options = {}) {
@@ -170,28 +205,58 @@ export function createMemory(opts: CreateMemoryOptions = {}): MemoryStore {
       const min = options.threshold ?? threshold
 
       const scored: RecallResult[] = []
-      for (const e of entries) {
-        const score = cosine(qv, e.vec)
-        if (score >= min) scored.push({ memory: e.memory, score })
+      for (const entry of index) {
+        const score = cosine(qv, entry.vec)
+        if (score >= min) {
+          scored.push({ id: entry.id, text: entry.text, score, createdAt: entry.createdAt })
+        }
       }
       scored.sort((a, b) => b.score - a.score)
-      return scored.slice(0, limit)
+      const results = scored.slice(0, limit)
+
+      // Audit: log every recall
+      const now = new Date().toISOString()
+      const logData = results.map(r => ({ memoryId: r.id, score: Math.round(r.score * 1000) / 1000 }))
+      insertRecall.run(context, JSON.stringify(logData), now)
+
+      return results
     },
 
     async forget(id) {
-      const before = entries.length
-      entries = entries.filter(e => e.memory.id !== id)
-      if (entries.length < before) { await persist(); return true }
+      const changes = deleteMemory.run(id).changes
+      if (changes > 0) {
+        const idx = index.findIndex(e => e.id === id)
+        if (idx >= 0) index.splice(idx, 1)
+        return true
+      }
       return false
     },
 
-    list() { return entries.map(e => e.memory) },
+    list(options = {}) {
+      const limit = options.limit ?? 1000
+      const offset = options.offset ?? 0
+      const rows = db.prepare(
+        'SELECT id, text, created_at FROM memories ORDER BY created_at DESC LIMIT ? OFFSET ?'
+      ).all(limit, offset) as Array<{ id: string; text: string; created_at: string }>
+      return rows.map(r => ({ id: r.id, text: r.text, createdAt: r.created_at }))
+    },
 
-    async save() { if (path) await saveFile(path, entries) },
-    async load() { if (path) entries = await loadFile(path) },
-    clear() { entries = [] },
+    recallLog(options = {}) {
+      const limit = options.limit ?? 50
+      const rows = db.prepare(
+        'SELECT id, context, results, timestamp FROM recall_log ORDER BY timestamp DESC LIMIT ?'
+      ).all(limit) as Array<{ id: number; context: string; results: string; timestamp: string }>
+      return rows.map(r => ({
+        id: r.id,
+        context: r.context,
+        results: JSON.parse(r.results),
+        timestamp: r.timestamp,
+      }))
+    },
+
+    close() { db.close() },
   }
 }
 
-export { createModelEmbed, createNgramEmbed }
+export { createModelEmbed }
 export default createMemory
