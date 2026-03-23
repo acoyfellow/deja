@@ -234,7 +234,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
   // Open database, enable WAL mode, create schema
   const db = new Database(opts.path)
   db.exec('PRAGMA journal_mode = WAL')
-  db.exec('PRAGMA synchronous = NORMAL')
+  db.exec('PRAGMA synchronous = FULL')
   db.exec(SCHEMA)
   migrateSchema(db)
 

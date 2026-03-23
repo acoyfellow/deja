@@ -1,7 +1,7 @@
 {
   "name": "deja-local",
   "version": "0.1.0",
-  "description": "Local in-process vector memory for agents. Zero latency, zero eventual consistency.",
+  "description": "Local in-process vector memory for agents. Zero latency, zero eventual consistency. Requires Bun runtime.",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -30,6 +30,9 @@
     "embedding",
     "deja"
   ],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
   "author": "",
   "license": "MIT",
   "repository": {
