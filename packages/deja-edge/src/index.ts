@@ -420,4 +420,41 @@ export function createEdgeMemory(
   return store
 }
 
+// ============================================================================
+// DejaEdge — class wrapper matching the homepage API
+// ============================================================================
+
+type SqlStorage = DurableObjectState['storage']['sql']
+
+/**
+ * Class-based API for deja-edge.
+ *
+ * ```ts
+ * import { DejaEdge } from 'deja-edge'
+ * // Inside your Durable Object:
+ * const mem = new DejaEdge(this.ctx.storage.sql)
+ *
+ * mem.remember("node 20 breaks esbuild")
+ * const hits = mem.recall("deploying")
+ * ```
+ */
+export class DejaEdge implements EdgeMemoryStore {
+  private store: EdgeMemoryStore
+
+  constructor(sql: SqlStorage, opts: CreateEdgeMemoryOptions = {}) {
+    // Wrap the sql handle in a minimal DurableObjectState shape
+    const ctx = { storage: { sql } } as unknown as DurableObjectState
+    this.store = createEdgeMemory(ctx, opts)
+  }
+
+  remember(text: string) { return this.store.remember(text) }
+  recall(context: string, options?: RecallOptions) { return this.store.recall(context, options) }
+  confirm(id: string) { return this.store.confirm(id) }
+  reject(id: string) { return this.store.reject(id) }
+  forget(id: string) { return this.store.forget(id) }
+  list(options?: { limit?: number; offset?: number }) { return this.store.list(options) }
+  recallLog(options?: { limit?: number }) { return this.store.recallLog(options) }
+  get size() { return this.store.size }
+}
+
 export default createEdgeMemory

@@ -420,5 +420,40 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
   return store
 }
 
+// ============================================================================
+// DejaLocal — class wrapper matching the homepage API
+// ============================================================================
+
+/**
+ * Class-based API for deja-local.
+ *
+ * ```ts
+ * import { DejaLocal } from 'deja-local'
+ * const mem = new DejaLocal('./memories.db')
+ *
+ * await mem.remember("node 20 breaks esbuild")
+ * const hits = await mem.recall("deploying")
+ * ```
+ */
+export class DejaLocal implements MemoryStore {
+  private store: MemoryStore
+
+  constructor(path: string, opts: Omit<CreateMemoryOptions, 'path'> = {}) {
+    this.store = createMemory({ ...opts, path })
+  }
+
+  remember(text: string) { return this.store.remember(text) }
+  recall(context: string, options?: Parameters<MemoryStore['recall']>[1]) { return this.store.recall(context, options) }
+  confirm(id: string) { return this.store.confirm(id) }
+  reject(id: string) { return this.store.reject(id) }
+  forget(id: string) { return this.store.forget(id) }
+  list(options?: Parameters<MemoryStore['list']>[0]) { return this.store.list(options) }
+  recallLog(options?: Parameters<MemoryStore['recallLog']>[0]) { return this.store.recallLog(options) }
+  get size() { return this.store.size }
+  close() { return this.store.close() }
+  /** @deprecated Use remember() */
+  learn(text: string) { return this.store.learn(text) }
+}
+
 export { createModelEmbed }
 export default createMemory
