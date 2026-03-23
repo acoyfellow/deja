@@ -1,7 +1,7 @@
 {
-  "name": "deja-local",
+  "name": "deja-edge",
   "version": "0.1.0",
-  "description": "Local in-process vector memory for agents. Zero latency, zero eventual consistency. Requires Bun runtime.",
+  "description": "Edge memory for Cloudflare Durable Objects. FTS5-powered full-text search, zero external dependencies.",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -10,13 +10,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./do": {
+      "types": "./dist/do.d.ts",
+      "import": "./dist/do.mjs",
+      "require": "./dist/do.js"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "build": "tsup src/index.ts src/do.ts --format cjs,esm --dts --clean",
     "test": "bun test",
     "lint": "tsc --noEmit",
     "prepublishOnly": "bun run lint && bun run test && bun run build"
@@ -25,14 +30,12 @@
     "ai",
     "agents",
     "memory",
-    "vector",
-    "local",
-    "embedding",
+    "fts5",
+    "edge",
+    "cloudflare",
+    "durable-objects",
     "deja"
   ],
-  "engines": {
-    "bun": ">=1.0.0"
-  },
   "author": "",
   "license": "MIT",
   "repository": {
@@ -42,9 +45,6 @@
   "devDependencies": {
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
-    "@types/bun": "latest"
-  },
-  "dependencies": {
-    "@huggingface/transformers": "^3.8.1"
+    "@cloudflare/workers-types": "^4.20250312.0"
   }
 }
