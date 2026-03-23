@@ -127,8 +127,7 @@ import SEO from "../components/SEO.astro";
             </p>
           </div>
           <div>
-            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaLocal</span> } <span class="flag">from</span> <span class="string">'deja-local'</span>
-<span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaLocal(<span class="string">'./memories.db'</span>)
+            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaLocal</span> } <span class="flag">from</span> <span class="string">'deja-local'</span><br/><span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaLocal(<span class="string">'./memories.db'</span>)
 
 <span class="flag">await</span> mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbuild"</span>)
 <span class="flag">const</span> <span class="var">hits</span> = <span class="flag">await</span> mem.<span class="cmd">recall</span>(<span class="string">"deploying"</span>)</div>
@@ -167,10 +166,7 @@ import SEO from "../components/SEO.astro";
           </div>
           <div>
             <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaEdge</span> } <span class="flag">from</span> <span class="string">'deja-edge'</span>
-<span class="comment">// Inside your Durable Object:</span>
-<span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaEdge(<span class="var">this</span>.ctx.storage.sql)
-
-mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbuild"</span>)
+<span class="comment">// Inside your Durable Object:</span><br/><span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaEdge(<span class="var">this</span>.ctx.storage.sql)<br/>mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbuild"</span>)
 <span class="flag">const</span> <span class="var">hits</span> = mem.<span class="cmd">recall</span>(<span class="string">"deploying"</span>)</div>
           </div>
         </div>
@@ -206,10 +202,7 @@ mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbui
             </p>
           </div>
           <div>
-            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> <span class="var">deja</span> <span class="flag">from</span> <span class="string">'deja-client'</span>
-<span class="flag">const</span> <span class="var">mem</span> = deja(<span class="var">DEJA_URL</span>)
-
-<span class="flag">await</span> mem.<span class="cmd">learn</span>(<span class="string">"deploy"</span>, <span class="string">"node 20 breaks esbuild"</span>)
+            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> <span class="var">deja</span> <span class="flag">from</span> <span class="string">'deja-client'</span><br/><span class="flag">const</span> <span class="var">mem</span> = deja(<span class="var">DEJA_URL</span>)<br/><span class="flag">await</span> mem.<span class="cmd">learn</span>(<span class="string">"deploy"</span>, <span class="string">"node 20 breaks esbuild"</span>)
 <span class="flag">await</span> mem.<span class="cmd">inject</span>(<span class="string">"deploying"</span>)</div>
           </div>
         </div>
