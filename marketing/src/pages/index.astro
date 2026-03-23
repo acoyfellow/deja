@@ -26,15 +26,18 @@ import SEO from "../components/SEO.astro";
         <div class="font-mono text-[11px] font-bold tracking-[0.2em] uppercase text-brass mb-4">
           Persistent memory for AI agents
         </div>
-        <h1 class="font-serif-sc text-5xl md:text-7xl font-bold tracking-tight m-0 mb-3">
+        <h1 class="font-serif-sc text-5xl md:text-7xl font-bold tracking-tight m-0 mb-4">
           deja
         </h1>
-        <p class="font-serif font-light text-xl text-chrome-dark max-w-[640px] mb-4">
+        <p class="font-serif font-light text-xl text-chrome-dark max-w-[640px] mb-3">
           Agents forget everything between runs. deja fixes that.
         </p>
-        <p class="font-serif font-light text-base text-chrome-dark/70 max-w-[640px] mb-8">
-          An open-source memory layer that stores what agents learn and recalls it when relevant.
-          Available as three packages — pick the runtime that fits your stack.
+        <p class="font-serif font-light text-base text-chrome-dark/70 max-w-[560px] mb-3">
+          A memory layer. Agents call <code class="font-mono text-[13px] text-brass">learn()</code> to store what they know
+          and <code class="font-mono text-[13px] text-brass">recall()</code> to get it back.
+        </p>
+        <p class="font-serif font-light text-sm text-chrome-dark/50 max-w-[560px] mb-8">
+          Three packages — local, edge, hosted — same idea, pick your runtime.
         </p>
 
         <div class="flex flex-wrap gap-4 items-center max-md:flex-col max-md:items-start">
@@ -61,167 +64,161 @@ import SEO from "../components/SEO.astro";
     </div>
   </section>
 
-  <!-- What is deja -->
-  <section class="mt-12">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">
-      What is deja?
-    </div>
-    <div class="bg-steel border border-brass/10 rounded-sm p-8 relative shadow-card">
-      <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-      <div class="max-w-3xl space-y-4">
-        <p class="font-serif font-light text-chrome-dark m-0 text-base leading-relaxed">
-          Every time an AI agent runs, it starts from scratch. It doesn't remember what worked last time,
-          what failed, or what another agent already figured out. You end up re-explaining the same context,
-          re-discovering the same workarounds, and watching agents make the same mistakes.
-        </p>
-        <p class="font-serif font-light text-chrome-dark m-0 text-base leading-relaxed">
-          <strong class="text-chrome">deja is a memory layer.</strong> Agents call <code class="font-mono text-[13px] text-brass">learn()</code> to store
-          what they discover and <code class="font-mono text-[13px] text-brass">recall()</code> to retrieve what's relevant
-          before they act. Memories have confidence scores, get deduplicated automatically, and decay when they go stale.
-        </p>
-        <p class="font-serif font-light text-chrome-dark m-0 text-base leading-relaxed">
-          It works across agents, across runs, across tools. CI learns something → your chat agent already knows it.
-          One agent figures out a workaround → every agent benefits.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Three Memory Systems -->
-  <section id="memory-systems" class="mt-18 scroll-mt-8">
+  <!-- Three Memory Systems — Tabbed -->
+  <section id="memory-systems" class="mt-12 scroll-mt-8">
     <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-3">
       Three memory systems
     </div>
-    <p class="font-serif font-light text-chrome-dark m-0 mb-8 max-w-2xl">
-      Same concepts, different runtimes. Pick the one that matches your stack, or use them together.
+    <p class="font-serif font-light text-chrome-dark m-0 mb-6 max-w-2xl">
+      Same concepts, different runtimes. Pick the one that matches your stack.
     </p>
 
-    <div class="grid gap-6 grid-cols-1 lg:grid-cols-3">
+    <!-- Tabs -->
+    <div class="flex gap-0 border-b border-brass/10 mb-0">
+      <button
+        data-tab="local"
+        class="tab-btn active font-mono text-[11px] font-bold tracking-widest uppercase px-5 py-3 border-b-2 border-brass text-brass bg-transparent cursor-pointer transition-colors"
+      >
+        deja-local
+      </button>
+      <button
+        data-tab="edge"
+        class="tab-btn font-mono text-[11px] font-bold tracking-widest uppercase px-5 py-3 border-b-2 border-transparent text-chrome-dark/40 bg-transparent cursor-pointer hover:text-chrome-dark/70 transition-colors"
+      >
+        deja-edge
+      </button>
+      <button
+        data-tab="hosted"
+        class="tab-btn font-mono text-[11px] font-bold tracking-widest uppercase px-5 py-3 border-b-2 border-transparent text-chrome-dark/40 bg-transparent cursor-pointer hover:text-chrome-dark/70 transition-colors"
+      >
+        deja (hosted)
+      </button>
+    </div>
+
+    <!-- Tab panels -->
+    <div class="bg-steel border border-t-0 border-brass/10 rounded-b-sm relative shadow-card">
       <!-- deja-local -->
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card flex flex-col">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-1">
-          deja-local
-        </div>
-        <div class="font-serif text-sm text-chrome-dark/60 mb-4">
-          In-process vector memory for Bun
-        </div>
-
-        <div class="space-y-3 mb-5 flex-1">
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">SEARCH</span>
-            <span class="font-serif text-sm text-chrome-dark">Vector similarity (all-MiniLM-L6-v2 via ONNX)</span>
+      <div data-panel="local" class="tab-panel p-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="space-y-4">
+            <div class="font-serif text-sm text-chrome-dark/60 mb-2">
+              In-process vector memory for Bun
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">SEARCH</span>
+                <span class="font-serif text-sm text-chrome-dark">Vector similarity (all-MiniLM-L6-v2 via ONNX)</span>
+              </div>
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">STORAGE</span>
+                <span class="font-serif text-sm text-chrome-dark">SQLite file on disk</span>
+              </div>
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">LATENCY</span>
+                <span class="font-serif text-sm text-chrome-dark">Zero — runs in your process</span>
+              </div>
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">DEPS</span>
+                <span class="font-serif text-sm text-chrome-dark">Bun runtime + HuggingFace transformers</span>
+              </div>
+            </div>
+            <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
+              Best for: CLI tools, local agents, scripts, development.
+            </p>
           </div>
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">STORAGE</span>
-            <span class="font-serif text-sm text-chrome-dark">SQLite file on disk</span>
-          </div>
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">LATENCY</span>
-            <span class="font-serif text-sm text-chrome-dark">Zero — runs in your process</span>
-          </div>
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">DEPS</span>
-            <span class="font-serif text-sm text-chrome-dark">Bun runtime + HuggingFace transformers</span>
-          </div>
-        </div>
-
-        <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaLocal</span> } <span class="flag">from</span> <span class="string">'deja-local'</span>
+          <div>
+            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaLocal</span> } <span class="flag">from</span> <span class="string">'deja-local'</span>
 <span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaLocal(<span class="string">'./memories.db'</span>)
 
 <span class="flag">await</span> mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbuild"</span>)
 <span class="flag">const</span> <span class="var">hits</span> = <span class="flag">await</span> mem.<span class="cmd">recall</span>(<span class="string">"deploying"</span>)</div>
-
-        <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
-          Best for: CLI tools, local agents, scripts, development.
-        </p>
+          </div>
+        </div>
       </div>
 
       <!-- deja-edge -->
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card flex flex-col">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-1">
-          deja-edge
-        </div>
-        <div class="font-serif text-sm text-chrome-dark/60 mb-4">
-          Edge memory for Cloudflare Durable Objects
-        </div>
-
-        <div class="space-y-3 mb-5 flex-1">
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">SEARCH</span>
-            <span class="font-serif text-sm text-chrome-dark">FTS5 full-text search (BM25 + Porter stemming)</span>
+      <div data-panel="edge" class="tab-panel hidden p-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="space-y-4">
+            <div class="font-serif text-sm text-chrome-dark/60 mb-2">
+              Edge memory for Cloudflare Durable Objects
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">SEARCH</span>
+                <span class="font-serif text-sm text-chrome-dark">FTS5 full-text search (BM25 + Porter stemming)</span>
+              </div>
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">STORAGE</span>
+                <span class="font-serif text-sm text-chrome-dark">Durable Object SQLite</span>
+              </div>
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">LATENCY</span>
+                <span class="font-serif text-sm text-chrome-dark">Zero — runs inside the DO</span>
+              </div>
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">DEPS</span>
+                <span class="font-serif text-sm text-chrome-dark">None — zero external dependencies</span>
+              </div>
+            </div>
+            <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
+              Best for: per-user memory in edge apps, Cloudflare Workers, chat apps.
+            </p>
           </div>
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">STORAGE</span>
-            <span class="font-serif text-sm text-chrome-dark">Durable Object SQLite</span>
-          </div>
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">LATENCY</span>
-            <span class="font-serif text-sm text-chrome-dark">Zero — runs inside the DO</span>
-          </div>
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">DEPS</span>
-            <span class="font-serif text-sm text-chrome-dark">None — zero external dependencies</span>
-          </div>
-        </div>
-
-        <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaEdge</span> } <span class="flag">from</span> <span class="string">'deja-edge'</span>
+          <div>
+            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaEdge</span> } <span class="flag">from</span> <span class="string">'deja-edge'</span>
 <span class="comment">// Inside your Durable Object:</span>
 <span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaEdge(<span class="var">this</span>.ctx.storage.sql)
 
 mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbuild"</span>)
 <span class="flag">const</span> <span class="var">hits</span> = mem.<span class="cmd">recall</span>(<span class="string">"deploying"</span>)</div>
-
-        <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
-          Best for: per-user memory in edge apps, Cloudflare Workers, chat apps.
-        </p>
+          </div>
+        </div>
       </div>
 
       <!-- deja (hosted) -->
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card flex flex-col">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-1">
-          deja (hosted)
-        </div>
-        <div class="font-serif text-sm text-chrome-dark/60 mb-4">
-          Full-featured memory service on Cloudflare
-        </div>
-
-        <div class="space-y-3 mb-5 flex-1">
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">SEARCH</span>
-            <span class="font-serif text-sm text-chrome-dark">Semantic vector search (Vectorize + Workers AI)</span>
+      <div data-panel="hosted" class="tab-panel hidden p-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="space-y-4">
+            <div class="font-serif text-sm text-chrome-dark/60 mb-2">
+              Full-featured memory service on Cloudflare
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">SEARCH</span>
+                <span class="font-serif text-sm text-chrome-dark">Semantic vector search (Vectorize + Workers AI)</span>
+              </div>
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">STORAGE</span>
+                <span class="font-serif text-sm text-chrome-dark">DO SQLite + Vectorize index</span>
+              </div>
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">LATENCY</span>
+                <span class="font-serif text-sm text-chrome-dark">Network hop — deployed to your CF account</span>
+              </div>
+              <div class="flex items-start gap-3">
+                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">DEPS</span>
+                <span class="font-serif text-sm text-chrome-dark">Cloudflare Vectorize + Workers AI bindings</span>
+              </div>
+            </div>
+            <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
+              Best for: multi-agent teams, shared memory, MCP, REST API access.
+            </p>
           </div>
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">STORAGE</span>
-            <span class="font-serif text-sm text-chrome-dark">DO SQLite + Vectorize index</span>
-          </div>
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">LATENCY</span>
-            <span class="font-serif text-sm text-chrome-dark">Network hop — deployed to your CF account</span>
-          </div>
-          <div class="flex items-start gap-2">
-            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">DEPS</span>
-            <span class="font-serif text-sm text-chrome-dark">Cloudflare Vectorize + Workers AI bindings</span>
-          </div>
-        </div>
-
-        <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> <span class="var">deja</span> <span class="flag">from</span> <span class="string">'deja-client'</span>
+          <div>
+            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> <span class="var">deja</span> <span class="flag">from</span> <span class="string">'deja-client'</span>
 <span class="flag">const</span> <span class="var">mem</span> = deja(<span class="var">DEJA_URL</span>)
 
 <span class="flag">await</span> mem.<span class="cmd">learn</span>(<span class="string">"deploy"</span>, <span class="string">"node 20 breaks esbuild"</span>)
 <span class="flag">await</span> mem.<span class="cmd">inject</span>(<span class="string">"deploying"</span>)</div>
-
-        <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
-          Best for: multi-agent teams, shared memory, MCP, REST API access.
-        </p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- Comparison -->
-  <section class="mt-12">
+  <section class="mt-8">
     <div class="bg-steel border border-brass/10 rounded-sm relative shadow-card overflow-x-auto">
       <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
       <table class="w-full font-mono text-xs text-chrome-dark">
@@ -317,119 +314,6 @@ mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbui
     </div>
   </section>
 
-  <!-- Try it -->
-  <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">
-      Try it — hosted demo
-    </div>
-    <div class="bg-steel border border-brass/10 rounded-sm relative shadow-card overflow-hidden">
-      <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-      <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-brass/10">
-        <!-- Teach panel -->
-        <div class="p-6 md:p-8">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4">
-            Teach
-          </div>
-          <div class="space-y-3">
-            <div>
-              <label class="font-mono text-[11px] text-chrome-dark/60 block mb-1">When this comes up...</label>
-              <input
-                id="demo-trigger"
-                type="text"
-                placeholder="deploying to production"
-                class="w-full bg-void-deep border border-brass/15 rounded-sm px-3 py-2.5 font-mono text-xs text-chrome placeholder:text-chrome-dark/30 focus:outline-none focus:border-brass/40 transition-colors"
-              />
-            </div>
-            <div>
-              <label class="font-mono text-[11px] text-chrome-dark/60 block mb-1">Remember this...</label>
-              <input
-                id="demo-learning"
-                type="text"
-                placeholder="always run dry-run first"
-                class="w-full bg-void-deep border border-brass/15 rounded-sm px-3 py-2.5 font-mono text-xs text-chrome placeholder:text-chrome-dark/30 focus:outline-none focus:border-brass/40 transition-colors"
-              />
-            </div>
-            <button
-              id="demo-learn-btn"
-              class="font-mono text-[11px] font-bold tracking-widest uppercase px-4 py-2.5 rounded-sm border border-brass/20 bg-brass/10 text-brass hover:bg-brass/20 transition-colors w-full cursor-pointer"
-            >
-              mem.learn()
-            </button>
-          </div>
-          <div
-            id="demo-learn-result"
-            class="mt-3 font-mono text-[11px] leading-relaxed text-chrome-dark/60 min-h-[20px]"
-          ></div>
-        </div>
-
-        <!-- Recall panel -->
-        <div class="p-6 md:p-8">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4">
-            Recall
-          </div>
-          <div class="space-y-3">
-            <div>
-              <label class="font-mono text-[11px] text-chrome-dark/60 block mb-1">What are you about to do?</label>
-              <input
-                id="demo-context"
-                type="text"
-                placeholder="shipping a hotfix"
-                class="w-full bg-void-deep border border-brass/15 rounded-sm px-3 py-2.5 font-mono text-xs text-chrome placeholder:text-chrome-dark/30 focus:outline-none focus:border-brass/40 transition-colors"
-              />
-            </div>
-            <button
-              id="demo-inject-btn"
-              class="font-mono text-[11px] font-bold tracking-widest uppercase px-4 py-2.5 rounded-sm border border-brass/20 bg-brass/10 text-brass hover:bg-brass/20 transition-colors w-full cursor-pointer"
-            >
-              mem.inject()
-            </button>
-          </div>
-          <div id="demo-inject-result" class="mt-3 min-h-[60px]">
-            <div class="font-mono text-[11px] text-chrome-dark/30 italic">
-              Memories will appear here...
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Response bar -->
-      <div id="demo-response" class="border-t border-brass/10 px-6 py-3 bg-void-deep/40">
-        <div class="font-mono text-[11px] text-chrome-dark/40">
-          <span id="demo-method" class="text-brass">POST</span>
-          <span id="demo-endpoint" class="ml-1">/learn</span>
-          <span id="demo-status" class="ml-3"></span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- FAQ -->
-  <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Honest answers</div>
-    <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Why three packages?"</h3>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">Different agents run in different places. A CLI tool needs in-process memory with zero latency. An edge worker needs memory inside its Durable Object. A multi-agent team needs shared memory over HTTP. Same core idea, three runtimes.</p>
-      </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Why not just use a database?"</h3>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">You could. But then you're building semantic search, deduplication, confidence scoring, conflict resolution, and cleanup yourself. deja is that layer.</p>
-      </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Vendor lock-in?"</h3>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">deja-local runs on Bun with SQLite — no cloud required. deja-edge runs inside any Cloudflare DO. The hosted version runs on your own CF account. MIT license, fork it if we disappear.</p>
-      </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Which one should I use?"</h3>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">Building a local CLI tool or script? <strong class="text-chrome">deja-local</strong>. Building on Cloudflare Workers? <strong class="text-chrome">deja-edge</strong>. Need shared memory across multiple agents or MCP? <strong class="text-chrome">deja (hosted)</strong>.</p>
-      </div>
-    </div>
-  </section>
-
   <!-- CTA -->
   <div class="relative mt-20">
     <div
@@ -474,111 +358,23 @@ mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbui
 </Base>
 
 <script>
-  const el = (id: string) => document.getElementById(id)!;
-  const input = (id: string) => document.getElementById(id) as HTMLInputElement;
+  document.querySelectorAll<HTMLButtonElement>('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab!;
 
-  const learnBtn = el("demo-learn-btn");
-  const injectBtn = el("demo-inject-btn");
-  const learnResult = el("demo-learn-result");
-  const injectResult = el("demo-inject-result");
-  const methodEl = el("demo-method");
-  const endpointEl = el("demo-endpoint");
-  const statusEl = el("demo-status");
-
-  function showStatus(m: string, ep: string, text: string, ok: boolean) {
-    methodEl.textContent = m;
-    endpointEl.textContent = ep;
-    statusEl.textContent = text;
-    statusEl.className = ok ? "ml-3 text-green-400/70" : "ml-3 text-red-400/70";
-  }
-
-  learnBtn.addEventListener("click", async () => {
-    const trigger = input("demo-trigger").value.trim();
-    const learning = input("demo-learning").value.trim();
-    if (!trigger || !learning) {
-      learnResult.textContent = "Both fields required.";
-      return;
-    }
-
-    learnBtn.textContent = "...";
-    showStatus("POST", "/learn", "", true);
-
-    try {
-      const res = await fetch("/learn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          trigger,
-          learning,
-          confidence: 0.9,
-          scope: "shared",
-        }),
+      // Update buttons
+      document.querySelectorAll<HTMLButtonElement>('.tab-btn').forEach(b => {
+        b.classList.remove('border-brass', 'text-brass');
+        b.classList.add('border-transparent', 'text-chrome-dark/40');
       });
-      const data = await res.json();
+      btn.classList.remove('border-transparent', 'text-chrome-dark/40');
+      btn.classList.add('border-brass', 'text-brass');
 
-      if (res.ok) {
-        showStatus("POST", "/learn", `${res.status} OK`, true);
-        learnResult.innerHTML = `<span class="text-green-400/70">Stored.</span> <span class="text-chrome-dark/40">id: ${data.id || "ok"}</span>`;
-      } else {
-        showStatus("POST", "/learn", `${res.status}`, false);
-        learnResult.innerHTML = `<span class="text-red-400/70">${data.error || "Failed"}</span>`;
-      }
-    } catch {
-      showStatus("POST", "/learn", "network error", false);
-      learnResult.innerHTML =
-        '<span class="text-red-400/70">Could not reach /learn</span>';
-    }
-    learnBtn.textContent = "mem.learn()";
-  });
-
-  injectBtn.addEventListener("click", async () => {
-    const context = input("demo-context").value.trim();
-    if (!context) {
-      injectResult.innerHTML =
-        '<div class="font-mono text-[11px] text-chrome-dark/40">Enter a context first.</div>';
-      return;
-    }
-
-    injectBtn.textContent = "...";
-    showStatus("POST", "/inject", "", true);
-
-    try {
-      const res = await fetch("/inject", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context, scopes: ["shared"], limit: 5 }),
+      // Update panels
+      document.querySelectorAll<HTMLElement>('.tab-panel').forEach(p => {
+        p.classList.add('hidden');
       });
-      const data = await res.json();
-
-      if (res.ok) {
-        showStatus("POST", "/inject", `${res.status} OK`, true);
-        const learnings = data.learnings || data.memories || [];
-        if (learnings.length > 0) {
-          injectResult.innerHTML = learnings
-            .map(
-              (m: Record<string, unknown>) =>
-                `<div class="bg-void-deep/60 border border-brass/10 rounded-sm px-3 py-2 mb-2">
-              <div class="font-mono text-[11px] text-brass">${m.trigger || ""}</div>
-              <div class="font-serif text-sm text-chrome-dark mt-1">${m.learning || ""}</div>
-              ${m.confidence ? `<div class="font-mono text-[10px] text-chrome-dark/30 mt-1">${(Number(m.confidence) * 100).toFixed(0)}% confidence</div>` : ""}
-            </div>`,
-            )
-            .join("");
-        } else if (data.prompt && data.prompt.length > 0) {
-          injectResult.innerHTML = `<div class="bg-void-deep/60 border border-brass/10 rounded-sm px-3 py-2 font-serif text-sm text-chrome-dark whitespace-pre-wrap">${data.prompt}</div>`;
-        } else {
-          injectResult.innerHTML =
-            '<div class="font-mono text-[11px] text-chrome-dark/40 italic">No memories found. Teach it something first.</div>';
-        }
-      } else {
-        showStatus("POST", "/inject", `${res.status}`, false);
-        injectResult.innerHTML = `<div class="font-mono text-[11px] text-red-400/70">${data.error || "Failed"}</div>`;
-      }
-    } catch {
-      showStatus("POST", "/inject", "network error", false);
-      injectResult.innerHTML =
-        '<div class="font-mono text-[11px] text-red-400/70">Could not reach /inject</div>';
-    }
-    injectBtn.textContent = "mem.inject()";
+      document.querySelector<HTMLElement>(`[data-panel="${tab}"]`)!.classList.remove('hidden');
+    });
   });
 </script>
