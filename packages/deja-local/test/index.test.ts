@@ -542,3 +542,179 @@ describe('backward compatibility', () => {
     m.close()
   })
 })
+
+// ============================================================================
+// TIME-BASED CONFIDENCE DECAY
+// ============================================================================
+
+describe('time-based confidence decay', () => {
+  test('old memories score lower than fresh ones with same text similarity', async () => {
+    const p = tmpDb()
+    cleanup.push(p)
+
+    const { Database } = await import('bun:sqlite')
+
+    // Create memory store and add a memory
+    const m = createMemory({ path: p, embed: testEmbed, threshold: 0.1 })
+    const fresh = await m.remember('deploy tip about production')
+    const old = await m.remember('deploy tip about staging environment')
+    m.close()
+
+    // Manually backdate the "old" memory's created_at to 180 days ago
+    const rawDb = new Database(p)
+    const oldDate = new Date(Date.now() - 180 * 86400000).toISOString()
+    rawDb.exec(`UPDATE memories SET created_at = '${oldDate}' WHERE id = '${old.id}'`)
+    rawDb.close()
+
+    // Reopen and recall — fresh memory should score higher due to decay
+    const m2 = createMemory({ path: p, embed: testEmbed, threshold: 0.1 })
+    const results = await m2.recall('deploy tip')
+    expect(results.length).toBe(2)
+    // Fresh memory should rank first (old one decayed)
+    expect(results[0].id).toBe(fresh.id)
+    m2.close()
+  })
+
+  test('recently recalled memories resist decay', async () => {
+    const p = tmpDb()
+    cleanup.push(p)
+
+    const { Database } = await import('bun:sqlite')
+
+    const m = createMemory({ path: p, embed: testEmbed, threshold: 0.1 })
+    const memory = await m.remember('deploy tip about servers')
+    m.close()
+
+    // Backdate created_at to 180 days ago, but set last_recalled_at to now
+    const rawDb = new Database(p)
+    const oldDate = new Date(Date.now() - 180 * 86400000).toISOString()
+    const recentDate = new Date().toISOString()
+    rawDb.exec(`UPDATE memories SET created_at = '${oldDate}', last_recalled_at = '${recentDate}' WHERE id = '${memory.id}'`)
+    rawDb.close()
+
+    // Reopen — memory should still score well because it was recently recalled
+    const m2 = createMemory({ path: p, embed: testEmbed, threshold: 0.1 })
+    const results = await m2.recall('deploy tip about servers')
+    expect(results.length).toBe(1)
+    // Score should be high since last_recalled_at is recent
+    expect(results[0].score).toBeGreaterThan(0.3)
+    m2.close()
+  })
+
+  test('confirm still boosts stored confidence independent of decay', async () => {
+    const m = mem()
+    const memory = await m.remember('decay and confirm test')
+    await m.confirm(memory.id)
+    const listed = m.list()
+    // Stored confidence should be boosted regardless of decay
+    expect(listed[0].confidence).toBe(0.6)
+    m.close()
+  })
+})
+
+// ============================================================================
+// AGENT ATTRIBUTION
+// ============================================================================
+
+describe('agent attribution', () => {
+  test('source is stored and returned when provided', async () => {
+    const m = mem()
+    const memory = await m.remember('attributed memory', { source: 'agent-alpha' })
+    expect(memory.source).toBe('agent-alpha')
+    const listed = m.list()
+    expect(listed[0].source).toBe('agent-alpha')
+    m.close()
+  })
+
+  test('source is undefined when not provided (backward compat)', async () => {
+    const m = mem()
+    const memory = await m.remember('unattributed memory')
+    expect(memory.source).toBeUndefined()
+    const listed = m.list()
+    expect(listed[0].source).toBeUndefined()
+    m.close()
+  })
+})
+
+// ============================================================================
+// ANTI-PATTERN TRACKING
+// ============================================================================
+
+describe('anti-pattern tracking', () => {
+  test('memory auto-inverts to anti-pattern after enough rejections', async () => {
+    const m = mem()
+    const memory = await m.remember('use var for all variables')
+    // Reject enough times to drop below 0.15 threshold
+    // 0.5 -> 0.35 -> 0.2 -> 0.05 (below 0.15, triggers inversion)
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    const listed = m.list()
+    expect(listed[0].type).toBe('anti-pattern')
+    m.close()
+  })
+
+  test('anti-pattern has reset confidence and KNOWN PITFALL prefix', async () => {
+    const m = mem()
+    const memory = await m.remember('use eval for parsing JSON')
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    const listed = m.list()
+    expect(listed[0].confidence).toBe(0.5)
+    expect(listed[0].text).toBe('KNOWN PITFALL: use eval for parsing JSON')
+    expect(listed[0].type).toBe('anti-pattern')
+    m.close()
+  })
+
+  test('anti-pattern appears in recall results normally', async () => {
+    const m = mem()
+    const memory = await m.remember('use eval for parsing JSON data')
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    const results = await m.recall('parsing JSON')
+    expect(results.length).toBeGreaterThan(0)
+    expect(results[0].text).toContain('KNOWN PITFALL')
+    m.close()
+  })
+
+  test('confirming an anti-pattern still boosts its confidence', async () => {
+    const m = mem()
+    const memory = await m.remember('never use goto statements')
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    // Now it's an anti-pattern with confidence 0.5
+    await m.confirm(memory.id)
+    const listed = m.list()
+    expect(listed[0].confidence).toBe(0.6)
+    expect(listed[0].type).toBe('anti-pattern')
+    m.close()
+  })
+
+  test('already-inverted anti-pattern does not double-invert', async () => {
+    const m = mem()
+    const memory = await m.remember('use document.write for output')
+    // Invert it
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    await m.reject(memory.id)
+    // Now reject the anti-pattern further — should NOT double-invert
+    for (let i = 0; i < 5; i++) await m.reject(memory.id)
+    const listed = m.list()
+    expect(listed[0].type).toBe('anti-pattern')
+    expect(listed[0].text).toBe('KNOWN PITFALL: use document.write for output')
+    // Should NOT have "KNOWN PITFALL: KNOWN PITFALL: ..."
+    expect(listed[0].text.indexOf('KNOWN PITFALL')).toBe(0)
+    expect(listed[0].text.indexOf('KNOWN PITFALL', 1)).toBe(-1)
+    m.close()
+  })
+
+  test('memories start with type memory', async () => {
+    const m = mem()
+    const memory = await m.remember('normal memory type test')
+    expect(memory.type).toBe('memory')
+    m.close()
+  })
+})

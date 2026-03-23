@@ -92,6 +92,35 @@ All three systems share the same mental model:
 
 Memories are deduplicated at write time. Conflicting memories (same topic, different content) are automatically resolved — the newer one supersedes the older one.
 
+### Time-based confidence decay
+
+Stale memories don't sit at 0.5 forever. At recall time, confidence decays exponentially based on how recently the memory was created or last recalled:
+
+```
+decayedConfidence = storedConfidence × 0.5^(daysSince / 90)
+```
+
+A memory untouched for 90 days has its effective confidence halved. Recalling a memory resets its decay clock — actively used knowledge stays fresh. Stored confidence is never mutated by decay; only `confirm()` and `reject()` change the stored value.
+
+### Agent attribution
+
+Track which agent stored a memory with the optional `source` parameter:
+
+```ts
+await mem.remember('always use pnpm', { source: 'deploy-agent' })
+```
+
+### Anti-patterns (deja-local & deja-edge)
+
+When a memory is rejected enough that its confidence drops below 0.15, it auto-inverts into an **anti-pattern** — a warning that actively surfaces during recall:
+
+```
+Before: "use eval for JSON parsing"  (confidence: 0.05, type: "memory")
+After:  "KNOWN PITFALL: use eval for JSON parsing"  (confidence: 0.5, type: "anti-pattern")
+```
+
+Negative knowledge is as valuable as positive knowledge. Anti-patterns participate in recall normally and warn agents away from known mistakes.
+
 ## Hosted service API
 
 The hosted service adds features beyond basic memory:

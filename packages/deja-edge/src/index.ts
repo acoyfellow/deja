@@ -30,6 +30,8 @@ export interface Memory {
   confidence: number
   supersedes?: string
   createdAt: string
+  source?: string
+  type: 'memory' | 'anti-pattern'
 }
 
 export interface RecallResult {
@@ -49,7 +51,7 @@ export interface RecallLogEntry {
 
 export interface EdgeMemoryStore {
   /** Store a memory. Deduplicates automatically via FTS5 similarity. */
-  remember(text: string): Memory
+  remember(text: string, options?: { source?: string }): Memory
 
   /** Find relevant memories via FTS5 full-text search. */
   recall(context: string, options?: RecallOptions): RecallResult[]
@@ -151,6 +153,14 @@ const CONFIDENCE_BOOST = 0.1
 const CONFIDENCE_DECAY = 0.15
 const CONFIDENCE_MIN = 0.01
 const CONFIDENCE_MAX = 1.0
+const HALF_LIFE_DAYS = 90
+const ANTI_PATTERN_THRESHOLD = 0.15
+const ANTI_PATTERN_PREFIX = 'KNOWN PITFALL: '
+
+/** Strip anti-pattern prefix for dedup/conflict comparison */
+function stripAntiPatternPrefix(text: string): string {
+  return text.startsWith(ANTI_PATTERN_PREFIX) ? text.slice(ANTI_PATTERN_PREFIX.length) : text
+}
 
 function clampConfidence(c: number): number {
   return Math.min(CONFIDENCE_MAX, Math.max(CONFIDENCE_MIN, Math.round(c * 1000) / 1000))
@@ -175,7 +185,10 @@ function initSchema(sql: DurableObjectState['storage']['sql']) {
       text TEXT NOT NULL,
       confidence REAL NOT NULL DEFAULT 0.5,
       supersedes TEXT,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      last_recalled_at TEXT,
+      source TEXT,
+      type TEXT NOT NULL DEFAULT 'memory'
     );
     CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
     CREATE INDEX IF NOT EXISTS idx_memories_confidence ON memories(confidence);
@@ -206,6 +219,24 @@ function initSchema(sql: DurableObjectState['storage']['sql']) {
     );
     CREATE INDEX IF NOT EXISTS idx_recall_log_ts ON recall_log(timestamp);
   `)
+
+  // Migration: add missing columns for DOs created before this version
+  migrateSchema(sql)
+}
+
+function migrateSchema(sql: DurableObjectState['storage']['sql']) {
+  // Check which columns exist on the memories table
+  const cols = [...sql.exec<{ name: string }>('PRAGMA table_info(memories)')]
+  const colNames = new Set(cols.map(c => c.name))
+  if (!colNames.has('last_recalled_at')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN last_recalled_at TEXT')
+  }
+  if (!colNames.has('source')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN source TEXT')
+  }
+  if (!colNames.has('type')) {
+    sql.exec("ALTER TABLE memories ADD COLUMN type TEXT NOT NULL DEFAULT 'memory'")
+  }
 }
 
 // ============================================================================
@@ -225,17 +256,18 @@ export function createEdgeMemory(
   // Initialize schema (idempotent)
   initSchema(sql)
 
-  function remember(text: string): Memory {
+  function remember(text: string, options?: { source?: string }): Memory {
     const trimmed = text.trim()
     if (!trimmed) throw new Error('Memory text cannot be empty')
+    const source = options?.source
 
     // Check for dedup/conflict against existing memories via FTS5
     const keywords = extractKeywords(trimmed)
     if (keywords.length > 0) {
       const ftsQuery = keywords.map(k => `"${k}"`).join(' OR ')
       const candidates = [
-        ...sql.exec<{ id: string; text: string; confidence: number; supersedes: string | null; created_at: string }>(
-          `SELECT m.id, m.text, m.confidence, m.supersedes, m.created_at
+        ...sql.exec<{ id: string; text: string; confidence: number; supersedes: string | null; created_at: string; source: string | null; type: string }>(
+          `SELECT m.id, m.text, m.confidence, m.supersedes, m.created_at, m.source, m.type
            FROM memories m
            JOIN memories_fts ON memories_fts.rowid = m.rowid
            WHERE memories_fts MATCH ?
@@ -247,14 +279,15 @@ export function createEdgeMemory(
       let bestSim = 0
       let bestCandidate: typeof candidates[0] | null = null
       for (const c of candidates) {
-        const sim = trigramSimilarity(trimmed, c.text)
+        // Strip anti-pattern prefix so "KNOWN PITFALL: X" still deduplicates against "X"
+        const sim = trigramSimilarity(trimmed, stripAntiPatternPrefix(c.text))
         if (sim > bestSim) {
           bestSim = sim
           bestCandidate = c
         }
       }
 
-      // Dedup: near-identical
+      // Dedup: near-identical (including anti-pattern matches)
       if (bestCandidate && bestSim >= dedupeThreshold) {
         return {
           id: bestCandidate.id,
@@ -262,6 +295,8 @@ export function createEdgeMemory(
           confidence: bestCandidate.confidence,
           createdAt: bestCandidate.created_at,
           supersedes: bestCandidate.supersedes ?? undefined,
+          source: bestCandidate.source ?? undefined,
+          type: (bestCandidate.type as 'memory' | 'anti-pattern') ?? 'memory',
         }
       }
 
@@ -272,28 +307,32 @@ export function createEdgeMemory(
 
         const id = createId()
         const createdAt = new Date().toISOString()
+        const type: 'memory' | 'anti-pattern' = 'memory'
         sql.exec(
-          `INSERT INTO memories (id, text, confidence, supersedes, created_at) VALUES (?, ?, ?, ?, ?)`,
-          id, trimmed, CONFIDENCE_DEFAULT, bestCandidate.id, createdAt,
+          `INSERT INTO memories (id, text, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          id, trimmed, CONFIDENCE_DEFAULT, bestCandidate.id, createdAt, source ?? null, type,
         )
-        return { id, text: trimmed, confidence: CONFIDENCE_DEFAULT, supersedes: bestCandidate.id, createdAt }
+        return { id, text: trimmed, confidence: CONFIDENCE_DEFAULT, supersedes: bestCandidate.id, createdAt, source, type }
       }
     }
 
     // New memory — no dedup or conflict
     const id = createId()
     const createdAt = new Date().toISOString()
+    const type: 'memory' | 'anti-pattern' = 'memory'
     sql.exec(
-      `INSERT INTO memories (id, text, confidence, supersedes, created_at) VALUES (?, ?, ?, ?, ?)`,
-      id, trimmed, CONFIDENCE_DEFAULT, null, createdAt,
+      `INSERT INTO memories (id, text, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id, trimmed, CONFIDENCE_DEFAULT, null, createdAt, source ?? null, type,
     )
-    return { id, text: trimmed, confidence: CONFIDENCE_DEFAULT, createdAt }
+    return { id, text: trimmed, confidence: CONFIDENCE_DEFAULT, createdAt, source, type }
   }
 
   function recall(context: string, options: RecallOptions = {}): RecallResult[] {
     const limit = options.limit ?? 5
     const minConf = options.minConfidence ?? defaultMinConfidence
     const threshold = options.threshold ?? 0
+    const now = new Date().toISOString()
+    const nowMs = Date.now()
 
     const ftsQuery = buildFtsQuery(context)
     if (!ftsQuery) return []
@@ -306,9 +345,10 @@ export function createEdgeMemory(
         text: string
         confidence: number
         created_at: string
+        last_recalled_at: string | null
         rank: number
       }>(
-        `SELECT m.id, m.text, m.confidence, m.created_at, bm25(memories_fts) as rank
+        `SELECT m.id, m.text, m.confidence, m.created_at, m.last_recalled_at, bm25(memories_fts) as rank
          FROM memories_fts
          JOIN memories m ON memories_fts.rowid = m.rowid
          WHERE memories_fts MATCH ?
@@ -321,7 +361,7 @@ export function createEdgeMemory(
 
     if (rows.length === 0) return []
 
-    // Normalize BM25 scores to 0-1 range, then blend with confidence
+    // Normalize BM25 scores to 0-1 range, then blend with decayed confidence
     const maxRank = Math.max(...rows.map(r => -r.rank))
     const minRank = Math.min(...rows.map(r => -r.rank))
     const range = maxRank - minRank
@@ -329,7 +369,13 @@ export function createEdgeMemory(
     const results: RecallResult[] = rows.map(r => {
       // When all ranks are identical (single result or tied scores), treat as full relevance
       const normalizedRelevance = range === 0 ? 1.0 : (-r.rank - minRank) / range
-      const blended = normalizedRelevance * 0.7 + r.confidence * 0.3
+
+      // Apply time-based confidence decay at recall time
+      const lastActiveAt = r.last_recalled_at ?? r.created_at
+      const daysSince = (nowMs - new Date(lastActiveAt).getTime()) / 86400000
+      const decayedConfidence = r.confidence * Math.pow(0.5, daysSince / HALF_LIFE_DAYS)
+
+      const blended = normalizedRelevance * 0.7 + decayedConfidence * 0.3
       return {
         id: r.id,
         text: r.text,
@@ -342,8 +388,12 @@ export function createEdgeMemory(
     results.sort((a, b) => b.score - a.score)
     const topResults = results.filter(r => r.score >= threshold).slice(0, limit)
 
+    // Update last_recalled_at for returned results
+    for (const r of topResults) {
+      sql.exec('UPDATE memories SET last_recalled_at = ? WHERE id = ?', now, r.id)
+    }
+
     // Audit log
-    const now = new Date().toISOString()
     const logData = topResults.map(r => ({ memoryId: r.id, score: r.score }))
     sql.exec(
       `INSERT INTO recall_log (context, results, timestamp) VALUES (?, ?, ?)`,
@@ -371,10 +421,20 @@ export function createEdgeMemory(
     },
 
     reject(id: string): boolean {
-      const rows = [...sql.exec<{ confidence: number }>('SELECT confidence FROM memories WHERE id = ?', id)]
+      const rows = [...sql.exec<{ confidence: number; type: string }>('SELECT confidence, type FROM memories WHERE id = ?', id)]
       if (rows.length === 0) return false
-      const newConf = clampConfidence(rows[0].confidence - CONFIDENCE_DECAY)
+      let newConf = clampConfidence(rows[0].confidence - CONFIDENCE_DECAY)
       sql.exec('UPDATE memories SET confidence = ? WHERE id = ?', newConf, id)
+
+      // Auto-invert to anti-pattern when confidence drops below threshold
+      if (newConf < ANTI_PATTERN_THRESHOLD && rows[0].type !== 'anti-pattern') {
+        const textRows = [...sql.exec<{ text: string }>('SELECT text FROM memories WHERE id = ?', id)]
+        if (textRows.length > 0) {
+          const newText = ANTI_PATTERN_PREFIX + textRows[0].text
+          sql.exec('UPDATE memories SET text = ?, type = ?, confidence = ? WHERE id = ?', newText, 'anti-pattern', CONFIDENCE_DEFAULT, id)
+        }
+      }
+
       return true
     },
 
@@ -388,8 +448,8 @@ export function createEdgeMemory(
       const limit = options.limit ?? 1000
       const offset = options.offset ?? 0
       return [
-        ...sql.exec<{ id: string; text: string; confidence: number; supersedes: string | null; created_at: string }>(
-          'SELECT id, text, confidence, supersedes, created_at FROM memories ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        ...sql.exec<{ id: string; text: string; confidence: number; supersedes: string | null; created_at: string; source: string | null; type: string }>(
+          'SELECT id, text, confidence, supersedes, created_at, source, type FROM memories ORDER BY created_at DESC LIMIT ? OFFSET ?',
           limit, offset,
         ),
       ].map(r => ({
@@ -398,6 +458,8 @@ export function createEdgeMemory(
         confidence: r.confidence,
         supersedes: r.supersedes ?? undefined,
         createdAt: r.created_at,
+        source: r.source ?? undefined,
+        type: (r.type as 'memory' | 'anti-pattern') ?? 'memory',
       }))
     },
 
@@ -447,7 +509,7 @@ export class DejaEdge implements EdgeMemoryStore {
     this.store = createEdgeMemory(ctx, opts)
   }
 
-  remember(text: string) { return this.store.remember(text) }
+  remember(text: string, options?: { source?: string }) { return this.store.remember(text, options) }
   recall(context: string, options?: RecallOptions) { return this.store.recall(context, options) }
   confirm(id: string) { return this.store.confirm(id) }
   reject(id: string) { return this.store.reject(id) }
