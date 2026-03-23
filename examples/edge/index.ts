@@ -10,7 +10,7 @@
  * Uses FTS5 full-text search. No embeddings, no external deps.
  */
 
-import { createEdgeMemory, type EdgeMemoryStore } from 'deja-edge'
+import { createEdgeMemory, type EdgeMemoryStore } from '../../packages/deja-edge/src/index'
 
 // --- Durable Object: wraps deja-edge memory with HTTP routes ---
 

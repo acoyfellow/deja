@@ -10,7 +10,7 @@
  * First run downloads the model (~23MB, cached after that).
  */
 
-import { createMemory } from 'deja-local'
+import { createMemory } from '../../packages/deja-local/src/index'
 
 const mem = await createMemory({ path: './demo-memory.db' })
 

@@ -6,9 +6,6 @@
     "dev": "npx wrangler dev",
     "deploy": "npx wrangler deploy"
   },
-  "dependencies": {
-    "deja-edge": "workspace:*"
-  },
   "devDependencies": {
     "wrangler": "^4"
   }
