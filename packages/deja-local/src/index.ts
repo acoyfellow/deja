@@ -183,6 +183,12 @@ const CONFIDENCE_MIN = 0.01
 const CONFIDENCE_MAX = 1.0
 const HALF_LIFE_DAYS = 90
 const ANTI_PATTERN_THRESHOLD = 0.15
+const ANTI_PATTERN_PREFIX = 'KNOWN PITFALL: '
+
+/** Strip anti-pattern prefix for dedup/conflict comparison */
+function stripAntiPatternPrefix(text: string): string {
+  return text.startsWith(ANTI_PATTERN_PREFIX) ? text.slice(ANTI_PATTERN_PREFIX.length) : text
+}
 
 function clampConfidence(c: number): number {
   return Math.min(CONFIDENCE_MAX, Math.max(CONFIDENCE_MIN, Math.round(c * 1000) / 1000))
@@ -417,7 +423,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       if (entry.confidence < ANTI_PATTERN_THRESHOLD && entry.type !== 'anti-pattern') {
         entry.type = 'anti-pattern'
         entry.confidence = CONFIDENCE_DEFAULT
-        entry.text = 'KNOWN PITFALL: ' + entry.text
+        entry.text = ANTI_PATTERN_PREFIX + entry.text
         updateMemoryTextAndType.run(entry.text, entry.type, entry.confidence, id)
       }
 

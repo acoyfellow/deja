@@ -155,6 +155,12 @@ const CONFIDENCE_MIN = 0.01
 const CONFIDENCE_MAX = 1.0
 const HALF_LIFE_DAYS = 90
 const ANTI_PATTERN_THRESHOLD = 0.15
+const ANTI_PATTERN_PREFIX = 'KNOWN PITFALL: '
+
+/** Strip anti-pattern prefix for dedup/conflict comparison */
+function stripAntiPatternPrefix(text: string): string {
+  return text.startsWith(ANTI_PATTERN_PREFIX) ? text.slice(ANTI_PATTERN_PREFIX.length) : text
+}
 
 function clampConfidence(c: number): number {
   return Math.min(CONFIDENCE_MAX, Math.max(CONFIDENCE_MIN, Math.round(c * 1000) / 1000))
@@ -213,6 +219,24 @@ function initSchema(sql: DurableObjectState['storage']['sql']) {
     );
     CREATE INDEX IF NOT EXISTS idx_recall_log_ts ON recall_log(timestamp);
   `)
+
+  // Migration: add missing columns for DOs created before this version
+  migrateSchema(sql)
+}
+
+function migrateSchema(sql: DurableObjectState['storage']['sql']) {
+  // Check which columns exist on the memories table
+  const cols = [...sql.exec<{ name: string }>('PRAGMA table_info(memories)')]
+  const colNames = new Set(cols.map(c => c.name))
+  if (!colNames.has('last_recalled_at')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN last_recalled_at TEXT')
+  }
+  if (!colNames.has('source')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN source TEXT')
+  }
+  if (!colNames.has('type')) {
+    sql.exec("ALTER TABLE memories ADD COLUMN type TEXT NOT NULL DEFAULT 'memory'")
+  }
 }
 
 // ============================================================================
@@ -255,14 +279,15 @@ export function createEdgeMemory(
       let bestSim = 0
       let bestCandidate: typeof candidates[0] | null = null
       for (const c of candidates) {
-        const sim = trigramSimilarity(trimmed, c.text)
+        // Strip anti-pattern prefix so "KNOWN PITFALL: X" still deduplicates against "X"
+        const sim = trigramSimilarity(trimmed, stripAntiPatternPrefix(c.text))
         if (sim > bestSim) {
           bestSim = sim
           bestCandidate = c
         }
       }
 
-      // Dedup: near-identical
+      // Dedup: near-identical (including anti-pattern matches)
       if (bestCandidate && bestSim >= dedupeThreshold) {
         return {
           id: bestCandidate.id,
@@ -405,7 +430,7 @@ export function createEdgeMemory(
       if (newConf < ANTI_PATTERN_THRESHOLD && rows[0].type !== 'anti-pattern') {
         const textRows = [...sql.exec<{ text: string }>('SELECT text FROM memories WHERE id = ?', id)]
         if (textRows.length > 0) {
-          const newText = 'KNOWN PITFALL: ' + textRows[0].text
+          const newText = ANTI_PATTERN_PREFIX + textRows[0].text
           sql.exec('UPDATE memories SET text = ?, type = ?, confidence = ? WHERE id = ?', newText, 'anti-pattern', CONFIDENCE_DEFAULT, id)
         }
       }

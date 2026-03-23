@@ -422,4 +422,78 @@ describe('deja-edge: createEdgeMemory', () => {
     const m = memory.remember('normal type test memory')
     expect(m.type).toBe('memory')
   })
+
+  test('re-remembering anti-pattern text deduplicates instead of inserting duplicate', () => {
+    freshMemory()
+    const m = memory.remember('use eval for parsing JSON safely')
+    // Invert to anti-pattern
+    memory.reject(m.id)
+    memory.reject(m.id)
+    memory.reject(m.id)
+    expect(memory.size).toBe(1)
+    // Now try to remember the same original text — should dedup against the anti-pattern
+    const m2 = memory.remember('use eval for parsing JSON safely')
+    expect(memory.size).toBe(1) // no duplicate
+    expect(m2.id).toBe(m.id) // same memory returned
+    expect(m2.type).toBe('anti-pattern') // still an anti-pattern
+  })
+
+  // ============================================================================
+  // SCHEMA MIGRATION
+  // ============================================================================
+
+  test('existing DOs without new columns are migrated', () => {
+    // Create a DO with old schema (no source, type, last_recalled_at)
+    const oldCtx = createMockCtx()
+    oldCtx.state.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS memories (
+        id TEXT PRIMARY KEY,
+        text TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 0.5,
+        supersedes TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
+      CREATE INDEX IF NOT EXISTS idx_memories_confidence ON memories(confidence);
+      CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+        text,
+        content='memories',
+        content_rowid='rowid',
+        tokenize='porter unicode61'
+      );
+      CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+        INSERT INTO memories_fts(rowid, text) VALUES (new.rowid, new.text);
+      END;
+      CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+        INSERT INTO memories_fts(memories_fts, rowid, text) VALUES('delete', old.rowid, old.text);
+      END;
+      CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+        INSERT INTO memories_fts(memories_fts, rowid, text) VALUES('delete', old.rowid, old.text);
+        INSERT INTO memories_fts(rowid, text) VALUES (new.rowid, new.text);
+      END;
+      CREATE TABLE IF NOT EXISTS recall_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        context TEXT NOT NULL,
+        results TEXT NOT NULL,
+        timestamp TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_recall_log_ts ON recall_log(timestamp);
+    `)
+    // Insert a memory in old schema
+    oldCtx.state.storage.sql.exec(
+      "INSERT INTO memories (id, text, confidence, created_at) VALUES ('old-1', 'old memory about deployment', 0.5, '2026-01-01T00:00:00Z')"
+    )
+
+    // Now create edge memory on top of old schema — should migrate
+    const mem = createEdgeMemory(oldCtx.state)
+    expect(mem.size).toBe(1)
+    const list = mem.list()
+    expect(list[0].type).toBe('memory')
+    expect(list[0].source).toBeUndefined()
+
+    // New features should work on migrated schema
+    const m = mem.remember('new memory about testing code', { source: 'test-agent' })
+    expect(m.source).toBe('test-agent')
+    expect(m.type).toBe('memory')
+  })
 })
