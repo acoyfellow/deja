@@ -1,326 +1,338 @@
 ---
 import Base from "../layouts/Base.astro";
 import SEO from "../components/SEO.astro";
-import { getCollection } from "astro:content";
-
-const featuredIntegrations = (await getCollection('integrations'))
-  .filter(e => e.data.featured)
-  .sort((a, b) => a.data.order - b.data.order)
-  .slice(0, 6);
-
-const latestPatterns = (await getCollection('patterns'))
-  .sort((a, b) => a.data.order - b.data.order)
-  .slice(0, 4);
-
-const featuredPrompt = (await getCollection('prompts'))
-  .filter(e => e.data.featured)
-  .sort((a, b) => a.data.order - b.data.order)[0];
-
-const integrationCategories = [
-  { slug: 'agent-framework', label: 'Agent Frameworks', desc: 'LangChain, CrewAI, AutoGPT' },
-  { slug: 'code-assistant', label: 'Code Assistants', desc: 'Claude Code, Cursor, Windsurf' },
-  { slug: 'ci-cd', label: 'CI/CD', desc: 'GitHub Actions, GitLab CI' },
-  { slug: 'orchestration', label: 'Orchestration', desc: 'n8n, Zapier, Temporal' },
-  { slug: 'communication', label: 'Communication', desc: 'Slack, Discord, Teams' },
-  { slug: 'mcp-server', label: 'MCP Servers', desc: 'Filesystem, Database, Git' },
-];
 ---
 
 <Base title="deja — persistent memory for agents">
   <SEO
     slot="head"
     title="deja — persistent memory for agents"
-    description="Open source Cloudflare Worker that gives AI agents durable recall. Store learnings, inject context, query memories with semantic search."
-    keywords="ai agents, persistent memory, cloudflare workers, llm memory, durable objects, vectorize, semantic search, agent memory"
+    description="Open-source memory layer for AI agents. Three runtimes: local vector search (Bun), edge full-text (Cloudflare DO), or hosted semantic search (Workers AI + Vectorize). What one agent learns, they all know."
+    keywords="ai agents, persistent memory, vector search, agent memory, cloudflare workers, durable objects, semantic search, mcp, bun"
     path="/"
   />
+
   <!-- Hero -->
-  <section class="pt-24 pb-18">
+  <section class="pt-24 pb-12">
     <div
       class="border border-brass/20 rounded-sm p-12 overflow-hidden bg-cover bg-center bg-no-repeat shadow-hero relative z-10"
     >
-      <div
-        class="absolute inset-0 bg-linear-to-b from-void/70 via-void/85 to-void/95"
-      >
-      </div>
+      <div class="absolute inset-0 bg-linear-to-b from-void/70 via-void/85 to-void/95"></div>
       <div
         class="absolute inset-0 bg-cover bg-center bg-no-repeat -z-10 bg-blend-multiply"
         style="background-image: url('/brain.jpg');"
-      >
-      </div>
+      ></div>
       <div class="relative z-1">
-        <div
-          class="font-mono text-[11px] font-bold tracking-[0.2em] uppercase text-brass mb-4"
-        >
-          Shared memory for agents — from anywhere
+        <div class="font-mono text-[11px] font-bold tracking-[0.2em] uppercase text-brass mb-4">
+          Persistent memory for AI agents
         </div>
-        <h1
-          class="font-serif-sc text-5xl md:text-7xl font-bold tracking-tight m-0 mb-3"
-        >
-          deja, <span class="text-brass">what one agent learns,</span> they all know.
+        <h1 class="font-serif-sc text-5xl md:text-7xl font-bold tracking-tight m-0 mb-3">
+          deja
         </h1>
-        <p
-          class="font-serif font-light text-lg text-chrome-dark max-w-[640px] mb-6"
-        >
-          CI learns it. Your chat agent already knows it. Open source,
-          self-hosted recall that any server, client, or script can shape.
+        <p class="font-serif font-light text-xl text-chrome-dark max-w-[640px] mb-4">
+          Agents forget everything between runs. deja fixes that.
+        </p>
+        <p class="font-serif font-light text-base text-chrome-dark/70 max-w-[640px] mb-8">
+          An open-source memory layer that stores what agents learn and recalls it when relevant.
+          Available as three packages — pick the runtime that fits your stack.
         </p>
 
-        <!-- The killer snippet - Library focused -->
-        <div
-          class="bg-void-deep/80 border border-brass/20 rounded-sm p-5 mb-8 max-w-[480px] backdrop-blur-sm"
-        >
-          <div class="font-mono text-[13px] leading-relaxed">
-            <div class="text-chrome-dark/60 mb-2">npm i deja-client</div>
-            <div class="mb-3">
-              <span class="text-brass">await</span>
-              <span class="text-chrome">mem.learn</span>(<span
-                class="text-chrome-dark">"deploy failed"</span
-              >, <span class="text-chrome-dark">"check wrangler.toml"</span>)
-            </div>
-            <div>
-              <span class="text-brass">await</span>
-              <span class="text-chrome">mem.inject</span>(<span
-                class="text-chrome-dark">"deploying"</span
-              >) <span class="text-chrome-dark/60"
-                >// → "check wrangler.toml"</span
-              >
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="flex flex-wrap gap-4 items-center max-md:flex-col max-md:items-start"
-        >
+        <div class="flex flex-wrap gap-4 items-center max-md:flex-col max-md:items-start">
           <a
-            href="https://deploy.workers.cloudflare.com/?url=https://github.com/acoyfellow/deja"
-            target="_blank"
-            rel="noreferrer"
+            href="#memory-systems"
             class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass-dark bg-linear-to-b from-steel-light to-steel shadow-btn hover:-translate-y-px active:translate-y-px transition-transform"
           >
-            Deploy to Cloudflare
+            See the three systems
+          </a>
+          <a
+            href="/guides/quickstart"
+            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+          >
+            Quickstart
           </a>
           <a
             href="/docs"
             class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
           >
-            Read the Docs
+            Docs
           </a>
         </div>
       </div>
     </div>
   </section>
 
-  <p class="mt-8 font-mono text-[11px] text-chrome-dark/70">
-    <a href="/guides/quickstart" class="hover:text-brass transition-colors">Quickstart</a>
-    · <a href="/docs" class="hover:text-brass transition-colors">Docs</a>
-    · <a href="/integrations" class="hover:text-brass transition-colors">Integrations</a>
-    · <a href="/research" class="hover:text-brass transition-colors">Research</a>
-  </p>
-
-  <!-- Three Ways to Use -->
-  <section class="mt-18">
-    <div
-      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
-    >
-      Three ways to use deja
+  <!-- What is deja -->
+  <section class="mt-12">
+    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">
+      What is deja?
     </div>
-    <div class="grid gap-6 grid-cols-1 lg:grid-cols-3">
-      <!-- Library -->
-      <div
-        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
-      >
-        <div
-          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
-        >
-        </div>
-        <div
-          class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
-        >
-          Library
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">
-          Thin wrapper over HTTP. Two functions.
+    <div class="bg-steel border border-brass/10 rounded-sm p-8 relative shadow-card">
+      <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+      <div class="max-w-3xl space-y-4">
+        <p class="font-serif font-light text-chrome-dark m-0 text-base leading-relaxed">
+          Every time an AI agent runs, it starts from scratch. It doesn't remember what worked last time,
+          what failed, or what another agent already figured out. You end up re-explaining the same context,
+          re-discovering the same workarounds, and watching agents make the same mistakes.
         </p>
-        <div
-          class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"
-        ><span class="flag">import</span> <span class="var">deja</span> <span class="flag">from</span> <span class="string">'deja-client'</span><br/><span class="flag">const</span> <span class="var">mem</span> = deja(<span class="var">DEJA_URL</span>)
-
-<span class="flag">await</span> mem.<span class="cmd">learn</span>(<span class="string">"trigger"</span>, <span class="string">"learning"</span>)
-<span class="flag">await</span> mem.<span class="cmd">inject</span>(<span class="string">"context"</span>)</div>
-      </div>
-
-      <!-- API -->
-      <div
-        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
-      >
-        <div
-          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
-        >
-        </div>
-        <div
-          class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
-        >
-          REST API
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">
-          HTTP endpoints. Use from anywhere.
+        <p class="font-serif font-light text-chrome-dark m-0 text-base leading-relaxed">
+          <strong class="text-chrome">deja is a memory layer.</strong> Agents call <code class="font-mono text-[13px] text-brass">learn()</code> to store
+          what they discover and <code class="font-mono text-[13px] text-brass">recall()</code> to retrieve what's relevant
+          before they act. Memories have confidence scores, get deduplicated automatically, and decay when they go stale.
         </p>
-        <div
-          class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"
-        ><span class="cmd">POST</span> /learn
-<span class="cmd">POST</span> /inject
-<span class="cmd">POST</span> /query
-<span class="cmd">GET</span>  /learnings
-<span class="cmd">GET</span>  /stats</div>
-      </div>
-
-      <!-- MCP -->
-      <div
-        class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card"
-      >
-        <div
-          class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
-        >
-        </div>
-        <div
-          class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
-        >
-          MCP
-        </div>
-        <p class="font-serif font-light text-chrome-dark m-0 mb-4">
-          Native protocol. Claude, Cursor, etc.
+        <p class="font-serif font-light text-chrome-dark m-0 text-base leading-relaxed">
+          It works across agents, across runs, across tools. CI learns something → your chat agent already knows it.
+          One agent figures out a workaround → every agent benefits.
         </p>
-        <div
-          class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"
-        ><span class="comment">// claude_desktop_config.json</span>
-<span class="string">&quot;mcpServers&quot;</span>: &#123;
-  <span class="string">&quot;deja&quot;</span>: &#123;
-    <span class="string">&quot;url&quot;</span>: <span class="string">&quot;...&quot;</span>
-  &#125;
-&#125;</div>
       </div>
     </div>
   </section>
 
-  <section class="mt-18">
-    <p class="font-serif font-light text-chrome-dark m-0">
-      Use cases: incident response, onboarding, playbooks. <a href="/use-cases" class="text-brass hover:underline">See walkthroughs</a>.
+  <!-- Three Memory Systems -->
+  <section id="memory-systems" class="mt-18 scroll-mt-8">
+    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-3">
+      Three memory systems
+    </div>
+    <p class="font-serif font-light text-chrome-dark m-0 mb-8 max-w-2xl">
+      Same API, different tradeoffs. Pick the one that matches your runtime, or use them together.
     </p>
+
+    <div class="grid gap-6 grid-cols-1 lg:grid-cols-3">
+      <!-- deja-local -->
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card flex flex-col">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-1">
+          deja-local
+        </div>
+        <div class="font-serif text-sm text-chrome-dark/60 mb-4">
+          In-process vector memory for Bun
+        </div>
+
+        <div class="space-y-3 mb-5 flex-1">
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">SEARCH</span>
+            <span class="font-serif text-sm text-chrome-dark">Vector similarity (all-MiniLM-L6-v2 via ONNX)</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">STORAGE</span>
+            <span class="font-serif text-sm text-chrome-dark">SQLite file on disk</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">LATENCY</span>
+            <span class="font-serif text-sm text-chrome-dark">Zero — runs in your process</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">DEPS</span>
+            <span class="font-serif text-sm text-chrome-dark">Bun runtime + HuggingFace transformers</span>
+          </div>
+        </div>
+
+        <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaLocal</span> } <span class="flag">from</span> <span class="string">'deja-local'</span>
+<span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaLocal(<span class="string">'./memories.db'</span>)
+
+<span class="flag">await</span> mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbuild"</span>)
+<span class="flag">const</span> <span class="var">hits</span> = <span class="flag">await</span> mem.<span class="cmd">recall</span>(<span class="string">"deploying"</span>)</div>
+
+        <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
+          Best for: CLI tools, local agents, scripts, development.
+        </p>
+      </div>
+
+      <!-- deja-edge -->
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card flex flex-col">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-1">
+          deja-edge
+        </div>
+        <div class="font-serif text-sm text-chrome-dark/60 mb-4">
+          Edge memory for Cloudflare Durable Objects
+        </div>
+
+        <div class="space-y-3 mb-5 flex-1">
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">SEARCH</span>
+            <span class="font-serif text-sm text-chrome-dark">FTS5 full-text search (BM25 + Porter stemming)</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">STORAGE</span>
+            <span class="font-serif text-sm text-chrome-dark">Durable Object SQLite</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">LATENCY</span>
+            <span class="font-serif text-sm text-chrome-dark">Zero — runs inside the DO</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">DEPS</span>
+            <span class="font-serif text-sm text-chrome-dark">None — zero external dependencies</span>
+          </div>
+        </div>
+
+        <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaEdge</span> } <span class="flag">from</span> <span class="string">'deja-edge'</span>
+<span class="comment">// Inside your Durable Object:</span>
+<span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaEdge(<span class="var">this</span>.ctx.storage.sql)
+
+mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbuild"</span>)
+<span class="flag">const</span> <span class="var">hits</span> = mem.<span class="cmd">recall</span>(<span class="string">"deploying"</span>)</div>
+
+        <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
+          Best for: per-user memory in edge apps, Cloudflare Workers, chat apps.
+        </p>
+      </div>
+
+      <!-- deja (hosted) -->
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card flex flex-col">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-1">
+          deja (hosted)
+        </div>
+        <div class="font-serif text-sm text-chrome-dark/60 mb-4">
+          Full-featured memory service on Cloudflare
+        </div>
+
+        <div class="space-y-3 mb-5 flex-1">
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">SEARCH</span>
+            <span class="font-serif text-sm text-chrome-dark">Semantic vector search (Vectorize + Workers AI)</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">STORAGE</span>
+            <span class="font-serif text-sm text-chrome-dark">DO SQLite + Vectorize index</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">LATENCY</span>
+            <span class="font-serif text-sm text-chrome-dark">Network hop — deployed to your CF account</span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0">DEPS</span>
+            <span class="font-serif text-sm text-chrome-dark">Cloudflare Vectorize + Workers AI bindings</span>
+          </div>
+        </div>
+
+        <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> <span class="var">deja</span> <span class="flag">from</span> <span class="string">'deja-client'</span>
+<span class="flag">const</span> <span class="var">mem</span> = deja(<span class="var">DEJA_URL</span>)
+
+<span class="flag">await</span> mem.<span class="cmd">learn</span>(<span class="string">"deploy"</span>, <span class="string">"node 20 breaks esbuild"</span>)
+<span class="flag">await</span> mem.<span class="cmd">inject</span>(<span class="string">"deploying"</span>)</div>
+
+        <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
+          Best for: multi-agent teams, shared memory, MCP, REST API access.
+        </p>
+      </div>
+    </div>
   </section>
 
-  <!-- One memory, everywhere -->
-  <section class="mt-18">
-    <div
-      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
-    >
-      One memory, everywhere
+  <!-- Comparison -->
+  <section class="mt-12">
+    <div class="bg-steel border border-brass/10 rounded-sm relative shadow-card overflow-x-auto">
+      <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+      <table class="w-full font-mono text-xs text-chrome-dark">
+        <thead>
+          <tr class="border-b border-brass/10">
+            <th class="text-left p-4 text-brass font-bold tracking-widest uppercase text-[10px]"></th>
+            <th class="text-left p-4 text-brass font-bold tracking-widest uppercase text-[10px]">deja-local</th>
+            <th class="text-left p-4 text-brass font-bold tracking-widest uppercase text-[10px]">deja-edge</th>
+            <th class="text-left p-4 text-brass font-bold tracking-widest uppercase text-[10px]">deja (hosted)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b border-brass/5">
+            <td class="p-4 text-chrome-dark/60">Runtime</td>
+            <td class="p-4">Bun</td>
+            <td class="p-4">Cloudflare DO</td>
+            <td class="p-4">Cloudflare Workers</td>
+          </tr>
+          <tr class="border-b border-brass/5">
+            <td class="p-4 text-chrome-dark/60">Search</td>
+            <td class="p-4">Cosine similarity</td>
+            <td class="p-4">FTS5 / BM25</td>
+            <td class="p-4">Vectorize semantic</td>
+          </tr>
+          <tr class="border-b border-brass/5">
+            <td class="p-4 text-chrome-dark/60">Embeddings</td>
+            <td class="p-4">all-MiniLM-L6-v2</td>
+            <td class="p-4">None (text-based)</td>
+            <td class="p-4">bge-small-en-v1.5</td>
+          </tr>
+          <tr class="border-b border-brass/5">
+            <td class="p-4 text-chrome-dark/60">Latency</td>
+            <td class="p-4">Zero (in-process)</td>
+            <td class="p-4">Zero (in-DO)</td>
+            <td class="p-4">Network hop</td>
+          </tr>
+          <tr class="border-b border-brass/5">
+            <td class="p-4 text-chrome-dark/60">Multi-agent</td>
+            <td class="p-4">Single process</td>
+            <td class="p-4">Per-DO isolation</td>
+            <td class="p-4">Scoped sharing</td>
+          </tr>
+          <tr class="border-b border-brass/5">
+            <td class="p-4 text-chrome-dark/60">MCP</td>
+            <td class="p-4">—</td>
+            <td class="p-4">—</td>
+            <td class="p-4">Built-in</td>
+          </tr>
+          <tr>
+            <td class="p-4 text-chrome-dark/60">Install</td>
+            <td class="p-4"><code>npm i deja-local</code></td>
+            <td class="p-4"><code>npm i deja-edge</code></td>
+            <td class="p-4"><code>npm i deja-client</code></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-    <div
-      class="bg-steel border border-brass/10 rounded-sm p-8 relative shadow-card overflow-hidden"
-    >
-      <div
-        class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
-      >
+  </section>
+
+  <!-- How it works -->
+  <section class="mt-18">
+    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">
+      How it works
+    </div>
+    <div class="grid gap-6 grid-cols-1 md:grid-cols-3">
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="font-mono text-[28px] text-brass/30 mb-2">1</div>
+        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-2">Agent learns</div>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">
+          After a run, the agent stores what it discovered. deja embeds the text, checks for duplicates,
+          and assigns a confidence score.
+        </p>
       </div>
-      <p class="font-serif font-light text-chrome-dark m-0 mb-8 max-w-2xl">
-        deja is just HTTP. Anything that can make a request can learn and
-        recall. CI/CD pipelines, local chat agents, Slack bots, cron jobs, CLI
-        scripts — all writing to and reading from the same memory.
-      </p>
-      <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        <div class="bg-void-deep/60 border border-brass/10 rounded-sm p-5">
-          <div
-            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
-          >
-            CI/CD learns
-          </div>
-          <div class="font-mono text-xs text-chrome-dark leading-relaxed">
-            <div class="text-chrome-dark/50 mb-1">
-              # GitHub Action on deploy failure
-            </div>
-            <div>
-              <span class="text-brass">curl</span> -X POST $DEJA_URL/learn \
-            </div>
-            <div class="pl-4">-d '{"{"}"trigger": "deploy",</div>
-            <div class="pl-4">
-              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"learning": "node 20 breaks esbuild"{
-                "}"
-              }'
-            </div>
-          </div>
-        </div>
-        <div class="bg-void-deep/60 border border-brass/10 rounded-sm p-5">
-          <div
-            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
-          >
-            Chat agent recalls
-          </div>
-          <div class="font-mono text-xs text-chrome-dark leading-relaxed">
-            <div class="text-chrome-dark/50 mb-1">
-              // Claude, 30 seconds later
-            </div>
-            <div>
-              <span class="text-brass">await</span> mem.<span
-                class="text-chrome">inject</span
-              >(<span class="text-chrome-dark">"deploying"</span>)
-            </div>
-            <div class="text-chrome-dark/50 mt-1">
-              // → "node 20 breaks esbuild"
-            </div>
-          </div>
-        </div>
-        <div class="bg-void-deep/60 border border-brass/10 rounded-sm p-5">
-          <div
-            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-3"
-          >
-            Cron maintains
-          </div>
-          <div class="font-mono text-xs text-chrome-dark leading-relaxed">
-            <div class="text-chrome-dark/50 mb-1"># Nightly cleanup</div>
-            <div><span class="text-brass">curl</span> $DEJA_URL/stats</div>
-            <div class="text-chrome-dark/50 mt-1">
-              // stale memories auto-expire
-            </div>
-          </div>
-        </div>
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="font-mono text-[28px] text-brass/30 mb-2">2</div>
+        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-2">Next agent recalls</div>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">
+          Before acting, the next agent describes what it's about to do. deja returns the most relevant
+          memories — already formatted for injection into the prompt.
+        </p>
       </div>
-      <p class="text-center text-chrome-dark font-serif mt-8 text-sm">
-        CI learns it. Your chat agent knows it. Same memory, different doors.
-      </p>
+      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
+        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+        <div class="font-mono text-[28px] text-brass/30 mb-2">3</div>
+        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-2">Memory evolves</div>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">
+          Useful memories gain confidence. Contradicted ones get superseded. Stale ones decay.
+          The memory stays clean without manual curation.
+        </p>
+      </div>
     </div>
   </section>
 
   <!-- Try it -->
   <section class="mt-18">
-    <div
-      class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6"
-    >
-      Try it
+    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">
+      Try it — hosted demo
     </div>
-    <div
-      class="bg-steel border border-brass/10 rounded-sm relative shadow-card overflow-hidden"
-    >
-      <div
-        class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"
-      >
-      </div>
-      <div
-        class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-brass/10"
-      >
+    <div class="bg-steel border border-brass/10 rounded-sm relative shadow-card overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-brass/10">
         <!-- Teach panel -->
         <div class="p-6 md:p-8">
-          <div
-            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4"
-          >
+          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4">
             Teach
           </div>
           <div class="space-y-3">
             <div>
-              <label
-                class="font-mono text-[11px] text-chrome-dark/60 block mb-1"
-                >When this comes up...</label
-              >
+              <label class="font-mono text-[11px] text-chrome-dark/60 block mb-1">When this comes up...</label>
               <input
                 id="demo-trigger"
                 type="text"
@@ -329,10 +341,7 @@ const integrationCategories = [
               />
             </div>
             <div>
-              <label
-                class="font-mono text-[11px] text-chrome-dark/60 block mb-1"
-                >Remember this...</label
-              >
+              <label class="font-mono text-[11px] text-chrome-dark/60 block mb-1">Remember this...</label>
               <input
                 id="demo-learning"
                 type="text"
@@ -350,23 +359,17 @@ const integrationCategories = [
           <div
             id="demo-learn-result"
             class="mt-3 font-mono text-[11px] leading-relaxed text-chrome-dark/60 min-h-[20px]"
-          >
-          </div>
+          ></div>
         </div>
 
         <!-- Recall panel -->
         <div class="p-6 md:p-8">
-          <div
-            class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4"
-          >
+          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-4">
             Recall
           </div>
           <div class="space-y-3">
             <div>
-              <label
-                class="font-mono text-[11px] text-chrome-dark/60 block mb-1"
-                >What are you about to do?</label
-              >
+              <label class="font-mono text-[11px] text-chrome-dark/60 block mb-1">What are you about to do?</label>
               <input
                 id="demo-context"
                 type="text"
@@ -390,10 +393,7 @@ const integrationCategories = [
       </div>
 
       <!-- Response bar -->
-      <div
-        id="demo-response"
-        class="border-t border-brass/10 px-6 py-3 bg-void-deep/40"
-      >
+      <div id="demo-response" class="border-t border-brass/10 px-6 py-3 bg-void-deep/40">
         <div class="font-mono text-[11px] text-chrome-dark/40">
           <span id="demo-method" class="text-brass">POST</span>
           <span id="demo-endpoint" class="ml-1">/learn</span>
@@ -403,133 +403,29 @@ const integrationCategories = [
     </div>
   </section>
 
-  <!-- Featured Integrations -->
-  {featuredIntegrations.length > 0 && (
-    <section class="mt-18">
-      <div class="flex items-center justify-between mb-6">
-        <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass">Featured Integrations</div>
-        <a href="/integrations" class="font-mono text-[11px] text-chrome-dark/60 hover:text-brass transition-colors">View all &rarr;</a>
-      </div>
-      <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {featuredIntegrations.map(entry => (
-          <a href={`/integrations/${entry.id}`} class="group block bg-steel border border-brass/10 rounded-sm p-5 relative shadow-card hover:border-brass/30 transition-colors">
-            <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-            <div class="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-brass/10 text-brass mb-2 inline-block">{entry.data.category.replace(/-/g, ' ')}</div>
-            <h3 class="font-serif font-semibold text-lg tracking-tight m-0 mb-1 group-hover:text-brass transition-colors">{entry.data.title}</h3>
-            <p class="font-serif font-light text-chrome-dark text-sm m-0">{entry.data.description}</p>
-          </a>
-        ))}
-      </div>
-    </section>
-  )}
-
-  <!-- Browse by Category -->
-  <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Browse by category</div>
-    <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-      {integrationCategories.map(cat => (
-        <a href={`/integrations/category/${cat.slug}`} class="group bg-steel border border-brass/10 rounded-sm p-4 text-center hover:border-brass/30 transition-colors shadow-card">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-1">{cat.label}</div>
-          <div class="font-serif text-[12px] text-chrome-dark/60">{cat.desc}</div>
-        </a>
-      ))}
-    </div>
-  </section>
-
-  <!-- Latest Patterns -->
-  {latestPatterns.length > 0 && (
-    <section class="mt-18">
-      <div class="flex items-center justify-between mb-6">
-        <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass">Latest Patterns</div>
-        <a href="/patterns" class="font-mono text-[11px] text-chrome-dark/60 hover:text-brass transition-colors">View all &rarr;</a>
-      </div>
-      <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        {latestPatterns.map(entry => (
-          <a href={`/patterns/${entry.id}`} class="group block bg-steel border border-brass/10 rounded-sm p-5 relative shadow-card hover:border-brass/30 transition-colors">
-            <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-            <div class="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-brass/10 text-brass mb-2 inline-block">{entry.data.category.replace(/-/g, ' ')}</div>
-            <h3 class="font-serif font-semibold text-base tracking-tight m-0 mb-1 group-hover:text-brass transition-colors">{entry.data.title}</h3>
-            <p class="font-serif font-light text-chrome-dark text-xs m-0">{entry.data.description}</p>
-          </a>
-        ))}
-      </div>
-    </section>
-  )}
-
-  <!-- Research -->
-  <section class="mt-18">
-    <div class="flex items-center justify-between mb-6">
-      <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass">Memory Interface Research</div>
-      <a href="/research" class="font-mono text-[11px] text-chrome-dark/60 hover:text-brass transition-colors">All 20 explorations &rarr;</a>
-    </div>
-    <div class="bg-steel border border-brass/10 rounded-sm p-6 md:p-8 relative shadow-card">
-      <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-      <p class="font-serif font-light text-chrome-dark m-0 mb-6 max-w-2xl">
-        20 explorations of how humans and agents might interact with persistent memory.
-        From filing cabinets to mycelial networks — each one is a standalone interactive research page.
-      </p>
-      <div class="grid gap-4 grid-cols-1 sm:grid-cols-3">
-        <a href="/research#layer-a" class="group block bg-void-deep/60 border border-brass/10 rounded-sm p-4 hover:border-brass/25 transition-colors">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-2">Layer A</div>
-          <div class="font-serif text-sm text-chrome-dark">Human Patterns</div>
-          <div class="font-serif text-xs text-chrome-dark/50 mt-1">Filing cabinets, journals, search, constellations</div>
-        </a>
-        <a href="/research#layer-b" class="group block bg-void-deep/60 border border-blue-500/10 rounded-sm p-4 hover:border-blue-500/25 transition-colors">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-blue-400 mb-2">Layer B</div>
-          <div class="font-serif text-sm text-chrome-dark">Agent Memory</div>
-          <div class="font-serif text-xs text-chrome-dark/50 mt-1">Debuggers, diffs, heatmaps, instincts</div>
-        </a>
-        <a href="/research#layer-c" class="group block bg-void-deep/60 border border-emerald-500/10 rounded-sm p-4 hover:border-emerald-500/25 transition-colors">
-          <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-emerald-400 mb-2">Layer C</div>
-          <div class="font-serif text-sm text-chrome-dark">Multi-Agent</div>
-          <div class="font-serif text-xs text-chrome-dark/50 mt-1">Commons, handoffs, meshes, networks</div>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- Featured Prompt -->
-  {featuredPrompt && (
-    <section class="mt-18">
-      <div class="flex items-center justify-between mb-6">
-        <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass">Featured Prompt</div>
-        <a href="/prompts" class="font-mono text-[11px] text-chrome-dark/60 hover:text-brass transition-colors">All prompts &rarr;</a>
-      </div>
-      <a href={`/prompts/${featuredPrompt.id}`} class="group block bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card hover:border-brass/30 transition-colors">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="flex items-center gap-2 mb-3">
-          <span class="font-mono text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded bg-brass/10 text-brass">{featuredPrompt.data.category.replace(/-/g, ' ')}</span>
-        </div>
-        <h3 class="font-serif font-semibold text-xl tracking-tight m-0 mb-2 group-hover:text-brass transition-colors">{featuredPrompt.data.title}</h3>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0 mb-4">{featuredPrompt.data.description}</p>
-        <pre class="font-mono text-[11px] text-chrome-dark/60 bg-void-deep/60 border border-brass/10 rounded-sm p-4 overflow-hidden whitespace-pre-wrap" style="max-height:120px">{featuredPrompt.data.prompt.slice(0, 300)}{featuredPrompt.data.prompt.length > 300 ? '...' : ''}</pre>
-      </a>
-    </section>
-  )}
-
   <!-- FAQ -->
   <section class="mt-18">
     <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">Honest answers</div>
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
       <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
         <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Why not just use a database?"</h3>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">You could. But then you're building semantic search, scoping, confidence decay, and cleanup yourself. deja is that layer, already wired to Cloudflare's vector and AI stack.</p>
+        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Why three packages?"</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">Different agents run in different places. A CLI tool needs in-process memory with zero latency. An edge worker needs memory inside its Durable Object. A multi-agent team needs shared memory over HTTP. Same core idea, three runtimes.</p>
       </div>
       <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
         <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Another AI tool?"</h3>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">It's 1 Worker, 2 endpoints. No SDK required. <code class="font-mono text-[11px] text-chrome-dark/80">curl</code> works. The whole thing is ~500 lines of TypeScript.</p>
+        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Why not just use a database?"</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">You could. But then you're building semantic search, deduplication, confidence scoring, conflict resolution, and cleanup yourself. deja is that layer.</p>
       </div>
       <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
         <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
         <h3 class="font-mono text-xs text-brass m-0 mb-2">"Vendor lock-in?"</h3>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">Your Cloudflare account, your data, MIT license. It's a single Worker with a Durable Object and a Vectorize index. Fork it if we disappear.</p>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">deja-local runs on Bun with SQLite — no cloud required. deja-edge runs inside any Cloudflare DO. The hosted version runs on your own CF account. MIT license, fork it if we disappear.</p>
       </div>
       <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
         <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Will this actually get maintained?"</h3>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">It's the tool we use daily. But it's also open source — so it doesn't depend on us. The architecture is intentionally simple enough to understand in an afternoon.</p>
+        <h3 class="font-mono text-xs text-brass m-0 mb-2">"Which one should I use?"</h3>
+        <p class="font-serif font-light text-chrome-dark text-sm m-0">Building a local CLI tool or script? <strong class="text-chrome">deja-local</strong>. Building on Cloudflare Workers? <strong class="text-chrome">deja-edge</strong>. Need shared memory across multiple agents or MCP? <strong class="text-chrome">deja (hosted)</strong>.</p>
       </div>
     </div>
   </section>
@@ -539,45 +435,39 @@ const integrationCategories = [
     <div
       class="absolute inset-0 bg-cover bg-center bg-no-repeat -z-10"
       style="background-image: url('/orb.jpg');"
-    >
-    </div>
-    <section
-      class="text-center py-16 px-6 rounded-sm bg-linear-to-b from-steel-light to-steel border border-brass/20 relative z-10 shadow-cta"
-    >
-      <div
-        class="absolute inset-0 bg-linear-to-r from-transparent via-brass/5 to-transparent pointer-events-none"
-      >
-      </div>
-      <h2
-        class="font-serif-sc font-bold text-4xl md:text-5xl m-0 mb-3 relative text-balance"
-      >
-        One agent learns it. The next one already knows.
+    ></div>
+    <section class="text-center py-16 px-6 rounded-sm bg-linear-to-b from-steel-light to-steel border border-brass/20 relative z-10 shadow-cta">
+      <div class="absolute inset-0 bg-linear-to-r from-transparent via-brass/5 to-transparent pointer-events-none"></div>
+      <h2 class="font-serif-sc font-bold text-4xl md:text-5xl m-0 mb-3 relative text-balance">
+        Stop re-explaining. Start remembering.
       </h2>
-      <p
-        class="font-serif font-light text-lg text-chrome-dark max-w-[640px] mx-auto mb-8 relative text-balance"
-      >
-        Every lesson, every workaround, every hard-won fix — already waiting in
-        context before the first token lands.
+      <p class="font-serif font-light text-lg text-chrome-dark max-w-[640px] mx-auto mb-8 relative text-balance">
+        Pick a package, add two function calls, and your agents will never forget again.
       </p>
       <div class="flex flex-wrap gap-4 justify-center relative">
         <a
-          href="https://deploy.workers.cloudflare.com/?url=https://github.com/acoyfellow/deja"
-          target="_blank"
-          rel="noreferrer"
+          href="/guides/quickstart"
           class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass-dark bg-linear-to-b from-steel-light to-steel shadow-btn hover:-translate-y-px active:translate-y-px transition-transform"
         >
-          Level up with deja
+          Get started
+        </a>
+        <a
+          href="https://github.com/acoyfellow/deja"
+          target="_blank"
+          rel="noreferrer"
+          class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+        >
+          View on GitHub
         </a>
       </div>
       <p class="mt-6 font-mono text-[11px] text-chrome-dark/70">
         <a href="/docs" class="hover:text-brass transition-colors">Docs</a>
         · <a href="/integrations" class="hover:text-brass transition-colors">Integrations</a>
+        · <a href="/patterns" class="hover:text-brass transition-colors">Patterns</a>
         · <a href="/research" class="hover:text-brass transition-colors">Research</a>
       </p>
-      <footer
-        class="mt-8 pt-8 border-t border-brass/10 text-chrome-dark font-mono text-[11px] font-medium tracking-[0.05em]"
-      >
-        Open source. MIT licensed. Self-hosted. Built for Cloudflare Workers.
+      <footer class="mt-8 pt-8 border-t border-brass/10 text-chrome-dark font-mono text-[11px] font-medium tracking-[0.05em]">
+        Open source. MIT licensed. Three runtimes — local, edge, hosted.
       </footer>
     </section>
   </div>
