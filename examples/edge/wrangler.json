@@ -1,0 +1,19 @@
+{
+  "name": "deja-edge-example",
+  "main": "index.ts",
+  "compatibility_date": "2024-12-01",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MEMORY",
+        "class_name": "MemoryDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MemoryDO"]
+    }
+  ]
+}
