@@ -247,4 +247,41 @@ describe('deja-edge: createEdgeMemory', () => {
     expect(page2.length).toBe(2)
     expect(page1[0].id).not.toBe(page2[0].id)
   })
+
+  test('recall returns meaningful scores when only one result matches', () => {
+    freshMemory()
+    memory.remember('always check wrangler.toml before deploying')
+    memory.remember('quantum physics is fascinating')
+
+    const results = memory.recall('wrangler deploy')
+    expect(results.length).toBeGreaterThan(0)
+    // With the normalization fix, a single match should get full relevance (0.7) + confidence (0.15)
+    expect(results[0].score).toBeGreaterThan(0.5)
+  })
+
+  test('recall scores are meaningful when all results have identical BM25 rank', () => {
+    freshMemory()
+    memory.remember('deploy step one check config')
+    memory.remember('deploy step two run tests')
+
+    // Both match "deploy" equally — scores should still be > 0.15
+    const results = memory.recall('deploy')
+    for (const r of results) {
+      expect(r.score).toBeGreaterThan(0.15)
+    }
+  })
+
+  test('constructor minConfidence is used as default in recall', () => {
+    freshMemory({ minConfidence: 0.4 })
+    const m = memory.remember('high confidence item about deployment')
+    const low = memory.remember('low confidence item about deployment scripts')
+    memory.reject(low.id)
+    memory.reject(low.id)
+
+    // Should filter by constructor minConfidence without passing it per-call
+    const results = memory.recall('deployment')
+    for (const r of results) {
+      expect(r.confidence).toBeGreaterThanOrEqual(0.4)
+    }
+  })
 })

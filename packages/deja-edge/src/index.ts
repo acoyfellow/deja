@@ -218,6 +218,7 @@ export function createEdgeMemory(
 ): EdgeMemoryStore {
   const dedupeThreshold = opts.dedupeThreshold ?? 0.85
   const conflictThreshold = opts.conflictThreshold ?? 0.5
+  const defaultMinConfidence = opts.minConfidence ?? 0
 
   const sql = ctx.storage.sql
 
@@ -291,7 +292,7 @@ export function createEdgeMemory(
 
   function recall(context: string, options: RecallOptions = {}): RecallResult[] {
     const limit = options.limit ?? 5
-    const minConf = options.minConfidence ?? 0
+    const minConf = options.minConfidence ?? defaultMinConfidence
     const threshold = options.threshold ?? 0
 
     const ftsQuery = buildFtsQuery(context)
@@ -323,10 +324,11 @@ export function createEdgeMemory(
     // Normalize BM25 scores to 0-1 range, then blend with confidence
     const maxRank = Math.max(...rows.map(r => -r.rank))
     const minRank = Math.min(...rows.map(r => -r.rank))
-    const range = maxRank - minRank || 1
+    const range = maxRank - minRank
 
     const results: RecallResult[] = rows.map(r => {
-      const normalizedRelevance = (-r.rank - minRank) / range
+      // When all ranks are identical (single result or tied scores), treat as full relevance
+      const normalizedRelevance = range === 0 ? 1.0 : (-r.rank - minRank) / range
       const blended = normalizedRelevance * 0.7 + r.confidence * 0.3
       return {
         id: r.id,
