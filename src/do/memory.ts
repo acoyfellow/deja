@@ -127,8 +127,22 @@ export async function injectMemories(
 
     const learnings = dbLearnings.map((learning: any) => ctx.convertDbLearning(learning));
     const now = new Date().toISOString();
+    const nowMs = Date.now();
+
+    // Apply time-based confidence decay for ranking (read-side only, stored values unchanged)
+    const HALF_LIFE_DAYS = 90;
+    const rankedLearnings = [...learnings].sort((a: Learning, b: Learning) => {
+      const aLastActive = a.lastRecalledAt ?? a.createdAt;
+      const bLastActive = b.lastRecalledAt ?? b.createdAt;
+      const aDays = (nowMs - new Date(aLastActive).getTime()) / 86400000;
+      const bDays = (nowMs - new Date(bLastActive).getTime()) / 86400000;
+      const aDecayed = (a.confidence ?? 1.0) * Math.pow(0.5, aDays / HALF_LIFE_DAYS);
+      const bDecayed = (b.confidence ?? 1.0) * Math.pow(0.5, bDays / HALF_LIFE_DAYS);
+      return bDecayed - aDecayed;
+    });
+
     await Promise.all(
-      learnings.map((learning: Learning) =>
+      rankedLearnings.map((learning: Learning) =>
         db
           .update(schema.learnings)
           .set({
@@ -141,14 +155,14 @@ export async function injectMemories(
 
     if (format === 'prompt') {
       return {
-        prompt: learnings
+        prompt: rankedLearnings
           .map((learning: Learning) => `When ${learning.trigger}, ${learning.learning}`)
           .join('\n'),
-        learnings,
+        learnings: rankedLearnings,
       };
     }
 
-    return { prompt: '', learnings };
+    return { prompt: '', learnings: rankedLearnings };
   } catch (error) {
     console.error('Inject error:', error);
     return { prompt: '', learnings: [] };

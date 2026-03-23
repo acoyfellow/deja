@@ -22,13 +22,16 @@ This package uses `bun:sqlite` and requires the Bun runtime. It will not work in
 
 ## API
 
-### `remember(text)`
+### `remember(text, options?)`
 
 Store a memory. Dedup and conflict resolution happen automatically.
 
 ```ts
 await mem.remember('Use pnpm, not npm -- the lockfile breaks otherwise')
 await mem.remember('Redis must be running before starting the API server')
+
+// With agent attribution
+await mem.remember('always check wrangler.toml', { source: 'deploy-agent' })
 ```
 
 If a new memory contradicts an existing one, the old memory's confidence drops and the new one takes priority.
@@ -72,9 +75,13 @@ const mem = createMemory({
 
 **Embeddings**: all-MiniLM-L6-v2 via ONNX, runs on CPU (~23MB model, cached locally). In-memory vector index loaded at startup.
 
-**Scoring**: `relevance * 0.7 + confidence * 0.3`. Confirm/reject adjusts confidence. Over thousands of memories, this separates signal from noise.
+**Scoring**: `relevance * 0.7 + decayedConfidence * 0.3`. Confidence decays exponentially over time (half-life: 90 days), computed at recall time. Recalling a memory resets its decay clock. Stored confidence is only changed by `confirm()` and `reject()`.
 
 **Dedup**: >= 0.95 similarity at write time is skipped. 0.6-0.95 similarity triggers conflict resolution — old memory's confidence drops to 30%.
+
+**Anti-patterns**: When `reject()` drops a memory's confidence below 0.15, it auto-inverts into an anti-pattern — the text is prefixed with "KNOWN PITFALL: ", confidence resets to 0.5, and it continues to appear in recall as a warning. This means negative knowledge ("don't do X") actively surfaces instead of silently fading away.
+
+**Agent attribution**: Pass `{ source: 'agent-name' }` to `remember()` to track which agent stored a memory. Returned in `list()` and recall results.
 
 ## License
 

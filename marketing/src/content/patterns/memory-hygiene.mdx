@@ -32,6 +32,34 @@ Deja uses vector similarity to match memories. As the store grows, semantically 
 
 Memories that haven't been recalled gradually lose confidence, making room for fresher knowledge.
 
+**deja-local and deja-edge now have built-in time-based decay.** No cron jobs, no manual scripts — decay is computed automatically at recall time using an exponential half-life formula:
+
+```
+decayedConfidence = storedConfidence × 0.5^(daysSince / 90)
+```
+
+- A memory untouched for 90 days has its effective confidence halved
+- Recalling a memory resets its decay clock — actively used knowledge stays fresh
+- Stored confidence is never mutated by decay; only `confirm()` and `reject()` change the stored value
+- No background jobs or cron — decay is a pure read-side computation
+
+```typescript
+// deja-local: decay is automatic — just use recall() normally
+import { createMemory } from 'deja-local'
+
+const mem = createMemory({ path: './agent.db' })
+
+// This memory will naturally decay over time if not recalled
+await mem.remember('always run migrations before deploying')
+
+// 90 days later, this memory's effective confidence is halved in recall results
+// But recalling it resets the decay clock:
+const results = await mem.recall('deploying to staging')
+// results[0].confidence is the stored value; the score reflects decay
+```
+
+For the **hosted service**, you can still run manual decay for more control:
+
 ```typescript
 import { deja } from "deja-client";
 
@@ -304,6 +332,41 @@ crons = ["0 3 * * *"]  # Daily at 3 AM UTC
 | Session-scoped memory older than 7 days | **Delete** | Sessions are ephemeral by design |
 | Human-taught memory | **Exempt** from decay | Human teachings are curated and intentional |
 | Postmortem learning | **Slow decay** only | Incident knowledge stays relevant for months |
+
+## Anti-Patterns: When Bad Memories Become Useful Warnings
+
+In deja-local and deja-edge, heavily rejected memories don't just fade away — they transform into **anti-patterns** that actively warn agents.
+
+When `reject()` drops a memory's confidence below 0.15:
+1. The memory's type flips from `"memory"` to `"anti-pattern"`
+2. Confidence resets to 0.5 (it's now a useful warning, not a failed memory)
+3. Text is prefixed with `"KNOWN PITFALL: "`
+
+```typescript
+import { createMemory } from 'deja-local'
+
+const mem = createMemory({ path: './agent.db' })
+
+// Agent learns something wrong
+const m = await mem.remember('use eval() to parse JSON strings')
+
+// Other agents or humans reject it
+await mem.reject(m.id)  // 0.5 → 0.35
+await mem.reject(m.id)  // 0.35 → 0.2
+await mem.reject(m.id)  // 0.2 → 0.05 → auto-inverts!
+
+// Now it's an anti-pattern that actively warns agents:
+const list = mem.list()
+// list[0].text = "KNOWN PITFALL: use eval() to parse JSON strings"
+// list[0].type = "anti-pattern"
+// list[0].confidence = 0.5
+
+// Anti-patterns appear in recall results normally
+const results = await mem.recall('parsing JSON')
+// results[0].text = "KNOWN PITFALL: use eval() to parse JSON strings"
+```
+
+Anti-patterns are exempt from further inversion — they won't double-prefix. You can `confirm()` an anti-pattern to boost its confidence, making the warning more prominent.
 
 ## Monitoring Memory Health
 

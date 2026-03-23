@@ -41,13 +41,16 @@ Your wrangler config needs a DO with SQLite:
 
 All methods are synchronous — no async needed, no network calls. Everything runs in the DO's SQLite.
 
-### `remember(text)`
+### `remember(text, options?)`
 
 Store a memory.
 
 ```ts
 memory.remember('Redis must be running before starting the API server')
 memory.remember('Use pnpm, not npm')
+
+// With agent attribution
+memory.remember('always check wrangler.toml', { source: 'deploy-agent' })
 ```
 
 Dedup: near-identical text is detected and skipped.
@@ -112,11 +115,17 @@ Routes: `POST /remember`, `POST /recall`, `POST /confirm/:id`, `POST /reject/:id
 
 ## How it works
 
-**Search**: SQLite FTS5 with Porter stemming tokenizer. Queries are decomposed into keywords, matched with `OR`, and ranked by BM25. Scores are normalized to 0-1 and blended with confidence (70% relevance, 30% confidence).
+**Search**: SQLite FTS5 with Porter stemming tokenizer. Queries are decomposed into keywords, matched with `OR`, and ranked by BM25. Scores are normalized to 0-1 and blended with decayed confidence (70% relevance, 30% confidence).
+
+**Time-based decay**: Confidence decays exponentially at recall time (half-life: 90 days). Memories that are recalled frequently stay fresh — each recall resets the decay clock. Stored confidence is only changed by `confirm()` and `reject()`.
 
 **Dedup**: Trigram Jaccard similarity. Memories above 0.85 similarity are considered duplicates.
 
 **Conflict resolution**: Memories between 0.5-0.85 similarity are about the same topic but say different things. The old memory's confidence drops to 30%, the new one takes priority.
+
+**Anti-patterns**: When `reject()` drops a memory's confidence below 0.15, it auto-inverts into an anti-pattern — prefixed with "KNOWN PITFALL: ", confidence resets to 0.5, and it surfaces in recall as a warning. Negative knowledge actively warns agents away from known mistakes.
+
+**Agent attribution**: Pass `{ source: 'agent-name' }` to `remember()` to track which agent stored a memory.
 
 ## Configuration
 

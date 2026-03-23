@@ -284,4 +284,142 @@ describe('deja-edge: createEdgeMemory', () => {
       expect(r.confidence).toBeGreaterThanOrEqual(0.4)
     }
   })
+
+  // ============================================================================
+  // TIME-BASED CONFIDENCE DECAY
+  // ============================================================================
+
+  test('old memories score lower than fresh ones with same text similarity', () => {
+    freshMemory()
+    memory.remember('deploy tip about production servers')
+    memory.remember('deploy tip about staging servers')
+
+    // Manually backdate one memory
+    const list = memory.list()
+    const oldId = list[1].id // oldest
+    const freshId = list[0].id // newest
+    const oldDate = new Date(Date.now() - 180 * 86400000).toISOString()
+    ctx.state.storage.sql.exec('UPDATE memories SET created_at = ? WHERE id = ?', oldDate, oldId)
+
+    const results = memory.recall('deploy tip servers')
+    expect(results.length).toBe(2)
+    // Fresh memory should rank first due to decay penalizing old one
+    expect(results[0].id).toBe(freshId)
+  })
+
+  test('recently recalled memories resist decay', () => {
+    freshMemory()
+    const m = memory.remember('deploy tip about cloud servers')
+
+    // Backdate created_at but set recent last_recalled_at
+    const oldDate = new Date(Date.now() - 180 * 86400000).toISOString()
+    const recentDate = new Date().toISOString()
+    ctx.state.storage.sql.exec('UPDATE memories SET created_at = ?, last_recalled_at = ? WHERE id = ?', oldDate, recentDate, m.id)
+
+    const results = memory.recall('deploy tip cloud servers')
+    expect(results.length).toBeGreaterThan(0)
+    // Should still score well because last_recalled_at is recent
+    expect(results[0].score).toBeGreaterThan(0.3)
+  })
+
+  test('confirm still boosts stored confidence independent of decay', () => {
+    freshMemory()
+    const m = memory.remember('decay confirm test item')
+    memory.confirm(m.id)
+    const list = memory.list()
+    expect(list[0].confidence).toBe(0.6)
+  })
+
+  // ============================================================================
+  // AGENT ATTRIBUTION
+  // ============================================================================
+
+  test('source is stored and returned when provided', () => {
+    freshMemory()
+    const m = memory.remember('attributed memory about code', { source: 'agent-beta' })
+    expect(m.source).toBe('agent-beta')
+    const list = memory.list()
+    expect(list[0].source).toBe('agent-beta')
+  })
+
+  test('source is undefined when not provided (backward compat)', () => {
+    freshMemory()
+    const m = memory.remember('unattributed memory about code')
+    expect(m.source).toBeUndefined()
+    const list = memory.list()
+    expect(list[0].source).toBeUndefined()
+  })
+
+  // ============================================================================
+  // ANTI-PATTERN TRACKING
+  // ============================================================================
+
+  test('memory auto-inverts to anti-pattern after enough rejections', () => {
+    freshMemory()
+    const m = memory.remember('use var for all variable declarations')
+    // 0.5 -> 0.35 -> 0.2 -> 0.05 (below 0.15)
+    memory.reject(m.id)
+    memory.reject(m.id)
+    memory.reject(m.id)
+    const list = memory.list()
+    expect(list[0].type).toBe('anti-pattern')
+  })
+
+  test('anti-pattern has reset confidence and KNOWN PITFALL prefix', () => {
+    freshMemory()
+    const m = memory.remember('use eval for parsing JSON data')
+    memory.reject(m.id)
+    memory.reject(m.id)
+    memory.reject(m.id)
+    const list = memory.list()
+    expect(list[0].confidence).toBe(0.5)
+    expect(list[0].text).toBe('KNOWN PITFALL: use eval for parsing JSON data')
+    expect(list[0].type).toBe('anti-pattern')
+  })
+
+  test('anti-pattern appears in recall results normally', () => {
+    freshMemory()
+    const m = memory.remember('use eval for parsing JSON response')
+    memory.reject(m.id)
+    memory.reject(m.id)
+    memory.reject(m.id)
+    const results = memory.recall('parsing JSON')
+    expect(results.length).toBeGreaterThan(0)
+    expect(results[0].text).toContain('KNOWN PITFALL')
+  })
+
+  test('confirming an anti-pattern still boosts its confidence', () => {
+    freshMemory()
+    const m = memory.remember('never use goto statements in code')
+    memory.reject(m.id)
+    memory.reject(m.id)
+    memory.reject(m.id)
+    // Now anti-pattern with confidence 0.5
+    memory.confirm(m.id)
+    const list = memory.list()
+    expect(list[0].confidence).toBe(0.6)
+    expect(list[0].type).toBe('anti-pattern')
+  })
+
+  test('already-inverted anti-pattern does not double-invert', () => {
+    freshMemory()
+    const m = memory.remember('use document.write for HTML output')
+    memory.reject(m.id)
+    memory.reject(m.id)
+    memory.reject(m.id)
+    // Reject more — should NOT double-invert
+    for (let i = 0; i < 5; i++) memory.reject(m.id)
+    const list = memory.list()
+    expect(list[0].type).toBe('anti-pattern')
+    expect(list[0].text).toBe('KNOWN PITFALL: use document.write for HTML output')
+    // No double prefix
+    expect(list[0].text.indexOf('KNOWN PITFALL')).toBe(0)
+    expect(list[0].text.indexOf('KNOWN PITFALL', 1)).toBe(-1)
+  })
+
+  test('memories start with type memory', () => {
+    freshMemory()
+    const m = memory.remember('normal type test memory')
+    expect(m.type).toBe('memory')
+  })
 })
