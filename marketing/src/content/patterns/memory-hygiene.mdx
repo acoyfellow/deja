@@ -32,7 +32,7 @@ Deja uses vector similarity to match memories. As the store grows, semantically 
 
 Memories that haven't been recalled gradually lose confidence, making room for fresher knowledge.
 
-**deja-local and deja-edge now have built-in time-based decay.** No cron jobs, no manual scripts — decay is computed automatically at recall time using an exponential half-life formula:
+**All three runtimes now apply time-based decay on the read path.** No cron jobs, no manual scripts — decay is computed automatically when ranking memories for retrieval:
 
 ```
 decayedConfidence = storedConfidence × 0.5^(daysSince / 90)
@@ -58,52 +58,7 @@ const results = await mem.recall('deploying to staging')
 // results[0].confidence is the stored value; the score reflects decay
 ```
 
-For the **hosted service**, you can still run manual decay for more control:
-
-```typescript
-import { deja } from "deja-client";
-
-const mem = deja("https://deja.your-subdomain.workers.dev", {
-  apiKey: process.env.DEJA_API_KEY,
-});
-
-async function decayConfidence() {
-  // Get all learnings
-  const learnings = await mem.list();
-
-  const now = Date.now();
-  const ONE_DAY = 24 * 60 * 60 * 1000;
-
-  for (const learning of learnings) {
-    const age = now - new Date(learning.createdAt).getTime();
-    const ageDays = age / ONE_DAY;
-
-    // Skip human-taught memories (they don't decay)
-    if (learning.source === "human-teaching" || learning.source === "human-correction") {
-      continue;
-    }
-
-    // Skip recent memories (less than 7 days old)
-    if (ageDays < 7) {
-      continue;
-    }
-
-    // Decay formula: lose 0.02 confidence per day after 7 days
-    // A 0.8 confidence learning hits 0.3 (deletion threshold) after ~32 days
-    const decay = (ageDays - 7) * 0.02;
-    const newConfidence = Math.max(0, learning.confidence - decay);
-
-    if (newConfidence < learning.confidence) {
-      // Re-learn with lower confidence (updates the existing entry)
-      await mem.learn(learning.trigger, learning.learning, {
-        confidence: newConfidence,
-        scope: learning.scope,
-        source: learning.source,
-      });
-    }
-  }
-}
-```
+For the **hosted service**, this decay affects `inject()` ranking. Stored confidence still changes only when you explicitly call `confirm()` or `reject()`, or when cleanup removes low-confidence entries.
 
 ### 2. Pruning Low-Confidence Entries
 
@@ -335,7 +290,7 @@ crons = ["0 3 * * *"]  # Daily at 3 AM UTC
 
 ## Anti-Patterns: When Bad Memories Become Useful Warnings
 
-In deja-local and deja-edge, heavily rejected memories don't just fade away — they transform into **anti-patterns** that actively warn agents.
+In all three runtimes, heavily rejected memories don't just fade away — they transform into **anti-patterns** that actively warn agents.
 
 When `reject()` drops a memory's confidence below 0.15:
 1. The memory's type flips from `"memory"` to `"anti-pattern"`

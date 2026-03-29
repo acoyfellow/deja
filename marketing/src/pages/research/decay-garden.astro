@@ -103,20 +103,20 @@ const concept = getConceptBySlug('decay-garden')!;
 
   <h2 id="deja-connection">How it connects to deja</h2>
   <p>
-    Deja already has the raw ingredients for a decay garden. Every learning has a <code>confidence</code> field that ranges from 0.0 to 1.0. Confidence grows when a memory is reinforced through recall and shrinks through natural decay. The <code>PATCH /learnings/:id</code> endpoint can update confidence, and the daily cleanup cron already removes learnings that fall below a threshold.
+    Deja already has the raw ingredients for a decay garden. Every learning has a <code>confidence</code> field that ranges from 0.0 to 1.0. Confidence changes through explicit feedback (<code>confirm</code> / <code>reject</code>), while retrieval ranking applies time-based decay. The daily cleanup cron removes learnings that fall below a threshold.
   </p>
   <p>
-    What the garden adds is a <code>last_recalled_at</code> timestamp -- which deja does not yet track but trivially could. This timestamp would let the visualization distinguish between a memory that is low-confidence because it was always uncertain and one that is low-confidence because it has been forgotten. The first might be a guess that was never validated. The second might be solid knowledge that simply has not been needed in a while. These are different situations requiring different responses: one needs verification, the other needs a gentle boost.
+    Deja already tracks <code>last_recalled_at</code> and <code>recall_count</code>. Those fields let the visualization distinguish between a memory that is low-confidence because it was always uncertain and one that is low-confidence because it has simply not been needed in a while. These are different situations requiring different responses: one needs verification, the other needs a gentle boost.
   </p>
   <p>
-    The "water" action maps directly to a PATCH request incrementing confidence. "Prune" maps to DELETE. "Transplant" maps to a PATCH changing the <code>scope</code> field. The winter cleanup maps to the existing cleanup cron, but with a human-facing narrative: it is not automated garbage collection, it is a season of release.
+    The "water" action maps cleanly to <code>POST /learning/:id/confirm</code>. "Prune" maps to delete. "Transplant" does not exist as a first-class mutation today; it would need a dedicated endpoint or a delete-and-relearn flow. The winter cleanup maps to the existing cleanup cron, but with a human-facing narrative: it is a batch forgetting pass, not a real-time action.
   </p>
   <p>
     The harder question is how to compute plant position and clustering. One approach: use the embedding vectors that deja already stores for semantic matching. Run a dimensionality reduction (UMAP or t-SNE) on the embedding space and map the results to a 2D garden layout. Semantically related memories would cluster together naturally, making the garden not just a health dashboard but a topology of knowledge.
   </p>
 
   <DoItWithDeja
-    blurb="List learnings with confidence. Water = PATCH confidence, Prune = DELETE. Use scope for transplant."
+    blurb="List learnings with confidence. Water = confirm, prune = delete. Transplant would need an extra mutation API."
     snippets={[
       {
         label: 'List memories with confidence',
@@ -125,10 +125,9 @@ const concept = getConceptBySlug('decay-garden')!;
       },
       {
         label: 'Water a memory (boost confidence)',
-        code: `curl -X PATCH "https://deja.your-subdomain.workers.dev/learnings/MEMORY_ID" \\
+        code: `curl -X POST "https://deja.your-subdomain.workers.dev/learning/MEMORY_ID/confirm" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"confidence": 0.85}'`,
+  -H "Content-Type: application/json"`,
       },
     ]}
   />

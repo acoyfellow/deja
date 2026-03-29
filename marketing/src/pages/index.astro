@@ -7,7 +7,7 @@ import SEO from "../components/SEO.astro";
   <SEO
     slot="head"
     title="deja — persistent memory for agents"
-    description="Open-source memory layer for AI agents. Three runtimes: local vector search (Bun), edge full-text (Cloudflare DO), or hosted semantic search (Workers AI + Vectorize). What one agent learns, they all know."
+    description="Open-source memory layer for AI agents. Three runtimes: local vector search (Bun), edge full-text (Cloudflare DO), or hosted semantic search (Workers AI + Vectorize)."
     keywords="ai agents, persistent memory, vector search, agent memory, cloudflare workers, durable objects, semantic search, mcp, bun"
     path="/"
   />
@@ -30,11 +30,11 @@ import SEO from "../components/SEO.astro";
           deja
         </h1>
         <p class="font-serif font-light text-xl text-chrome-dark max-w-[640px] mb-3">
-          Agents forget everything between runs. deja fixes that.
+          Agents lose context between runs. deja gives them a durable place to store and retrieve what matters.
         </p>
         <p class="font-serif font-light text-base text-chrome-dark/70 max-w-[560px] mb-3">
           A memory layer. Agents call <code class="font-mono text-[13px] text-brass">learn()</code> to store what they know
-          and <code class="font-mono text-[13px] text-brass">recall()</code> to get it back.
+          and <code class="font-mono text-[13px] text-brass">inject()</code> or <code class="font-mono text-[13px] text-brass">recall()</code> to get it back.
         </p>
         <p class="font-serif font-light text-sm text-chrome-dark/50 max-w-[560px] mb-8">
           Three packages — local, edge, hosted — same idea, pick your runtime.
@@ -301,7 +301,7 @@ import SEO from "../components/SEO.astro";
         <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-2">Memory evolves</div>
         <p class="font-serif font-light text-chrome-dark text-sm m-0">
           Useful memories gain confidence. Contradicted ones get superseded. Stale ones decay.
-          The memory stays clean without manual curation.
+          Cleanup and feedback help keep the store usable over time.
         </p>
       </div>
     </div>

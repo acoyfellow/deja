@@ -57,7 +57,7 @@ export { DejaEdgeDO } from 'deja-edge/do'
 
 ### deja (hosted)
 
-Full-featured hosted service with Vectorize semantic search, scoped memory, working state, secrets, and MCP support. Deploy your own instance or use as part of [filepath](https://github.com/acoyfellow/filepath).
+Hosted service with Vectorize semantic search, scoped memory, working state, secrets, and MCP support. Deploy your own instance or use as part of [filepath](https://github.com/acoyfellow/filepath).
 
 ```bash
 git clone https://github.com/acoyfellow/deja && cd deja
@@ -110,7 +110,7 @@ Track which agent stored a memory with the optional `source` parameter:
 await mem.remember('always use pnpm', { source: 'deploy-agent' })
 ```
 
-### Anti-patterns (deja-local & deja-edge)
+### Anti-patterns
 
 When a memory is rejected enough that its confidence drops below 0.15, it auto-inverts into an **anti-pattern** — a warning that actively surfaces during recall:
 
@@ -126,11 +126,14 @@ Negative knowledge is as valuable as positive knowledge. Anti-patterns participa
 The hosted service adds features beyond basic memory:
 
 - **Scoped memory** — `shared`, `agent:<id>`, `session:<id>`, or custom scopes
+- **Confidence feedback** — `confirm` boosts confidence, `reject` lowers it
+- **Conflict tracking** — hosted learnings carry `type` and optional `supersedes`
+- **Proof citations** — `proof_run_id` and `proof_iteration_id` can be attached as evidence and are returned on recall
 - **Working state** — live snapshots + event streams for in-progress work
 - **Secrets** — scoped key-value storage
 - **Loop runs** — track optimization loops with auto-learning from outcomes
 
-REST endpoints: `/learn`, `/inject`, `/query`, `/learnings`, `/stats`, `/state/:runId`, `/secret`, `/run`
+Core REST endpoints: `/learn`, `/learning/:id/confirm`, `/learning/:id/reject`, `/inject`, `/inject/trace`, `/query`, `/learnings`, `/learning/:id/neighbors`, `/cleanup`, `/stats`, `/state/:runId`, `/secret`, `/run`
 
 Full reference: https://deja.coey.dev/docs
 

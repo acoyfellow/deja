@@ -105,15 +105,27 @@ wrangler deploy`}</pre>
         {[
           { method: 'POST', path: '/inject', desc: 'Retrieve context-relevant memories, formatted for prompt injection' },
           { method: 'POST', path: '/learn', desc: 'Store a memory with semantic embedding' },
-          { method: 'POST', path: '/query', desc: 'Semantic search — returns raw matches with scores' },
+          { method: 'POST', path: '/learning/:id/confirm', desc: 'Increase one memory confidence by 0.1' },
+          { method: 'POST', path: '/learning/:id/reject', desc: 'Decrease confidence by 0.15; may invert into an anti-pattern' },
+          { method: 'POST', path: '/query', desc: 'Semantic search over stored memories' },
           { method: 'POST', path: '/inject/trace', desc: 'Debug retrieval: full candidate list, scores, threshold pass/fail' },
+          { method: 'POST', path: '/cleanup', desc: 'Run scheduled cleanup logic immediately' },
           { method: 'POST', path: '/run', desc: 'Record a loop run outcome (pass/fail/exhausted). Auto-fires learn.' },
+          { method: 'POST', path: '/state/:runId/events', desc: 'Append an event to live working state' },
+          { method: 'POST', path: '/state/:runId/resolve', desc: 'Resolve working state and optionally persist a summary' },
+          { method: 'POST', path: '/secret', desc: 'Create or update a scoped secret' },
           { method: 'GET',  path: '/runs', desc: 'Run history + convergence stats (mean attempts, trend)' },
           { method: 'GET',  path: '/learnings', desc: 'List memories, optionally filtered by ?scope=' },
+          { method: 'GET',  path: '/state/:runId', desc: 'Fetch one working-state snapshot' },
+          { method: 'GET',  path: '/secret/:name', desc: 'Fetch one scoped secret' },
+          { method: 'GET',  path: '/secrets', desc: 'List scoped secrets' },
           { method: 'GET',  path: '/stats', desc: 'Memory counts by scope' },
           { method: 'GET',  path: '/learning/:id/neighbors', desc: 'Semantically similar memories — use to detect contradictions' },
+          { method: 'PUT', path: '/state/:runId', desc: 'Replace or create a working-state snapshot' },
+          { method: 'PATCH', path: '/state/:runId', desc: 'Patch an existing working-state snapshot' },
           { method: 'DELETE', path: '/learning/:id', desc: 'Delete one memory' },
           { method: 'DELETE', path: '/learnings', desc: 'Bulk delete by ?scope=, ?confidence_lt=, ?not_recalled_in_days=' },
+          { method: 'DELETE', path: '/secret/:name', desc: 'Delete one scoped secret (?scope=...)' },
         ].map(({ method, path, desc }) => (
           <tr class="border-b border-brass/5">
             <td class="py-2.5 pr-4">
@@ -138,10 +150,20 @@ wrangler deploy`}</pre>
         <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto">{`{
   "trigger":    "string (required) — when this applies",
   "learning":   "string (required) — what was learned",
-  "confidence": 0.9,       // 0–1, default 0.5. Below 0.3 = auto-pruned
+  "confidence": 0.9,       // 0–1, default 0.5
   "scope":      "shared",  // "shared" | "agent:<id>" | "session:<id>"
   "reason":     "string",  // optional
-  "source":     "string"   // optional
+  "source":     "string",  // optional
+  "proof_run_id": "string",        // optional evidence link
+  "proof_iteration_id": "string"   // optional evidence link
+}`}</pre>
+      </div>
+
+      <div>
+        <p class="font-mono text-xs text-chrome-dark mb-2">POST /learning/:id/confirm or /reject — body</p>
+        <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto">{`{
+  "proof_run_id": "string",        // optional evidence link
+  "proof_iteration_id": "string"   // optional evidence link
 }`}</pre>
       </div>
 
@@ -182,13 +204,28 @@ const mem = deja('https://deja-worker.coy.workers.dev', { apiKey: process.env.AP
 // before a task
 const { learnings } = await mem.inject('deploying auth service')
 
-// after a task
-await mem.learn('deploying auth service', 'always run migrations in a transaction')
+// after a task, with proof metadata
+await mem.learn('deploying auth service', 'always run migrations in a transaction', {
+  identity: { proofRunId: 'lab-run-42', proofIterationId: 'lab-run-42:3' }
+})
+await mem.confirm(learnings[0].id, {
+  identity: { proofRunId: 'lab-run-42', proofIterationId: 'lab-run-42:3' }
+})
+
+// live working state
+await mem.putState('run-42', {
+  goal: 'ship the auth deploy',
+  openQuestions: ['did staging migration finish?']
+}, { updatedBy: 'deploy-bot' })
 
 // track loop convergence
 await mem.recordRun('pass', 3, { scope: 'shared', code: '...' })
 const { stats } = await mem.getRuns({ scope: 'shared' })
 // stats.trend → 'improving' | 'regressing' | 'stable'`}</pre>
+
+      <p class="font-serif font-light text-sm text-chrome-dark/70 m-0">
+        The client mirrors the hosted REST API, including <code class="text-brass">confirm</code>, <code class="text-brass">reject</code>, working-state routes, secrets, cleanup, inject tracing, and proof-linked identities. Client state payloads and trace results are exposed as camelCase even when the raw HTTP shape uses snake_case.
+      </p>
     </div>
   </section>
 
@@ -197,7 +234,7 @@ const { stats } = await mem.getRuns({ scope: 'shared' })
     <h2 class="font-mono text-xs font-bold tracking-widest uppercase text-brass mb-5">MCP</h2>
 
     <p class="font-serif font-light text-chrome-dark mb-4">
-      deja exposes all endpoints as MCP tools at <code class="text-brass">/mcp</code>. Works with Claude Code, Continue, Cursor, Cline, and any client that supports streamable HTTP MCP.
+      deja exposes its memory, working-state, and loop-run operations as MCP tools at <code class="text-brass">/mcp</code>. Secret CRUD remains HTTP-only. Works with Claude Code, Continue, Cursor, Cline, and any client that supports streamable HTTP MCP.
     </p>
 
     <pre class="bg-void-deep border border-brass/10 rounded-sm px-4 py-3 font-mono text-xs text-chrome-dark leading-relaxed overflow-x-auto mb-4">{`# Claude Code
@@ -216,7 +253,7 @@ claude mcp add --transport http deja https://deja-worker.coy.workers.dev/mcp \\
 }`}</pre>
 
     <p class="font-mono text-xs text-chrome-dark mt-4">
-      Available tools: <code class="text-brass">learn</code>, <code class="text-brass">inject</code>, <code class="text-brass">inject_trace</code>, <code class="text-brass">query</code>, <code class="text-brass">forget</code>, <code class="text-brass">forget_bulk</code>, <code class="text-brass">list</code>, <code class="text-brass">stats</code>, <code class="text-brass">record_run</code>, <code class="text-brass">get_runs</code>
+      Available tools: <code class="text-brass">learn</code>, <code class="text-brass">confirm</code>, <code class="text-brass">reject</code>, <code class="text-brass">inject</code>, <code class="text-brass">inject_trace</code>, <code class="text-brass">query</code>, <code class="text-brass">forget</code>, <code class="text-brass">forget_bulk</code>, <code class="text-brass">learning_neighbors</code>, <code class="text-brass">list</code>, <code class="text-brass">stats</code>, <code class="text-brass">state_put</code>, <code class="text-brass">state_get</code>, <code class="text-brass">state_patch</code>, <code class="text-brass">state_resolve</code>, <code class="text-brass">record_run</code>, <code class="text-brass">get_runs</code>
     </p>
   </section>
 </Base>

@@ -112,7 +112,7 @@ const concept = getConceptBySlug('forgetting-ritual')!;
     Deja already implements automated forgetting. The cleanup cron runs daily, identifies learnings below a confidence threshold, and removes them. This is the machine version of forgetting: efficient, consistent, and undiscriminating. It works well for clearing obvious dead weight -- memories that have decayed to near-zero confidence and have not been recalled in months.
   </p>
   <p>
-    The forgetting ritual is the human-in-the-loop complement to this automated process. Instead of deleting memories silently, the system surfaces them for review first. The implementation maps cleanly to deja's existing API. Confirming a memory sends a <code>PATCH /learnings/:id</code> request that bumps confidence by 0.2 and updates <code>last_recalled_at</code>. Releasing a memory sends a <code>DELETE /learnings/:id</code> request. Rephrasing sends a <code>PATCH</code> that updates the <code>learning</code> text, and potentially the <code>trigger</code> or <code>scope</code>.
+    The forgetting ritual is the human-in-the-loop complement to this automated process. Instead of deleting memories silently, the system surfaces them for review first. The implementation partly maps to deja's existing API. Confirming a memory sends a <code>POST /learning/:id/confirm</code> request that raises confidence by 0.1. Releasing a memory sends a <code>DELETE /learning/:id</code> request. Rephrasing does not have a dedicated endpoint today; it would need an explicit update route or a delete-and-relearn workflow.
   </p>
   <p>
     The selection of which memories to surface for review is itself an interesting design problem. The obvious approach is to show memories below a confidence threshold, sorted ascending. But a more nuanced approach might consider several factors: confidence (lower is more likely to need review), age (older memories are more likely to be outdated), recall count (unrealled memories are more likely to be irrelevant), and scope (session-scoped memories are more likely to be ephemeral). A weighted score combining these factors would produce a review queue ordered by "most likely to benefit from human judgment."
@@ -122,7 +122,7 @@ const concept = getConceptBySlug('forgetting-ritual')!;
   </p>
 
   <DoItWithDeja
-    blurb="List learnings below confidence threshold. Confirm = PATCH (bump confidence), Release = DELETE."
+    blurb="List learnings below confidence threshold. Confirm = POST /learning/:id/confirm, Release = DELETE /learning/:id."
     snippets={[
       {
         label: 'List low-confidence memories',
@@ -132,10 +132,9 @@ const concept = getConceptBySlug('forgetting-ritual')!;
       },
       {
         label: 'Bump confidence (confirm)',
-        code: `curl -X PATCH "https://deja.your-subdomain.workers.dev/learnings/MEMORY_ID" \\
+        code: `curl -X POST "https://deja.your-subdomain.workers.dev/learning/MEMORY_ID/confirm" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"confidence": 0.6}'`,
+  -H "Content-Type: application/json"`,
       },
     ]}
   />

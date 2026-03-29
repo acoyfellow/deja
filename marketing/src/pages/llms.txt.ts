@@ -34,11 +34,16 @@ It provides durable memory + optional live working state via REST and MCP.
 
 ## Core API
 - POST /learn
+- POST /learning/:id/confirm
+- POST /learning/:id/reject
 - POST /inject
 - POST /inject/trace
 - POST /query
+- POST /cleanup
+- POST /run
 - GET /learnings
 - GET /learning/:id/neighbors
+- GET /runs
 - DELETE /learning/:id
 - DELETE /learnings
 - GET /stats
@@ -47,9 +52,13 @@ It provides durable memory + optional live working state via REST and MCP.
 - POST /state/:runId/resolve
 - POST /secret
 - GET /secret/:name
+- DELETE /secret/:name
+- GET /secrets
 
 ## MCP tools
 - learn
+- confirm
+- reject
 - inject
 - inject_trace
 - query
@@ -62,6 +71,8 @@ It provides durable memory + optional live working state via REST and MCP.
 - state_get
 - state_patch
 - state_resolve
+- record_run
+- get_runs
 `;
 
 export const GET: APIRoute = async () => {

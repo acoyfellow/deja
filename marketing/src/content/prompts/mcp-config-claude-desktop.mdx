@@ -21,7 +21,7 @@ prompt: |
   }
 ---
 
-This is the MCP server configuration for connecting Claude Desktop to your deja instance. Once configured, Claude can call `learn`, `inject`, `query`, `forget`, `list`, and `stats` as native MCP tools — no extra prompting needed.
+This is the MCP server configuration for connecting Claude Desktop to your deja instance. Once configured, Claude can call deja's memory, working-state, and loop-run tools as native MCP tools. Secret CRUD is still HTTP-only.
 
 ## Where to find the config file
 
@@ -93,7 +93,7 @@ When running deja locally with `wrangler dev`, point to localhost:
 
 > "What MCP tools do you have available?"
 
-Claude should list the deja tools: `learn`, `inject`, `query`, `forget`, `list`, `stats`.
+Claude should list the deja tools, including `learn`, `confirm`, `reject`, `inject`, `query`, `forget`, `list`, and `stats`.
 
 ## Troubleshooting
 
@@ -121,8 +121,15 @@ Once connected, Claude can use these tools directly in conversation:
 | Tool | Description | Example usage |
 |------|-------------|---------------|
 | `learn` | Store a memory | "Remember that deploys fail without dry-run" |
+| `confirm` | Boost a memory's confidence | "Confirm memory abc-123" |
+| `reject` | Lower confidence or invert to anti-pattern | "Reject memory abc-123" |
 | `inject` | Get relevant memories | "What do you know about deploying?" |
+| `inject_trace` | Inspect retrieval candidates and scores | "Why did this memory get injected?" |
 | `query` | Search memories | "Search for anything about Node version issues" |
+| `learning_neighbors` | Find similar memories | "Show related memories for abc-123" |
 | `forget` | Delete a memory | "Forget memory abc-123" |
+| `forget_bulk` | Bulk delete memories by filters | "Delete memories below 0.2 confidence" |
 | `list` | List memories | "Show me all shared memories" |
 | `stats` | Get statistics | "How many memories are stored?" |
+| `state_put` / `state_get` / `state_patch` / `state_resolve` | Manage live working state | "Save the current run state" |
+| `record_run` / `get_runs` | Track loop-run outcomes | "Record this run as a pass" |
