@@ -21,6 +21,8 @@ export interface Learning {
   confidence: number;
   source?: string;
   scope: string;
+  supersedes?: string;
+  type: 'memory' | 'anti-pattern';
   embedding?: number[];
   createdAt: string;
   lastRecalledAt?: string;

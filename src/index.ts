@@ -31,8 +31,36 @@ const MCP_TOOLS = [
         scope: { type: 'string', description: 'Memory scope: "shared", "agent:<id>", or "session:<id>"', default: 'shared' },
         reason: { type: 'string', description: 'Why this was learned' },
         source: { type: 'string', description: 'Source identifier' },
+        proof_run_id: { type: 'string', description: 'Optional proof run identifier for the learning evidence' },
+        proof_iteration_id: { type: 'string', description: 'Optional proof iteration identifier for the learning evidence' },
       },
       required: ['trigger', 'learning'],
+    },
+  },
+  {
+    name: 'confirm',
+    description: 'Boost a memory confidence score after it proves useful.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Learning ID to confirm' },
+        proof_run_id: { type: 'string', description: 'Optional proof run identifier for the confirming evidence' },
+        proof_iteration_id: { type: 'string', description: 'Optional proof iteration identifier for the confirming evidence' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'reject',
+    description: 'Reduce a memory confidence score after it proves wrong or stale. May invert into an anti-pattern warning.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Learning ID to reject' },
+        proof_run_id: { type: 'string', description: 'Optional proof run identifier for the rejecting evidence' },
+        proof_iteration_id: { type: 'string', description: 'Optional proof iteration identifier for the rejecting evidence' },
+      },
+      required: ['id'],
     },
   },
   {
@@ -229,6 +257,30 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
           scope: args.scope ?? 'shared',
           reason: args.reason,
           source: args.source,
+          proof_run_id: args.proof_run_id,
+          proof_iteration_id: args.proof_iteration_id,
+        }),
+      }));
+      return response.json();
+    }
+    case 'confirm': {
+      const response = await stub.fetch(new Request(`http://internal/learning/${args.id}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proof_run_id: args.proof_run_id,
+          proof_iteration_id: args.proof_iteration_id,
+        }),
+      }));
+      return response.json();
+    }
+    case 'reject': {
+      const response = await stub.fetch(new Request(`http://internal/learning/${args.id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proof_run_id: args.proof_run_id,
+          proof_iteration_id: args.proof_iteration_id,
         }),
       }));
       return response.json();

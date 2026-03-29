@@ -8,6 +8,8 @@ export const learnings = sqliteTable('learnings', {
   confidence: real('confidence').default(1.0),
   source: text('source'),
   scope: text('scope').notNull(), // Added for scope support
+  supersedes: text('supersedes'),
+  type: text('type').notNull().default('memory'),
   embedding: text('embedding'), // Vector embedding as JSON string
   createdAt: text('created_at').notNull(),
   lastRecalledAt: text('last_recalled_at'),

@@ -16,6 +16,8 @@ export function initializeStorage(state: DurableObjectState) {
         confidence REAL DEFAULT 1.0,
         source TEXT,
         scope TEXT NOT NULL,
+        supersedes TEXT,
+        type TEXT NOT NULL DEFAULT 'memory',
         embedding TEXT,
         created_at TEXT NOT NULL,
         trace_id TEXT,
@@ -56,6 +58,12 @@ export function initializeStorage(state: DurableObjectState) {
     } catch (_) {}
     try {
       state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN proof_iteration_id TEXT`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN supersedes TEXT`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN type TEXT NOT NULL DEFAULT 'memory'`);
     } catch (_) {}
 
     state.storage.sql.exec(`
@@ -162,6 +170,8 @@ export function convertDbLearning(dbLearning: any): Learning {
     confidence: dbLearning.confidence !== null ? dbLearning.confidence : 0,
     source: dbLearning.source !== null ? dbLearning.source : undefined,
     scope: dbLearning.scope,
+    supersedes: dbLearning.supersedes ?? undefined,
+    type: (dbLearning.type as Learning['type'] | null) ?? 'memory',
     embedding: dbLearning.embedding ? JSON.parse(dbLearning.embedding) : undefined,
     createdAt: dbLearning.createdAt,
     lastRecalledAt: dbLearning.lastRecalledAt ?? undefined,
@@ -195,6 +205,17 @@ export function normalizeRunIdentityPayload(payload: any): SharedRunIdentity | u
   return Object.values(identity).some((value) => typeof value === 'string' && value.length > 0)
     ? identity
     : undefined;
+}
+
+export function resolveRunIdentityPayload(payload: any): SharedRunIdentity | undefined {
+  if (!payload || typeof payload !== 'object') {
+    return undefined;
+  }
+
+  return normalizeRunIdentityPayload({
+    ...(payload.identity ?? {}),
+    ...payload,
+  });
 }
 
 export function normalizeWorkingStatePayload(payload: any): WorkingStatePayload {

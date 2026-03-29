@@ -11,6 +11,135 @@ import type {
   SharedRunIdentity,
 } from './types';
 
+const DEDUPE_THRESHOLD = 0.95;
+const CONFLICT_THRESHOLD = 0.6;
+const DEDUPE_QUERY_TOP_K = 20;
+const CONFIDENCE_CONFIRM_BOOST = 0.1;
+const CONFIDENCE_REJECT_DECAY = 0.15;
+const CONFIDENCE_MIN = 0.01;
+const CONFIDENCE_MAX = 1.0;
+const CONFIDENCE_DEFAULT = 0.5;
+const ANTI_PATTERN_THRESHOLD = 0.15;
+const ANTI_PATTERN_PREFIX = 'KNOWN PITFALL: ';
+
+function stripAntiPatternPrefix(text: string): string {
+  return text.startsWith(ANTI_PATTERN_PREFIX) ? text.slice(ANTI_PATTERN_PREFIX.length) : text;
+}
+
+function buildEmbeddingText(trigger: string, learning: string): string {
+  return `When ${trigger}, ${stripAntiPatternPrefix(learning)}`;
+}
+
+function clampConfidence(confidence: number): number {
+  return Math.min(CONFIDENCE_MAX, Math.max(CONFIDENCE_MIN, Math.round(confidence * 1000) / 1000));
+}
+
+function mergeIdentity(
+  current: SharedRunIdentity | undefined,
+  updates: SharedRunIdentity | undefined,
+): SharedRunIdentity | undefined {
+  const merged: SharedRunIdentity = {
+    traceId: updates?.traceId ?? current?.traceId ?? null,
+    workspaceId: updates?.workspaceId ?? current?.workspaceId ?? null,
+    conversationId: updates?.conversationId ?? current?.conversationId ?? null,
+    runId: updates?.runId ?? current?.runId ?? null,
+    proofRunId: updates?.proofRunId ?? current?.proofRunId ?? null,
+    proofIterationId: updates?.proofIterationId ?? current?.proofIterationId ?? null,
+  };
+
+  return Object.values(merged).some((value) => typeof value === 'string' && value.length > 0)
+    ? merged
+    : undefined;
+}
+
+function identitiesEqual(
+  left: SharedRunIdentity | undefined,
+  right: SharedRunIdentity | undefined,
+): boolean {
+  return (
+    (left?.traceId ?? null) === (right?.traceId ?? null) &&
+    (left?.workspaceId ?? null) === (right?.workspaceId ?? null) &&
+    (left?.conversationId ?? null) === (right?.conversationId ?? null) &&
+    (left?.runId ?? null) === (right?.runId ?? null) &&
+    (left?.proofRunId ?? null) === (right?.proofRunId ?? null) &&
+    (left?.proofIterationId ?? null) === (right?.proofIterationId ?? null)
+  );
+}
+
+function learningIdentityFields(identity: SharedRunIdentity | undefined) {
+  return {
+    traceId: identity?.traceId ?? null,
+    workspaceId: identity?.workspaceId ?? null,
+    conversationId: identity?.conversationId ?? null,
+    runId: identity?.runId ?? null,
+    proofRunId: identity?.proofRunId ?? null,
+    proofIterationId: identity?.proofIterationId ?? null,
+  };
+}
+
+function buildVectorMetadata(learning: Learning): Record<string, string> {
+  const metadata: Record<string, string> = {
+    scope: learning.scope,
+    trigger: learning.trigger,
+    learning: learning.learning,
+    type: learning.type,
+  };
+
+  if (learning.supersedes) metadata.supersedes = learning.supersedes;
+  if (learning.source) metadata.source = learning.source;
+
+  return metadata;
+}
+
+async function upsertLearningVector(
+  ctx: MemoryOperationsContext,
+  learning: Learning,
+): Promise<void> {
+  await ctx.env.VECTORIZE.insert([
+    {
+      id: learning.id,
+      values: learning.embedding || [],
+      metadata: buildVectorMetadata(learning),
+    },
+  ]);
+}
+
+async function getLearningRowById(db: any, id: string): Promise<any | null> {
+  const rows = await db.select().from(schema.learnings).where(eq(schema.learnings.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+async function getNearestLearningMatches(
+  ctx: MemoryOperationsContext,
+  db: any,
+  embedding: number[],
+  scope: string,
+): Promise<Array<{ row: any; similarity: number }>> {
+  const vectorResults = await ctx.env.VECTORIZE.query(embedding, {
+    topK: DEDUPE_QUERY_TOP_K,
+    returnValues: true,
+  });
+  const ids = vectorResults.matches.map((match: any) => match.id);
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const dbRows = await db
+    .select()
+    .from(schema.learnings)
+    .where(and(inArray(schema.learnings.id, ids), eq(schema.learnings.scope, scope)));
+  const rowById = new Map<string, any>(dbRows.map((row: any) => [row.id, row]));
+
+  return vectorResults.matches
+    .map((match: any) => {
+      const row = rowById.get(match.id);
+      if (!row) return null;
+      return { row, similarity: match.score ?? 0 };
+    })
+    .filter((match: { row: any; similarity: number } | null): match is { row: any; similarity: number } => match !== null);
+}
+
 export async function cleanupLearnings(
   ctx: MemoryOperationsContext,
 ): Promise<{ deleted: number; reasons: string[] }> {
@@ -296,16 +425,49 @@ export async function learnMemory(
   identity?: SharedRunIdentity,
 ): Promise<Learning> {
   const db = await ctx.initDB();
+  const normalizedConfidence = clampConfidence(confidence);
+  const embedding = await ctx.createEmbedding(buildEmbeddingText(trigger, learning));
+  const nearestMatches = await getNearestLearningMatches(ctx, db, embedding, scope);
+  const bestMatch = nearestMatches[0];
+
+  if (bestMatch && bestMatch.similarity >= DEDUPE_THRESHOLD) {
+    const existingLearning = ctx.convertDbLearning(bestMatch.row);
+    const mergedIdentity = mergeIdentity(existingLearning.identity, identity);
+
+    if (!identitiesEqual(existingLearning.identity, mergedIdentity)) {
+      await db
+        .update(schema.learnings)
+        .set(learningIdentityFields(mergedIdentity))
+        .where(eq(schema.learnings.id, existingLearning.id));
+    }
+
+    return {
+      ...existingLearning,
+      identity: mergedIdentity,
+    };
+  }
+
+  let supersedes: string | undefined;
+  if (bestMatch && bestMatch.similarity >= CONFLICT_THRESHOLD) {
+    supersedes = bestMatch.row.id;
+    const nextConfidence = clampConfidence((bestMatch.row.confidence ?? CONFIDENCE_DEFAULT) * 0.3);
+    await db
+      .update(schema.learnings)
+      .set({ confidence: nextConfidence })
+      .where(eq(schema.learnings.id, bestMatch.row.id));
+  }
+
   const id = createLearningId();
-  const embedding = await ctx.createEmbedding(`When ${trigger}, ${learning}`);
   const newLearning: Learning = {
     id,
     trigger,
     learning,
     reason,
-    confidence,
+    confidence: normalizedConfidence,
     source,
     scope,
+    supersedes,
+    type: 'memory',
     embedding,
     createdAt: new Date().toISOString(),
     recallCount: 0,
@@ -320,29 +482,104 @@ export async function learnMemory(
     confidence: newLearning.confidence,
     source: newLearning.source,
     scope: newLearning.scope,
+    supersedes: newLearning.supersedes ?? null,
+    type: newLearning.type,
     embedding: newLearning.embedding ? JSON.stringify(newLearning.embedding) : null,
     createdAt: newLearning.createdAt,
-    traceId: identity?.traceId ?? null,
-    workspaceId: identity?.workspaceId ?? null,
-    conversationId: identity?.conversationId ?? null,
-    runId: identity?.runId ?? null,
-    proofRunId: identity?.proofRunId ?? null,
-    proofIterationId: identity?.proofIterationId ?? null,
+    ...learningIdentityFields(identity),
   });
 
-  await ctx.env.VECTORIZE.insert([
-    {
-      id: newLearning.id,
-      values: newLearning.embedding || [],
-      metadata: {
-        scope: newLearning.scope,
-        trigger: newLearning.trigger,
-        learning: newLearning.learning,
-      },
-    },
-  ]);
+  await upsertLearningVector(ctx, newLearning);
 
   return newLearning;
+}
+
+export async function confirmMemory(
+  ctx: MemoryOperationsContext,
+  id: string,
+  identity?: SharedRunIdentity,
+): Promise<Learning | null> {
+  const db = await ctx.initDB();
+  const row = await getLearningRowById(db, id);
+
+  if (!row) {
+    return null;
+  }
+
+  const currentLearning = ctx.convertDbLearning(row);
+  const mergedIdentity = mergeIdentity(currentLearning.identity, identity);
+  const nextConfidence = clampConfidence(currentLearning.confidence + CONFIDENCE_CONFIRM_BOOST);
+
+  await db
+    .update(schema.learnings)
+    .set({
+      confidence: nextConfidence,
+      ...learningIdentityFields(mergedIdentity),
+    })
+    .where(eq(schema.learnings.id, id));
+
+  return {
+    ...currentLearning,
+    confidence: nextConfidence,
+    identity: mergedIdentity,
+  };
+}
+
+export async function rejectMemory(
+  ctx: MemoryOperationsContext,
+  id: string,
+  identity?: SharedRunIdentity,
+): Promise<Learning | null> {
+  const db = await ctx.initDB();
+  const row = await getLearningRowById(db, id);
+
+  if (!row) {
+    return null;
+  }
+
+  const currentLearning = ctx.convertDbLearning(row);
+  const mergedIdentity = mergeIdentity(currentLearning.identity, identity);
+  let nextLearning: Learning = {
+    ...currentLearning,
+    confidence: clampConfidence(currentLearning.confidence - CONFIDENCE_REJECT_DECAY),
+    identity: mergedIdentity,
+  };
+
+  if (
+    nextLearning.confidence < ANTI_PATTERN_THRESHOLD &&
+    currentLearning.type !== 'anti-pattern'
+  ) {
+    const invertedLearning = `${ANTI_PATTERN_PREFIX}${stripAntiPatternPrefix(currentLearning.learning)}`;
+    nextLearning = {
+      ...nextLearning,
+      learning: invertedLearning,
+      confidence: CONFIDENCE_DEFAULT,
+      type: 'anti-pattern',
+      embedding: await ctx.createEmbedding(buildEmbeddingText(currentLearning.trigger, invertedLearning)),
+    };
+  } else {
+    nextLearning = {
+      ...nextLearning,
+      embedding: currentLearning.embedding,
+    };
+  }
+
+  await db
+    .update(schema.learnings)
+    .set({
+      learning: nextLearning.learning,
+      confidence: nextLearning.confidence,
+      type: nextLearning.type,
+      embedding: nextLearning.embedding ? JSON.stringify(nextLearning.embedding) : null,
+      ...learningIdentityFields(mergedIdentity),
+    })
+    .where(eq(schema.learnings.id, id));
+
+  if (nextLearning.type !== currentLearning.type || nextLearning.learning !== currentLearning.learning) {
+    await upsertLearningVector(ctx, nextLearning);
+  }
+
+  return nextLearning;
 }
 
 export async function getLearningNeighbors(

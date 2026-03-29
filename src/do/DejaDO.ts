@@ -6,7 +6,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { Hono } from 'hono';
-import { cleanupLearnings, deleteLearningById, deleteLearningsByFilter, getLearningNeighbors, injectMemories, injectMemoriesWithTrace, learnMemory, listLearnings, queryLearnings } from './memory';
+import { cleanupLearnings, confirmMemory, deleteLearningById, deleteLearningsByFilter, getLearningNeighbors, injectMemories, injectMemoriesWithTrace, learnMemory, listLearnings, queryLearnings, rejectMemory } from './memory';
 import { convertDbLearning, filterScopesByPriority, initializeStorage, normalizeRunIdentityPayload, normalizeWorkingStatePayload } from './helpers';
 import { recordLoopRun, queryLoopRuns } from './loopRuns';
 import { createDejaApp } from './routes';
@@ -116,6 +116,14 @@ export class DejaDO extends DurableObject<Env> {
     return learnMemory(this.getMemoryContext(), scope, trigger, learning, confidence, reason, source, identity);
   }
 
+  async confirm(id: string, identity?: SharedRunIdentity): Promise<Learning | null> {
+    return confirmMemory(this.getMemoryContext(), id, identity);
+  }
+
+  async reject(id: string, identity?: SharedRunIdentity): Promise<Learning | null> {
+    return rejectMemory(this.getMemoryContext(), id, identity);
+  }
+
   async getLearningNeighbors(id: string, threshold: number = 0.85, limit: number = 10): Promise<Array<Learning & { similarity_score: number }>> {
     return getLearningNeighbors(this.getMemoryContext(), id, threshold, limit);
   }
@@ -205,6 +213,8 @@ export class DejaDO extends DurableObject<Env> {
     this.app = createDejaApp({
       cleanup: this.cleanup.bind(this),
       learn: this.learn.bind(this),
+      confirm: this.confirm.bind(this),
+      reject: this.reject.bind(this),
       query: this.query.bind(this),
       inject: this.inject.bind(this),
       injectTrace: this.injectTrace.bind(this),

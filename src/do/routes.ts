@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
-import { formatStatePrompt } from './helpers';
+import { formatStatePrompt, resolveRunIdentityPayload } from './helpers';
 import type {
   Env,
   InjectTraceResult,
@@ -29,6 +29,8 @@ interface RouteHandlers {
     source?: string,
     identity?: SharedRunIdentity,
   ): Promise<Learning>;
+  confirm(id: string, identity?: SharedRunIdentity): Promise<Learning | null>;
+  reject(id: string, identity?: SharedRunIdentity): Promise<Learning | null>;
   query(scopes: string[], text: string, limit?: number, identity?: SharedRunIdentity): Promise<QueryResult>;
   inject(
     scopes: string[],
@@ -90,6 +92,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
 
   app.post('/learn', async (c) => {
     const body: any = await c.req.json();
+    const identity = resolveRunIdentityPayload(body);
     const result = await handlers.learn(
       body.scope || 'shared',
       body.trigger,
@@ -97,14 +100,39 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.confidence,
       body.reason,
       body.source,
-      body.identity,
+      identity,
     );
+    return c.json(result);
+  });
+
+  app.post('/learning/:id/confirm', async (c) => {
+    const body: any = await c.req.json().catch(() => ({}));
+    const result = await handlers.confirm(c.req.param('id'), resolveRunIdentityPayload(body));
+    if (!result) {
+      return c.json({ error: 'not found' }, 404);
+    }
+    return c.json(result);
+  });
+
+  app.post('/learning/:id/reject', async (c) => {
+    const body: any = await c.req.json().catch(() => ({}));
+    const result = await handlers.reject(c.req.param('id'), resolveRunIdentityPayload(body));
+    if (!result) {
+      return c.json({ error: 'not found' }, 404);
+    }
     return c.json(result);
   });
 
   app.post('/query', async (c) => {
     const body: any = await c.req.json();
-    return c.json(await handlers.query(body.scopes || ['shared'], body.text, body.limit, body.identity));
+    return c.json(
+      await handlers.query(
+        body.scopes || ['shared'],
+        body.text,
+        body.limit,
+        resolveRunIdentityPayload(body),
+      ),
+    );
   });
 
   app.post('/inject', async (c) => {
@@ -114,7 +142,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.context,
       body.limit,
       body.format,
-      body.identity,
+      resolveRunIdentityPayload(body),
     );
 
     const stateRunId =
@@ -157,7 +185,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
         body.context || '',
         body.limit ?? 5,
         Number.isFinite(threshold) ? threshold : 0,
-        body.identity,
+        resolveRunIdentityPayload(body),
       ),
     );
   });
@@ -180,14 +208,21 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
         body,
         body.updatedBy,
         body.changeSummary || 'state put',
-        body.identity,
+        resolveRunIdentityPayload(body),
       ),
     );
   });
 
   app.patch('/state/:runId', async (c) => {
     const body: any = await c.req.json();
-    return c.json(await handlers.patchState(c.req.param('runId'), body, body.updatedBy, body.identity));
+    return c.json(
+      await handlers.patchState(
+        c.req.param('runId'),
+        body,
+        body.updatedBy,
+        resolveRunIdentityPayload(body),
+      ),
+    );
   });
 
   app.post('/state/:runId/events', async (c) => {
@@ -198,7 +233,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
         body.eventType || 'note',
         body.payload || body,
         body.createdBy,
-        body.identity,
+        resolveRunIdentityPayload(body),
       ),
     );
   });
@@ -210,7 +245,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       scope: body.scope,
       summaryStyle: body.summaryStyle,
       updatedBy: body.updatedBy,
-      identity: body.identity,
+      identity: resolveRunIdentityPayload(body),
     });
     if (!result) {
       return c.json({ error: 'not found' }, 404);
