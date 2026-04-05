@@ -31,6 +31,20 @@ const MCP_TOOLS = [
         scope: { type: 'string', description: 'Memory scope: "shared", "agent:<id>", or "session:<id>"', default: 'shared' },
         reason: { type: 'string', description: 'Why this was learned' },
         source: { type: 'string', description: 'Source identifier' },
+        assets: {
+          type: 'array',
+          description: 'Optional asset pointers returned as metadata only',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              ref: { type: 'string' },
+              label: { type: 'string' },
+            },
+            required: ['type', 'ref'],
+          },
+        },
+        noveltyThreshold: { type: 'number', description: 'Novelty merge threshold. Default 0.95, set 0 to disable.' },
         proof_run_id: { type: 'string', description: 'Optional proof run identifier for the learning evidence' },
         proof_iteration_id: { type: 'string', description: 'Optional proof iteration identifier for the learning evidence' },
       },
@@ -74,6 +88,12 @@ const MCP_TOOLS = [
         limit: { type: 'number', description: 'Max memories to return', default: 5 },
         includeState: { type: 'boolean', description: 'Include live working state in prompt', default: false },
         runId: { type: 'string', description: 'Run/session ID when includeState is true' },
+        maxTokens: { type: 'number', description: 'Optional response token budget for tiered trigger/full memory expansion.' },
+        search: {
+          type: 'string',
+          enum: ['vector', 'text', 'hybrid'],
+          description: 'Search mode. Hosted defaults to hybrid.',
+        },
       },
       required: ['context'],
     },
@@ -257,6 +277,8 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
           scope: args.scope ?? 'shared',
           reason: args.reason,
           source: args.source,
+          assets: args.assets,
+          noveltyThreshold: args.noveltyThreshold,
           proof_run_id: args.proof_run_id,
           proof_iteration_id: args.proof_iteration_id,
         }),
@@ -295,6 +317,7 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
           limit: args.limit ?? 5,
           includeState: args.includeState ?? false,
           runId: args.runId,
+          search: args.search,
         }),
       }));
       return response.json();

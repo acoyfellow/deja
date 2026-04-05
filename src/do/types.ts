@@ -4,6 +4,14 @@ export interface Env {
   API_KEY?: string;
 }
 
+export type InjectSearchMode = 'vector' | 'text' | 'hybrid';
+
+export interface AssetPointer {
+  type: string;
+  ref: string;
+  label?: string;
+}
+
 export interface SharedRunIdentity {
   traceId?: string | null;
   workspaceId?: string | null;
@@ -17,6 +25,9 @@ export interface Learning {
   id: string;
   trigger: string;
   learning: string;
+  tier?: 'trigger' | 'full';
+  tags?: string[];
+  assets?: AssetPointer[];
   reason?: string;
   confidence: number;
   source?: string;
@@ -146,7 +157,9 @@ export interface LoopRunsOperationsContext {
     confidence?: number,
     reason?: string,
     source?: string,
+    assets?: Array<{ type: string; ref: string; label?: string }>,
     identity?: SharedRunIdentity,
+    noveltyThreshold?: number,
   ): Promise<Learning>;
 }
 
@@ -156,6 +169,7 @@ export interface MemoryOperationsContext {
   createEmbedding(text: string): Promise<number[]>;
   filterScopesByPriority(scopes: string[]): string[];
   convertDbLearning(dbLearning: any): Learning;
+  sql?: DurableObjectState['storage']['sql'];
 }
 
 export interface SecretsOperationsContext {
@@ -178,6 +192,8 @@ export interface WorkingStateOperationsContext {
     confidence?: number,
     reason?: string,
     source?: string,
+    assets?: Array<{ type: string; ref: string; label?: string }>,
     identity?: SharedRunIdentity,
+    noveltyThreshold?: number,
   ): Promise<Learning>;
 }

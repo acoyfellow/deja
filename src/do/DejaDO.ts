@@ -62,6 +62,7 @@ export class DejaDO extends DurableObject<Env> {
       createEmbedding: (text: string) => this.createEmbedding(text),
       filterScopesByPriority,
       convertDbLearning,
+      sql: this.ctx.storage.sql,
     };
   }
 
@@ -98,8 +99,27 @@ export class DejaDO extends DurableObject<Env> {
     return cleanupLearnings(this.getMemoryContext());
   }
 
-  async inject(scopes: string[], context: string, limit: number = 5, format: 'prompt' | 'learnings' = 'prompt', identity?: SharedRunIdentity): Promise<InjectResult> {
-    return injectMemories(this.getMemoryContext(), scopes, context, limit, format, identity);
+  async inject(
+    scopes: string[],
+    context: string,
+    limit: number = 5,
+    format: 'prompt' | 'learnings' = 'prompt',
+    search: 'vector' | 'text' | 'hybrid' = 'hybrid',
+    identity?: SharedRunIdentity,
+    maxTokens?: number,
+    tagBoost: boolean = true,
+  ): Promise<InjectResult> {
+    return injectMemories(
+      this.getMemoryContext(),
+      scopes,
+      context,
+      limit,
+      format,
+      search,
+      identity,
+      maxTokens,
+      tagBoost,
+    );
   }
 
   async injectTrace(
@@ -112,8 +132,29 @@ export class DejaDO extends DurableObject<Env> {
     return injectMemoriesWithTrace(this.getMemoryContext(), scopes, context, limit, threshold, identity);
   }
 
-  async learn(scope: string, trigger: string, learning: string, confidence: number = 0.5, reason?: string, source?: string, identity?: SharedRunIdentity): Promise<Learning> {
-    return learnMemory(this.getMemoryContext(), scope, trigger, learning, confidence, reason, source, identity);
+  async learn(
+    scope: string,
+    trigger: string,
+    learning: string,
+    confidence: number = 0.5,
+    reason?: string,
+    source?: string,
+    assets?: Array<{ type: string; ref: string; label?: string }>,
+    identity?: SharedRunIdentity,
+    noveltyThreshold?: number,
+  ): Promise<Learning> {
+    return learnMemory(
+      this.getMemoryContext(),
+      scope,
+      trigger,
+      learning,
+      confidence,
+      reason,
+      source,
+      assets,
+      identity,
+      noveltyThreshold,
+    );
   }
 
   async confirm(id: string, identity?: SharedRunIdentity): Promise<Learning | null> {

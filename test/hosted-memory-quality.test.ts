@@ -20,6 +20,7 @@ function makeLearningRow(overrides: Record<string, unknown> = {}) {
     scope: 'shared',
     supersedes: null,
     type: 'memory',
+    tags: null,
     embedding: JSON.stringify([0.11, 0.22, 0.33]),
     createdAt: '2026-03-01T00:00:00.000Z',
     lastRecalledAt: null,
@@ -95,11 +96,15 @@ function makeMemoryContext(db: any, matches: Array<{ id: string; score: number }
     insert: jest.fn().mockResolvedValue(undefined),
     deleteByIds: jest.fn().mockResolvedValue(undefined),
   };
+  const sql = {
+    exec: jest.fn().mockReturnValue([]),
+  };
 
   return {
     ctx: {
       env: { VECTORIZE: vectorize },
       initDB: jest.fn().mockResolvedValue(db),
+      sql,
       createEmbedding,
       filterScopesByPriority: (scopes: string[]) => scopes,
       convertDbLearning,
@@ -107,6 +112,7 @@ function makeMemoryContext(db: any, matches: Array<{ id: string; score: number }
     spies: {
       createEmbedding,
       vectorize,
+      sql,
     },
   };
 }
@@ -127,7 +133,7 @@ describe('hosted memory quality', () => {
     jest.clearAllMocks();
   });
 
-  test('learnMemory deduplicates a near-identical Vectorize neighbor and records proof ids', async () => {
+  test('learnMemory merges a near-identical Vectorize neighbor and records proof ids', async () => {
     const existingRow = makeLearningRow();
     const { db, spies } = makeDb([existingRow]);
     const { ctx, spies: ctxSpies } = makeMemoryContext(db, [{ id: 'mem-1', score: 0.97 }]);
@@ -140,14 +146,17 @@ describe('hosted memory quality', () => {
       0.8,
       undefined,
       undefined,
+      undefined,
       { proofRunId: 'proof-run-1', proofIterationId: 'proof-run-1:1' },
     );
 
     expect(result.id).toBe('mem-1');
     expect(db.insert).not.toHaveBeenCalled();
-    expect(ctxSpies.vectorize.insert).not.toHaveBeenCalled();
+    expect(ctxSpies.vectorize.insert).toHaveBeenCalledTimes(1);
     expect(spies.updateSet).toHaveBeenCalledWith(
       expect.objectContaining({
+        confidence: 0.8,
+        createdAt: expect.any(String),
         proofRunId: 'proof-run-1',
         proofIterationId: 'proof-run-1:1',
       }),
@@ -160,6 +169,66 @@ describe('hosted memory quality', () => {
       proofRunId: 'proof-run-1',
       proofIterationId: 'proof-run-1:1',
     });
+  });
+
+  test('learnMemory keeps the higher-confidence wording and appends new reason/source', async () => {
+    const existingRow = makeLearningRow({
+      reason: 'Original incident',
+      source: 'runbook',
+      confidence: 0.6,
+    });
+    const { db, spies } = makeDb([existingRow]);
+    const { ctx } = makeMemoryContext(db, [{ id: 'mem-1', score: 0.99 }]);
+
+    const result = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploying auth service',
+      'run smoke tests before switching traffic',
+      0.9,
+      'Validated during hotfix',
+      'pager',
+    );
+
+    expect(result.id).toBe('mem-1');
+    expect(result.trigger).toBe('deploying auth service');
+    expect(result.learning).toBe('run smoke tests before switching traffic');
+    expect(result.reason).toBe('Original incident\nValidated during hotfix');
+    expect(result.source).toBe('runbook\npager');
+    expect(result.confidence).toBe(0.9);
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(spies.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'deploying auth service',
+        learning: 'run smoke tests before switching traffic',
+        reason: 'Original incident\nValidated during hotfix',
+        source: 'runbook\npager',
+        confidence: 0.9,
+      }),
+    );
+  });
+
+  test('learnMemory inserts a new row when noveltyThreshold is disabled', async () => {
+    const existingRow = makeLearningRow();
+    const { db } = makeDb([existingRow]);
+    const { ctx, spies: ctxSpies } = makeMemoryContext(db, [{ id: 'mem-1', score: 0.99 }]);
+
+    const result = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploying auth service',
+      'run smoke tests before switching traffic',
+      0.8,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      0,
+    );
+
+    expect(result.id).not.toBe('mem-1');
+    expect(db.insert).toHaveBeenCalled();
+    expect(ctxSpies.vectorize.insert).toHaveBeenCalledTimes(1);
   });
 
   test('learnMemory inserts conflicting memories with supersedes and crushes the old confidence', async () => {
@@ -263,6 +332,212 @@ describe('hosted memory quality', () => {
     expect(result.learnings[0].type).toBe('anti-pattern');
     expect(result.learnings[0].identity?.proofRunId).toBe('proof-run-9');
     expect(result.learnings[0].identity?.proofIterationId).toBe('proof-run-9:2');
+  });
+
+  test('injectMemories hybrid mode unions vector and text results and preserves vector order', async () => {
+    const vectorFirst = makeLearningRow({ id: 'vec-1', trigger: 'semantic auth deploy' });
+    const vectorSecond = makeLearningRow({ id: 'vec-2', trigger: 'semantic billing deploy' });
+    const textOnly = makeLearningRow({ id: 'txt-1', trigger: 'keyword rollback checklist' });
+    const allRows = [vectorFirst, vectorSecond, textOnly];
+    const { db, spies } = makeDb(allRows);
+    const { ctx, spies: ctxSpies } = makeMemoryContext(db, [
+      { id: 'vec-1', score: 0.95 },
+      { id: 'vec-2', score: 0.9 },
+    ]);
+
+    const sqlRows = [{ id: 'vec-2' }, { id: 'txt-1' }];
+    ctxSpies.sql.exec.mockReturnValue(sqlRows);
+
+    const result = await injectMemories(
+      ctx as any,
+      ['shared'],
+      'deploy auth rollback',
+      5,
+      'learnings',
+      'hybrid',
+      undefined,
+    );
+
+    expect(ctxSpies.vectorize.query).toHaveBeenCalledTimes(1);
+    expect(ctxSpies.sql.exec).toHaveBeenCalledTimes(1);
+    expect(result.learnings.map((learning) => learning.id)).toEqual(['vec-1', 'vec-2', 'txt-1']);
+    expect(spies.updateWhere).toHaveBeenCalledTimes(3);
+  });
+
+  test('injectMemories search modes return expected subsets', async () => {
+    const vectorOnly = makeLearningRow({ id: 'vec-1', trigger: 'semantic auth deploy' });
+    const textOnly = makeLearningRow({ id: 'txt-1', trigger: 'keyword rollback checklist' });
+    const { db } = makeDb([vectorOnly, textOnly], [vectorOnly], [textOnly]);
+    const { ctx, spies: ctxSpies } = makeMemoryContext(db, [{ id: 'vec-1', score: 0.95 }]);
+
+    ctxSpies.sql.exec.mockReturnValue([{ id: 'txt-1' }]);
+
+    const hybrid = await injectMemories(ctx as any, ['shared'], 'deploy auth rollback', 5, 'learnings', 'hybrid');
+    const vector = await injectMemories(ctx as any, ['shared'], 'deploy auth rollback', 5, 'learnings', 'vector');
+    const text = await injectMemories(ctx as any, ['shared'], 'deploy auth rollback', 5, 'learnings', 'text');
+
+    expect(hybrid.learnings.map((learning) => learning.id)).toEqual(['vec-1', 'txt-1']);
+    expect(vector.learnings.map((learning) => learning.id)).toEqual(['vec-1']);
+    expect(text.learnings.map((learning) => learning.id)).toEqual(['txt-1']);
+    expect(ctxSpies.vectorize.query).toHaveBeenCalledTimes(2);
+  });
+
+  test('injectMemories maxTokens keeps total estimated tokens within budget', async () => {
+    const rows = [
+      makeLearningRow({
+        id: 'mem-1',
+        trigger: 'deploy auth service',
+        learning: 'x'.repeat(160),
+        reason: 'r'.repeat(80),
+        source: 's'.repeat(40),
+      }),
+      makeLearningRow({
+        id: 'mem-2',
+        trigger: 'rollback billing worker',
+        learning: 'y'.repeat(120),
+        reason: 'r2',
+        source: 's2',
+      }),
+    ];
+    const { db } = makeDb(rows);
+    const { ctx } = makeMemoryContext(db, [
+      { id: 'mem-1', score: 0.98 },
+      { id: 'mem-2', score: 0.95 },
+    ]);
+
+    const result = await injectMemories(
+      ctx as any,
+      ['shared'],
+      'deploy rollback',
+      5,
+      'learnings',
+      'vector',
+      undefined,
+      100,
+    );
+
+    const estimatedTokens = result.learnings.reduce((total, learning) => {
+      const text =
+        learning.tier === 'full'
+          ? `${learning.trigger}${learning.learning}${learning.confidence}${learning.reason ?? ''}${learning.source ?? ''}`
+          : learning.trigger;
+      return total + Math.ceil(text.length / 4);
+    }, 0);
+
+    expect(estimatedTokens).toBeLessThanOrEqual(100);
+    expect(result.learnings[0].tier).toBe('full');
+    expect(result.learnings[1].tier).toBe('trigger');
+  });
+
+  test('learnMemory extracts tags from trigger and learning text', async () => {
+    const { db, spies } = makeDb();
+    const { ctx } = makeMemoryContext(db, []);
+
+    const result = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploying Auth Service to staging',
+      'always run migrations in a transaction for the Auth Service API',
+    );
+
+    expect(result.tags).toContain('Auth Service');
+    expect(spies.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tags: expect.stringContaining('Auth Service'),
+      }),
+    );
+  });
+
+  test('injectMemories boosts learnings with 2+ overlapping tags', async () => {
+    const authRow = makeLearningRow({
+      id: 'auth-1',
+      trigger: 'deploying Auth Service to staging',
+      learning: 'run migrations through the Auth Service API',
+      tags: JSON.stringify(['Auth Service', 'staging', 'Service API']),
+    });
+    const genericRow = makeLearningRow({
+      id: 'generic-1',
+      trigger: 'deploying worker',
+      learning: 'check logs before rollout',
+      tags: JSON.stringify(['worker', 'logs']),
+    });
+    const { db } = makeDb([genericRow, authRow]);
+    const { ctx } = makeMemoryContext(db, [
+      { id: 'generic-1', score: 0.99 },
+      { id: 'auth-1', score: 0.95 },
+    ]);
+
+    const result = await injectMemories(
+      ctx as any,
+      ['shared'],
+      'staging Auth Service API deploy',
+      5,
+      'learnings',
+      'vector',
+    );
+
+    expect(result.learnings[0].id).toBe('auth-1');
+  });
+
+  test('learnMemory stores asset pointers and injectMemories returns them without affecting rank', async () => {
+    const { db, spies } = makeDb();
+    const { ctx } = makeMemoryContext(db, []);
+
+    const learned = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploy auth service',
+      'attach runbook and trace',
+      0.8,
+      undefined,
+      undefined,
+      [
+        { type: 'trace', ref: 'lab-run-42' },
+        { type: 'url', ref: 'https://example.com/runbook', label: 'Runbook' },
+      ],
+      undefined,
+      0.95,
+    );
+
+    expect(learned.assets).toEqual([
+      { type: 'trace', ref: 'lab-run-42' },
+      { type: 'url', ref: 'https://example.com/runbook', label: 'Runbook' },
+    ]);
+    expect(spies.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assets: expect.stringContaining('lab-run-42'),
+      }),
+    );
+
+    const genericRow = makeLearningRow({
+      id: 'generic-1',
+      trigger: 'deploying worker',
+      learning: 'check logs before rollout',
+      assets: JSON.stringify([{ type: 'trace', ref: 'zzz' }]),
+    });
+    const assetRow = makeLearningRow({
+      id: 'asset-1',
+      trigger: 'deploy auth service',
+      learning: 'attach runbook and trace',
+      assets: JSON.stringify([{ type: 'trace', ref: 'lab-run-42' }]),
+    });
+    const { db: injectDb } = makeDb([genericRow, assetRow]);
+    const { ctx: injectCtx } = makeMemoryContext(injectDb, [
+      { id: 'generic-1', score: 0.99 },
+      { id: 'asset-1', score: 0.95 },
+    ]);
+
+    const injected = await injectMemories(
+      injectCtx as any,
+      ['shared'],
+      'deploy auth service',
+      5,
+      'learnings',
+      'vector',
+    );
+
+    expect(injected.learnings[0].id).toBe('generic-1');
+    expect(injected.learnings[1].assets).toEqual([{ type: 'trace', ref: 'lab-run-42' }]);
   });
 });
 

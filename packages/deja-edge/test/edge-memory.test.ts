@@ -118,6 +118,50 @@ describe('deja-edge: createEdgeMemory', () => {
     expect(results.length).toBe(0)
   })
 
+  test('inject respects maxTokens and prioritizes higher-ranked learnings', () => {
+    freshMemory()
+    memory.learn('deploy auth service', 'x'.repeat(160), { scope: 'shared' })
+    memory.learn('rollback billing worker', 'y'.repeat(120), { scope: 'shared' })
+
+    const result = memory.inject('deploy rollback', { maxTokens: 100, format: 'learnings' })
+    const estimatedTokens = result.learnings.reduce((total, learning) => {
+      const text =
+        learning.tier === 'full'
+          ? `${learning.trigger}${learning.learning}${learning.confidence}${learning.reason ?? ''}${learning.source ?? ''}`
+          : learning.trigger
+      return total + Math.ceil(text.length / 4)
+    }, 0)
+
+    expect(estimatedTokens).toBeLessThanOrEqual(100)
+    expect(result.learnings.length).toBeGreaterThan(0)
+    expect(result.learnings[0].tier).toBe('full')
+  })
+
+  test('inject boosts memories with 2+ overlapping tags', () => {
+    freshMemory()
+    memory.learn('deploying Auth Service to staging', 'run migrations through the Auth Service API', {
+      scope: 'shared',
+    })
+    memory.learn('deploying worker', 'check logs before rollout', { scope: 'shared' })
+
+    const result = memory.inject('staging Auth Service API deploy', { format: 'learnings' })
+    expect(result.learnings[0].trigger).toContain('Auth Service')
+  })
+
+  test('learn stores asset pointers and inject returns them without affecting rank', () => {
+    freshMemory()
+    const learned = memory.learn('deploy auth service', 'attach runbook and trace', {
+      scope: 'shared',
+      assets: [{ type: 'trace', ref: 'lab-run-42' }],
+    }) as any
+
+    expect(learned.assets).toEqual([{ type: 'trace', ref: 'lab-run-42' }])
+
+    memory.learn('deploying worker', 'check logs before rollout', { scope: 'shared' })
+    const listed = memory.list() as any[]
+    expect(listed.some(learning => learning.assets?.[0]?.ref === 'lab-run-42')).toBe(true)
+  })
+
   test('recall respects limit', () => {
     freshMemory()
     for (let i = 0; i < 10; i++) {

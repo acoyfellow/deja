@@ -29,22 +29,40 @@ export class DejaEdgeDO extends DurableObject {
     try {
       // POST /remember — store a memory
       if (method === 'POST' && path === '/remember') {
-        const body = await request.json<{ text: string }>()
+        const body = await request.json<{ text?: string; trigger?: string; learning?: string; confidence?: number; scope?: string; reason?: string; source?: string; noveltyThreshold?: number }>()
+        if (body.trigger && body.learning) {
+          const result = this.memory.learn(body.trigger, body.learning, {
+            confidence: body.confidence,
+            scope: body.scope,
+            reason: body.reason,
+            source: body.source,
+            noveltyThreshold: body.noveltyThreshold,
+          })
+          return json(result, 201)
+        }
         if (!body.text) return json({ error: 'text is required' }, 400)
-        const result = this.memory.remember(body.text)
+        const result = this.memory.remember(body.text, { source: body.source })
         return json(result, 201)
       }
 
       // POST /recall — search memories
       if (method === 'POST' && path === '/recall') {
-        const body = await request.json<{ context: string; limit?: number; threshold?: number; minConfidence?: number }>()
+        const body = await request.json<{ context: string; limit?: number; threshold?: number; minConfidence?: number; maxTokens?: number; format?: 'prompt' | 'learnings'; search?: 'text' }>()
         if (!body.context) return json({ error: 'context is required' }, 400)
-        const results = this.memory.recall(body.context, {
+        const result = this.memory.inject(body.context, {
           limit: body.limit,
           threshold: body.threshold,
           minConfidence: body.minConfidence,
+          maxTokens: body.maxTokens,
+          format: body.format,
+          search: body.search,
         })
-        return json(results)
+        return json(body.format === 'learnings' || body.maxTokens ? result : result.learnings.map(learning => ({
+          id: learning.id,
+          text: learning.text,
+          confidence: learning.confidence,
+          createdAt: learning.createdAt,
+        })))
       }
 
       // POST /confirm/:id

@@ -29,6 +29,7 @@ export interface Learning {
   id: string
   trigger: string
   learning: string
+  assets?: Array<{ type: string; ref: string; label?: string }>
   reason?: string
   confidence: number
   source?: string
@@ -38,6 +39,7 @@ export interface Learning {
   createdAt: string
   lastRecalledAt?: string
   recallCount: number
+  tier?: 'trigger' | 'full'
   identity?: SharedRunIdentity
 }
 
@@ -124,6 +126,8 @@ export interface LearnOptions {
   scope?: string
   reason?: string
   source?: string
+  assets?: Array<{ type: string; ref: string; label?: string }>
+  noveltyThreshold?: number
   identity?: SharedRunIdentity
 }
 
@@ -131,6 +135,9 @@ export interface InjectOptions {
   scopes?: string[]
   limit?: number
   format?: 'prompt' | 'learnings'
+  search?: 'vector' | 'text' | 'hybrid'
+  maxTokens?: number
+  tagBoost?: boolean
   includeState?: boolean
   runId?: string
   identity?: SharedRunIdentity
@@ -332,21 +339,24 @@ type RawLearningNeighbor = Learning & { similarity_score: number }
 // ============================================================================
 
 function mapLearning(raw: Learning): Learning {
-  return {
+  const mapped: Learning = {
     id: raw.id,
     trigger: raw.trigger,
     learning: raw.learning,
-    reason: raw.reason ?? undefined,
     confidence: raw.confidence,
-    source: raw.source ?? undefined,
     scope: raw.scope,
-    supersedes: raw.supersedes ?? undefined,
     type: raw.type ?? 'memory',
     createdAt: raw.createdAt,
-    lastRecalledAt: raw.lastRecalledAt ?? undefined,
     recallCount: raw.recallCount ?? 0,
-    identity: raw.identity ?? undefined,
   }
+  if (raw.assets !== undefined) mapped.assets = raw.assets
+  if (raw.reason !== undefined) mapped.reason = raw.reason
+  if (raw.source !== undefined) mapped.source = raw.source
+  if (raw.supersedes !== undefined) mapped.supersedes = raw.supersedes
+  if (raw.lastRecalledAt !== undefined) mapped.lastRecalledAt = raw.lastRecalledAt
+  if (raw.tier !== undefined) mapped.tier = raw.tier
+  if (raw.identity !== undefined) mapped.identity = raw.identity
+  return mapped
 }
 
 function toWireStatePayload(payload: Partial<WorkingStatePayload>): RawWorkingStatePayload {
@@ -520,6 +530,8 @@ export function deja(url: string, options: ClientOptions = {}): DejaClient {
             scope: opts.scope ?? 'shared',
             reason: opts.reason,
             source: opts.source,
+            assets: opts.assets,
+            noveltyThreshold: opts.noveltyThreshold,
           },
           opts.identity,
         ),
@@ -546,6 +558,9 @@ export function deja(url: string, options: ClientOptions = {}): DejaClient {
             scopes: opts.scopes ?? ['shared'],
             limit: opts.limit ?? 5,
             format: opts.format ?? 'prompt',
+            search: opts.search,
+            maxTokens: opts.maxTokens,
+            tagBoost: opts.tagBoost,
             includeState: opts.includeState,
             runId: opts.runId,
           },

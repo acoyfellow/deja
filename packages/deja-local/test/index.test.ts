@@ -140,6 +140,128 @@ describe('deduplication', () => {
   })
 })
 
+describe('structured learn novelty gate', () => {
+  test('semantically identical learnings merge into one structured memory', async () => {
+    const semanticEmbed = (text: string): number[] => {
+      const lower = text.toLowerCase()
+      if (lower.includes('auth service') && (lower.includes('migrations') || lower.includes('schema'))) {
+        return [1, 0, 0]
+      }
+      if (lower.includes('redis')) {
+        return [0, 1, 0]
+      }
+      return [0, 0, 1]
+    }
+
+    const p = tmpDb()
+    cleanup.push(p)
+    const m = createMemory({ path: p, embed: semanticEmbed, threshold: 0.1 })
+
+    const first = await m.learn('deploying Auth Service', 'run database migrations in a transaction', {
+      confidence: 0.6,
+      reason: 'first incident',
+      source: 'ops',
+    } as any)
+    const second = await m.learn('shipping Auth Service', 'wrap schema changes in a transaction', {
+      confidence: 0.9,
+      reason: 'second incident',
+      source: 'pager',
+    } as any)
+
+    expect(m.size).toBe(1)
+    expect(second.id).toBe(first.id)
+    expect((second as any).trigger).toBe('shipping Auth Service')
+    expect((second as any).learning).toBe('wrap schema changes in a transaction')
+    expect((second as any).reason).toBe('first incident\nsecond incident')
+    expect((second as any).source).toBe('ops\npager')
+    m.close()
+  })
+
+  test('different structured learnings remain distinct', async () => {
+    const semanticEmbed = (text: string): number[] => {
+      const lower = text.toLowerCase()
+      if (lower.includes('auth service')) return [1, 0, 0]
+      if (lower.includes('redis')) return [0, 1, 0]
+      return [0, 0, 1]
+    }
+
+    const p = tmpDb()
+    cleanup.push(p)
+    const m = createMemory({ path: p, embed: semanticEmbed, threshold: 0.1 })
+
+    await m.learn('deploying Auth Service', 'run database migrations in a transaction', { confidence: 0.6 } as any)
+    await m.learn('debugging Redis cache', 'clear stale keys before replaying jobs', { confidence: 0.6 } as any)
+
+    expect(m.size).toBe(2)
+    m.close()
+  })
+})
+
+describe('inject maxTokens', () => {
+  test('returns higher-relevance learnings first within the token budget', async () => {
+    const m = mem()
+    await m.learn('deploy auth service', 'x'.repeat(160), { scope: 'shared' })
+    await m.learn('rollback billing worker', 'y'.repeat(120), { scope: 'shared' })
+
+    const result = await m.inject('deploy rollback', { maxTokens: 100, format: 'learnings' })
+    const estimatedTokens = result.learnings.reduce((total, learning) => {
+      const text =
+        learning.tier === 'full'
+          ? `${learning.trigger}${learning.learning}${learning.confidence}${learning.reason ?? ''}${learning.source ?? ''}`
+          : learning.trigger
+      return total + Math.ceil(text.length / 4)
+    }, 0)
+
+    expect(estimatedTokens).toBeLessThanOrEqual(100)
+    expect(result.learnings[0].tier).toBe('full')
+    expect(result.learnings).toHaveLength(1)
+    m.close()
+  })
+})
+
+describe('entity tags', () => {
+  test('structured learn stores extracted tags', async () => {
+    const m = mem()
+    const learning = await m.learn(
+      'deploying Auth Service to staging',
+      'always run migrations in a transaction for the Auth Service API',
+      { scope: 'shared' },
+    ) as any
+
+    expect(learning.tags).toContain('Auth Service')
+    m.close()
+  })
+
+  test('inject boosts memories with 2+ overlapping tags', async () => {
+    const m = mem()
+    await m.learn('deploying worker', 'check logs before rollout', { scope: 'shared' })
+    await m.learn('deploying Auth Service to staging', 'run migrations through the Auth Service API', { scope: 'shared' })
+
+    const result = await m.inject('staging Auth Service API deploy', { format: 'learnings' })
+
+    expect(result.learnings[0].trigger).toContain('Auth Service')
+    m.close()
+  })
+})
+
+describe('asset pointers', () => {
+  test('structured learn returns asset pointers and inject preserves them', async () => {
+    const m = mem()
+    const assets = [{ type: 'trace', ref: 'lab-run-42', label: 'rollback trace' }]
+    const learning = await m.learn(
+      'deploying Auth Service',
+      'check migration order',
+      { scope: 'shared', assets } as any,
+    ) as any
+
+    expect(learning.assets).toEqual(assets)
+
+    const listed = m.list() as any[]
+    expect(listed.some((entry: any) => entry.id === learning.id)).toBe(true)
+    m.close()
+  })
+})
+
 // ============================================================================
 // Trust guarantee: AUDITABILITY
 // ============================================================================

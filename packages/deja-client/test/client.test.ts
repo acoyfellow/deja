@@ -37,6 +37,8 @@ const sampleLearning: Learning = {
   scope: 'shared',
   supersedes: 'older-memory',
   type: 'memory',
+  tier: 'full',
+  assets: [{ type: 'trace', ref: 'lab-run-42', label: 'run trace' }],
   createdAt: '2026-02-04T12:00:00.000Z',
   lastRecalledAt: '2026-02-05T12:00:00.000Z',
   recallCount: 4,
@@ -107,6 +109,8 @@ describe('deja-client', () => {
         scope: 'shared',
         reason: undefined,
         source: undefined,
+        assets: undefined,
+        noveltyThreshold: undefined,
       })
       expect(result).toEqual(sampleLearning)
     })
@@ -125,6 +129,7 @@ describe('deja-client', () => {
         scope: 'agent:deployer',
         reason: 'Learned from production incident',
         source: 'ops-runbook',
+        assets: [{ type: 'trace', ref: 'trace-7', label: 'incident trace' }],
         identity: sampleIdentity,
       })
 
@@ -135,7 +140,32 @@ describe('deja-client', () => {
         scope: 'agent:deployer',
         reason: 'Learned from production incident',
         source: 'ops-runbook',
+        assets: [{ type: 'trace', ref: 'trace-7', label: 'incident trace' }],
+        noveltyThreshold: undefined,
         identity: sampleIdentity,
+      })
+    })
+
+    test('includes noveltyThreshold when provided', async () => {
+      let capturedBody: unknown = null
+
+      const mockFetch = mock(async (_url: string, init?: RequestInit) => {
+        capturedBody = init?.body ? JSON.parse(init.body as string) : null
+        return mockResponse(sampleLearning)
+      })
+
+      const mem = deja('https://deja.example.com', { fetch: mockFetch as typeof fetch })
+      await mem.learn('auth deploy', 'run smoke tests first', { noveltyThreshold: 0.91 })
+
+      expect(capturedBody).toEqual({
+        trigger: 'auth deploy',
+        learning: 'run smoke tests first',
+        confidence: 0.8,
+        scope: 'shared',
+        reason: undefined,
+        source: undefined,
+        assets: undefined,
+        noveltyThreshold: 0.91,
       })
     })
 
@@ -231,6 +261,8 @@ describe('deja-client', () => {
         scopes: ['shared'],
         limit: 5,
         format: 'prompt',
+        search: undefined,
+        maxTokens: undefined,
         includeState: undefined,
         runId: undefined,
       })
@@ -265,11 +297,42 @@ describe('deja-client', () => {
         scopes: ['agent:deployer', 'shared'],
         limit: 10,
         format: 'learnings',
+        search: undefined,
+        maxTokens: undefined,
         includeState: true,
         runId: 'run-1',
         identity: sampleIdentity,
       })
       expect(result).toEqual(sampleInjectResult)
+    })
+
+    test('sends maxTokens and maps tier on learnings', async () => {
+      let capturedBody: unknown = null
+
+      const mockFetch = mock(async (_url: string, init?: RequestInit) => {
+        capturedBody = init?.body ? JSON.parse(init.body as string) : null
+        return mockResponse({
+          prompt: 'Auth Service',
+          learnings: [
+            { ...sampleLearning, tier: 'trigger', learning: '', reason: undefined, source: undefined },
+          ],
+        })
+      })
+
+      const mem = deja('https://deja.example.com', { fetch: mockFetch as typeof fetch })
+      const result = await mem.inject('auth deploy', { maxTokens: 100 })
+
+      expect(capturedBody).toEqual({
+        context: 'auth deploy',
+        scopes: ['shared'],
+        limit: 5,
+        format: 'prompt',
+        search: undefined,
+        maxTokens: 100,
+        includeState: undefined,
+        runId: undefined,
+      })
+      expect(result.learnings[0].tier).toBe('trigger')
     })
   })
 

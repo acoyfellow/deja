@@ -27,7 +27,9 @@ interface RouteHandlers {
     confidence?: number,
     reason?: string,
     source?: string,
+    assets?: Array<{ type: string; ref: string; label?: string }>,
     identity?: SharedRunIdentity,
+    noveltyThreshold?: number,
   ): Promise<Learning>;
   confirm(id: string, identity?: SharedRunIdentity): Promise<Learning | null>;
   reject(id: string, identity?: SharedRunIdentity): Promise<Learning | null>;
@@ -37,7 +39,10 @@ interface RouteHandlers {
     context: string,
     limit?: number,
     format?: 'prompt' | 'learnings',
+    search?: 'vector' | 'text' | 'hybrid',
     identity?: SharedRunIdentity,
+    maxTokens?: number,
+    tagBoost?: boolean,
   ): Promise<{ prompt: string; learnings: Learning[]; state?: WorkingStateResponse }>;
   injectTrace(
     scopes: string[],
@@ -100,7 +105,9 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.confidence,
       body.reason,
       body.source,
+      body.assets,
       identity,
+      body.noveltyThreshold,
     );
     return c.json(result);
   });
@@ -142,7 +149,10 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.context,
       body.limit,
       body.format,
+      body.search,
       resolveRunIdentityPayload(body),
+      body.maxTokens,
+      body.tagBoost,
     );
 
     const stateRunId =

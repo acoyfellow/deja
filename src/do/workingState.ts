@@ -200,6 +200,7 @@ export async function resolveWorkingState(
         typeof current.state.confidence === 'number' ? current.state.confidence : 0.8,
         'Derived from working state resolve',
         `state:${runId}`,
+        undefined,
         opts.identity,
       );
     }

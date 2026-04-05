@@ -5,6 +5,8 @@ export const learnings = sqliteTable('learnings', {
   trigger: text('trigger').notNull(),
   learning: text('learning').notNull(),
   reason: text('reason'),
+  tags: text('tags'),
+  assets: text('assets'),
   confidence: real('confidence').default(1.0),
   source: text('source'),
   scope: text('scope').notNull(), // Added for scope support
@@ -20,6 +22,12 @@ export const learnings = sqliteTable('learnings', {
   runId: text('run_id'),
   proofRunId: text('proof_run_id'),
   proofIterationId: text('proof_iteration_id'),
+});
+
+export const learningsText = sqliteTable('learnings_fts', {
+  rowid: integer('rowid'),
+  trigger: text('trigger'),
+  learning: text('learning'),
 });
 
 export const secrets = sqliteTable('secrets', {

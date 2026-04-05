@@ -1,0 +1,5707 @@
+{
+  "memories": [
+    {
+      "trigger": "deploying Auth Service to staging",
+      "learning": "run migrations in a transaction before switching traffic; document the Auth Service rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Service"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-0",
+          "label": "Auth Service deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Billing Worker to staging",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Billing Worker rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Gateway API to staging",
+      "learning": "drain the worker queue before restarting the service; document the Gateway API rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Gateway API"
+      ]
+    },
+    {
+      "trigger": "deploying Orders Service to staging",
+      "learning": "pin the config bundle version before promoting the release; document the Orders Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Orders Service"
+      ]
+    },
+    {
+      "trigger": "deploying Search API to staging",
+      "learning": "capture the rollback trace before the canary step begins; document the Search API rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Search API"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-4",
+          "label": "Search API deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Notification Worker to staging",
+      "learning": "run migrations in a transaction before switching traffic; document the Notification Worker rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Metrics Pipeline to staging",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Metrics Pipeline rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Metrics Pipeline"
+      ]
+    },
+    {
+      "trigger": "deploying Cache Database to staging",
+      "learning": "drain the worker queue before restarting the service; document the Cache Database rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Database"
+      ]
+    },
+    {
+      "trigger": "deploying Audit Service to staging",
+      "learning": "pin the config bundle version before promoting the release; document the Audit Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Audit Service"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-8",
+          "label": "Audit Service deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Checkout Gateway to staging",
+      "learning": "capture the rollback trace before the canary step begins; document the Checkout Gateway rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Checkout Gateway"
+      ]
+    },
+    {
+      "trigger": "deploying Auth Service to production",
+      "learning": "run migrations in a transaction before switching traffic; document the Auth Service rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Service"
+      ]
+    },
+    {
+      "trigger": "deploying Billing Worker to production",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Billing Worker rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Gateway API to production",
+      "learning": "drain the worker queue before restarting the service; document the Gateway API rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Gateway API"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-12",
+          "label": "Gateway API deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Orders Service to production",
+      "learning": "pin the config bundle version before promoting the release; document the Orders Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Orders Service"
+      ]
+    },
+    {
+      "trigger": "deploying Search API to production",
+      "learning": "capture the rollback trace before the canary step begins; document the Search API rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Search API"
+      ]
+    },
+    {
+      "trigger": "deploying Notification Worker to production",
+      "learning": "run migrations in a transaction before switching traffic; document the Notification Worker rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Metrics Pipeline to production",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Metrics Pipeline rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Metrics Pipeline"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-16",
+          "label": "Metrics Pipeline deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Cache Database to production",
+      "learning": "drain the worker queue before restarting the service; document the Cache Database rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Database"
+      ]
+    },
+    {
+      "trigger": "deploying Audit Service to production",
+      "learning": "pin the config bundle version before promoting the release; document the Audit Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Audit Service"
+      ]
+    },
+    {
+      "trigger": "deploying Checkout Gateway to production",
+      "learning": "capture the rollback trace before the canary step begins; document the Checkout Gateway rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Checkout Gateway"
+      ]
+    },
+    {
+      "trigger": "deploying Auth Service to canary",
+      "learning": "run migrations in a transaction before switching traffic; document the Auth Service rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Service"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-20",
+          "label": "Auth Service deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Billing Worker to canary",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Billing Worker rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Gateway API to canary",
+      "learning": "drain the worker queue before restarting the service; document the Gateway API rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Gateway API"
+      ]
+    },
+    {
+      "trigger": "deploying Orders Service to canary",
+      "learning": "pin the config bundle version before promoting the release; document the Orders Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Orders Service"
+      ]
+    },
+    {
+      "trigger": "deploying Search API to canary",
+      "learning": "capture the rollback trace before the canary step begins; document the Search API rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Search API"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-24",
+          "label": "Search API deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Notification Worker to canary",
+      "learning": "run migrations in a transaction before switching traffic; document the Notification Worker rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Metrics Pipeline to canary",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Metrics Pipeline rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Metrics Pipeline"
+      ]
+    },
+    {
+      "trigger": "deploying Cache Database to canary",
+      "learning": "drain the worker queue before restarting the service; document the Cache Database rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Database"
+      ]
+    },
+    {
+      "trigger": "deploying Audit Service to canary",
+      "learning": "pin the config bundle version before promoting the release; document the Audit Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Audit Service"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-28",
+          "label": "Audit Service deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Checkout Gateway to canary",
+      "learning": "capture the rollback trace before the canary step begins; document the Checkout Gateway rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Checkout Gateway"
+      ]
+    },
+    {
+      "trigger": "deploying Auth Service to disaster recovery",
+      "learning": "run migrations in a transaction before switching traffic; document the Auth Service rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Service"
+      ]
+    },
+    {
+      "trigger": "deploying Billing Worker to disaster recovery",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Billing Worker rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Gateway API to disaster recovery",
+      "learning": "drain the worker queue before restarting the service; document the Gateway API rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Gateway API"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-32",
+          "label": "Gateway API deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Orders Service to disaster recovery",
+      "learning": "pin the config bundle version before promoting the release; document the Orders Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Orders Service"
+      ]
+    },
+    {
+      "trigger": "deploying Search API to disaster recovery",
+      "learning": "capture the rollback trace before the canary step begins; document the Search API rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Search API"
+      ]
+    },
+    {
+      "trigger": "deploying Notification Worker to disaster recovery",
+      "learning": "run migrations in a transaction before switching traffic; document the Notification Worker rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Metrics Pipeline to disaster recovery",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Metrics Pipeline rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Metrics Pipeline"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-36",
+          "label": "Metrics Pipeline deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Cache Database to disaster recovery",
+      "learning": "drain the worker queue before restarting the service; document the Cache Database rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Database"
+      ]
+    },
+    {
+      "trigger": "deploying Audit Service to disaster recovery",
+      "learning": "pin the config bundle version before promoting the release; document the Audit Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Audit Service"
+      ]
+    },
+    {
+      "trigger": "deploying Checkout Gateway to disaster recovery",
+      "learning": "capture the rollback trace before the canary step begins; document the Checkout Gateway rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Checkout Gateway"
+      ]
+    },
+    {
+      "trigger": "deploying Auth Service to nightly",
+      "learning": "run migrations in a transaction before switching traffic; document the Auth Service rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Service"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-40",
+          "label": "Auth Service deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Billing Worker to nightly",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Billing Worker rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Gateway API to nightly",
+      "learning": "drain the worker queue before restarting the service; document the Gateway API rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Gateway API"
+      ]
+    },
+    {
+      "trigger": "deploying Orders Service to nightly",
+      "learning": "pin the config bundle version before promoting the release; document the Orders Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Orders Service"
+      ]
+    },
+    {
+      "trigger": "deploying Search API to nightly",
+      "learning": "capture the rollback trace before the canary step begins; document the Search API rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Search API"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-44",
+          "label": "Search API deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Notification Worker to nightly",
+      "learning": "run migrations in a transaction before switching traffic; document the Notification Worker rollback sequence because background jobs duplicated work during a hot restart.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Worker"
+      ]
+    },
+    {
+      "trigger": "deploying Metrics Pipeline to nightly",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; document the Metrics Pipeline rollback sequence because an earlier deploy skipped a silent schema change.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Metrics Pipeline"
+      ]
+    },
+    {
+      "trigger": "deploying Cache Database to nightly",
+      "learning": "drain the worker queue before restarting the service; document the Cache Database rollback sequence because operators need a fast rollback path when latency spikes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Database"
+      ]
+    },
+    {
+      "trigger": "deploying Audit Service to nightly",
+      "learning": "pin the config bundle version before promoting the release; document the Audit Service rollback sequence because a partial rollout once left stale connections behind.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Audit Service"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-48",
+          "label": "Audit Service deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "deploying Checkout Gateway to nightly",
+      "learning": "capture the rollback trace before the canary step begins; document the Checkout Gateway rollback sequence because the last incident came from mismatched config revisions.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Checkout Gateway"
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in Render Queue",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Render Queue because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Render Queue"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-0",
+          "label": "Render Queue log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in Auth Middleware",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Auth Middleware because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Middleware"
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in Config Loader",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in Config Loader because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Config Loader"
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in Billing Adapter",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Billing Adapter because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Adapter"
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in Search Indexer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Search Indexer because a previous refactor broke imports through side effects.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Search Indexer"
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in Feature Flag Service",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Feature Flag Service because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Feature Flag Service"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-5",
+          "label": "Feature Flag Service log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in Session Store",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Session Store because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Session Store"
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in GraphQL Gateway",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in GraphQL Gateway because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "GraphQL Gateway"
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in Notification Scheduler",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Notification Scheduler because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Scheduler"
+      ]
+    },
+    {
+      "trigger": "dependency upgrade in Cache Layer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Cache Layer because a previous refactor broke imports through side effects.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Layer"
+      ]
+    },
+    {
+      "trigger": "bug hunt in Render Queue",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Render Queue because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Render Queue"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-10",
+          "label": "Render Queue log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "bug hunt in Auth Middleware",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Auth Middleware because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Middleware"
+      ]
+    },
+    {
+      "trigger": "bug hunt in Config Loader",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in Config Loader because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Config Loader"
+      ]
+    },
+    {
+      "trigger": "bug hunt in Billing Adapter",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Billing Adapter because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Adapter"
+      ]
+    },
+    {
+      "trigger": "bug hunt in Search Indexer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Search Indexer because a previous refactor broke imports through side effects.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Search Indexer"
+      ]
+    },
+    {
+      "trigger": "bug hunt in Feature Flag Service",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Feature Flag Service because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "Feature Flag Service"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-15",
+          "label": "Feature Flag Service log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "bug hunt in Session Store",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Session Store because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Session Store"
+      ]
+    },
+    {
+      "trigger": "bug hunt in GraphQL Gateway",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in GraphQL Gateway because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "GraphQL Gateway"
+      ]
+    },
+    {
+      "trigger": "bug hunt in Notification Scheduler",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Notification Scheduler because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Scheduler"
+      ]
+    },
+    {
+      "trigger": "bug hunt in Cache Layer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Cache Layer because a previous refactor broke imports through side effects.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Layer"
+      ]
+    },
+    {
+      "trigger": "refactor plan in Render Queue",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Render Queue because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Render Queue"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-20",
+          "label": "Render Queue log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "refactor plan in Auth Middleware",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Auth Middleware because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Middleware"
+      ]
+    },
+    {
+      "trigger": "refactor plan in Config Loader",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in Config Loader because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Config Loader"
+      ]
+    },
+    {
+      "trigger": "refactor plan in Billing Adapter",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Billing Adapter because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Adapter"
+      ]
+    },
+    {
+      "trigger": "refactor plan in Search Indexer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Search Indexer because a previous refactor broke imports through side effects.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Search Indexer"
+      ]
+    },
+    {
+      "trigger": "refactor plan in Feature Flag Service",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Feature Flag Service because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Feature Flag Service"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-25",
+          "label": "Feature Flag Service log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "refactor plan in Session Store",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Session Store because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Session Store"
+      ]
+    },
+    {
+      "trigger": "refactor plan in GraphQL Gateway",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in GraphQL Gateway because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "GraphQL Gateway"
+      ]
+    },
+    {
+      "trigger": "refactor plan in Notification Scheduler",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Notification Scheduler because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Scheduler"
+      ]
+    },
+    {
+      "trigger": "refactor plan in Cache Layer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Cache Layer because a previous refactor broke imports through side effects.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Layer"
+      ]
+    },
+    {
+      "trigger": "performance pass in Render Queue",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Render Queue because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Render Queue"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-30",
+          "label": "Render Queue log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "performance pass in Auth Middleware",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Auth Middleware because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Middleware"
+      ]
+    },
+    {
+      "trigger": "performance pass in Config Loader",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in Config Loader because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Config Loader"
+      ]
+    },
+    {
+      "trigger": "performance pass in Billing Adapter",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Billing Adapter because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Adapter"
+      ]
+    },
+    {
+      "trigger": "performance pass in Search Indexer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Search Indexer because a previous refactor broke imports through side effects.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Search Indexer"
+      ]
+    },
+    {
+      "trigger": "performance pass in Feature Flag Service",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Feature Flag Service because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "Feature Flag Service"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-35",
+          "label": "Feature Flag Service log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "performance pass in Session Store",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Session Store because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Session Store"
+      ]
+    },
+    {
+      "trigger": "performance pass in GraphQL Gateway",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in GraphQL Gateway because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "GraphQL Gateway"
+      ]
+    },
+    {
+      "trigger": "performance pass in Notification Scheduler",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Notification Scheduler because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Scheduler"
+      ]
+    },
+    {
+      "trigger": "performance pass in Cache Layer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Cache Layer because a previous refactor broke imports through side effects.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Layer"
+      ]
+    },
+    {
+      "trigger": "test stabilization in Render Queue",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Render Queue because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Render Queue"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-40",
+          "label": "Render Queue log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "test stabilization in Auth Middleware",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Auth Middleware because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Middleware"
+      ]
+    },
+    {
+      "trigger": "test stabilization in Config Loader",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in Config Loader because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Config Loader"
+      ]
+    },
+    {
+      "trigger": "test stabilization in Billing Adapter",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Billing Adapter because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Adapter"
+      ]
+    },
+    {
+      "trigger": "test stabilization in Search Indexer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Search Indexer because a previous refactor broke imports through side effects.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Search Indexer"
+      ]
+    },
+    {
+      "trigger": "test stabilization in Feature Flag Service",
+      "learning": "prefer explicit constructor injection over shared mutable module state; note it in Feature Flag Service because flaky tests were masking a real concurrency bug.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Feature Flag Service"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-45",
+          "label": "Feature Flag Service log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "test stabilization in Session Store",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; note it in Session Store because the team lost time chasing stale configuration in memory.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Session Store"
+      ]
+    },
+    {
+      "trigger": "test stabilization in GraphQL Gateway",
+      "learning": "snapshot the parsed config object before mutating request-specific values; note it in GraphQL Gateway because profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.85,
+      "scope": "shared",
+      "tags_expected": [
+        "GraphQL Gateway"
+      ]
+    },
+    {
+      "trigger": "test stabilization in Notification Scheduler",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; note it in Notification Scheduler because dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.7,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Scheduler"
+      ]
+    },
+    {
+      "trigger": "test stabilization in Cache Layer",
+      "learning": "record cache key format changes in the module readme before renaming code; note it in Cache Layer because a previous refactor broke imports through side effects.",
+      "confidence": 0.75,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Layer"
+      ]
+    },
+    {
+      "trigger": "planning review with Maya Chen",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Maya Chen explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Maya Chen"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/0",
+          "label": "Maya Chen notes"
+        }
+      ]
+    },
+    {
+      "trigger": "planning review with Jordan Lee",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Jordan Lee explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Jordan Lee"
+      ]
+    },
+    {
+      "trigger": "planning review with Priya Patel",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Priya Patel explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Priya Patel"
+      ]
+    },
+    {
+      "trigger": "planning review with Alex Gomez",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Alex Gomez explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Alex Gomez"
+      ]
+    },
+    {
+      "trigger": "planning review with Sam Rivera",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Sam Rivera explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Sam Rivera"
+      ]
+    },
+    {
+      "trigger": "planning review with Nina Park",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Nina Park explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Nina Park"
+      ]
+    },
+    {
+      "trigger": "planning review with Omar Khan",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Omar Khan explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Omar Khan"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/6",
+          "label": "Omar Khan notes"
+        }
+      ]
+    },
+    {
+      "trigger": "planning review with Lena Ortiz",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Lena Ortiz explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Lena Ortiz"
+      ]
+    },
+    {
+      "trigger": "planning review with Victor Nguyen",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Victor Nguyen explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Victor Nguyen"
+      ]
+    },
+    {
+      "trigger": "planning review with Riley Brooks",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Riley Brooks explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Riley Brooks"
+      ]
+    },
+    {
+      "trigger": "deadline reset with Maya Chen",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Maya Chen explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Maya Chen"
+      ]
+    },
+    {
+      "trigger": "deadline reset with Jordan Lee",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Jordan Lee explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Jordan Lee"
+      ]
+    },
+    {
+      "trigger": "deadline reset with Priya Patel",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Priya Patel explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Priya Patel"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/12",
+          "label": "Priya Patel notes"
+        }
+      ]
+    },
+    {
+      "trigger": "deadline reset with Alex Gomez",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Alex Gomez explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Alex Gomez"
+      ]
+    },
+    {
+      "trigger": "deadline reset with Sam Rivera",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Sam Rivera explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Sam Rivera"
+      ]
+    },
+    {
+      "trigger": "deadline reset with Nina Park",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Nina Park explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Nina Park"
+      ]
+    },
+    {
+      "trigger": "deadline reset with Omar Khan",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Omar Khan explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Omar Khan"
+      ]
+    },
+    {
+      "trigger": "deadline reset with Lena Ortiz",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Lena Ortiz explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Lena Ortiz"
+      ]
+    },
+    {
+      "trigger": "deadline reset with Victor Nguyen",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Victor Nguyen explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Victor Nguyen"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/18",
+          "label": "Victor Nguyen notes"
+        }
+      ]
+    },
+    {
+      "trigger": "deadline reset with Riley Brooks",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Riley Brooks explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Riley Brooks"
+      ]
+    },
+    {
+      "trigger": "decision recap with Maya Chen",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Maya Chen explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Maya Chen"
+      ]
+    },
+    {
+      "trigger": "decision recap with Jordan Lee",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Jordan Lee explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Jordan Lee"
+      ]
+    },
+    {
+      "trigger": "decision recap with Priya Patel",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Priya Patel explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Priya Patel"
+      ]
+    },
+    {
+      "trigger": "decision recap with Alex Gomez",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Alex Gomez explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Alex Gomez"
+      ]
+    },
+    {
+      "trigger": "decision recap with Sam Rivera",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Sam Rivera explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Sam Rivera"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/24",
+          "label": "Sam Rivera notes"
+        }
+      ]
+    },
+    {
+      "trigger": "decision recap with Nina Park",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Nina Park explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Nina Park"
+      ]
+    },
+    {
+      "trigger": "decision recap with Omar Khan",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Omar Khan explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Omar Khan"
+      ]
+    },
+    {
+      "trigger": "decision recap with Lena Ortiz",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Lena Ortiz explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Lena Ortiz"
+      ]
+    },
+    {
+      "trigger": "decision recap with Victor Nguyen",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Victor Nguyen explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Victor Nguyen"
+      ]
+    },
+    {
+      "trigger": "decision recap with Riley Brooks",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Riley Brooks explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Riley Brooks"
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Maya Chen",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Maya Chen explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Maya Chen"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/30",
+          "label": "Maya Chen notes"
+        }
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Jordan Lee",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Jordan Lee explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Jordan Lee"
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Priya Patel",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Priya Patel explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Priya Patel"
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Alex Gomez",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Alex Gomez explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Alex Gomez"
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Sam Rivera",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Sam Rivera explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Sam Rivera"
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Nina Park",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Nina Park explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Nina Park"
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Omar Khan",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Omar Khan explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Omar Khan"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/36",
+          "label": "Omar Khan notes"
+        }
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Lena Ortiz",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Lena Ortiz explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Lena Ortiz"
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Victor Nguyen",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Victor Nguyen explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Victor Nguyen"
+      ]
+    },
+    {
+      "trigger": "incident follow-up with Riley Brooks",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Riley Brooks explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Riley Brooks"
+      ]
+    },
+    {
+      "trigger": "customer sync with Maya Chen",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Maya Chen explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Maya Chen"
+      ]
+    },
+    {
+      "trigger": "customer sync with Jordan Lee",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Jordan Lee explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Jordan Lee"
+      ]
+    },
+    {
+      "trigger": "customer sync with Priya Patel",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Priya Patel explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Priya Patel"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/42",
+          "label": "Priya Patel notes"
+        }
+      ]
+    },
+    {
+      "trigger": "customer sync with Alex Gomez",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Alex Gomez explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Alex Gomez"
+      ]
+    },
+    {
+      "trigger": "customer sync with Sam Rivera",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Sam Rivera explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Sam Rivera"
+      ]
+    },
+    {
+      "trigger": "customer sync with Nina Park",
+      "learning": "write the decision summary in the project log before the meeting ends; mention Nina Park explicitly because support updates were missing the actual external commitment date.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Nina Park"
+      ]
+    },
+    {
+      "trigger": "customer sync with Omar Khan",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Omar Khan explicitly because follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Omar Khan"
+      ]
+    },
+    {
+      "trigger": "customer sync with Lena Ortiz",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Lena Ortiz explicitly because handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.88,
+      "scope": "shared",
+      "tags_expected": [
+        "Lena Ortiz"
+      ]
+    },
+    {
+      "trigger": "customer sync with Victor Nguyen",
+      "learning": "capture open questions separately from commitments so they do not blur together; mention Victor Nguyen explicitly because the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Victor Nguyen"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/48",
+          "label": "Victor Nguyen notes"
+        }
+      ]
+    },
+    {
+      "trigger": "customer sync with Riley Brooks",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Riley Brooks explicitly because cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Riley Brooks"
+      ]
+    },
+    {
+      "trigger": "rolling out Auth Service safely",
+      "learning": "run migrations in a transaction before switching traffic; write down the Auth Service rollback path since background jobs duplicated work during a hot restart.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Service"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-0",
+          "label": "Auth Service deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "shipping Billing Worker safely",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; write down the Billing Worker rollback path since an earlier deploy skipped a silent schema change.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Worker"
+      ]
+    },
+    {
+      "trigger": "promoting Gateway API safely",
+      "learning": "drain the worker queue before restarting the service; write down the Gateway API rollback path since operators need a fast rollback path when latency spikes.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Gateway API"
+      ]
+    },
+    {
+      "trigger": "releasing Orders Service safely",
+      "learning": "pin the config bundle version before promoting the release; write down the Orders Service rollback path since a partial rollout once left stale connections behind.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Orders Service"
+      ]
+    },
+    {
+      "trigger": "rolling out Search API safely",
+      "learning": "capture the rollback trace before the canary step begins; write down the Search API rollback path since the last incident came from mismatched config revisions.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Search API"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-4",
+          "label": "Search API deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "shipping Notification Worker safely",
+      "learning": "run migrations in a transaction before switching traffic; write down the Notification Worker rollback path since background jobs duplicated work during a hot restart.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Worker"
+      ]
+    },
+    {
+      "trigger": "promoting Metrics Pipeline safely",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; write down the Metrics Pipeline rollback path since an earlier deploy skipped a silent schema change.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Metrics Pipeline"
+      ]
+    },
+    {
+      "trigger": "releasing Cache Database safely",
+      "learning": "drain the worker queue before restarting the service; write down the Cache Database rollback path since operators need a fast rollback path when latency spikes.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Database"
+      ]
+    },
+    {
+      "trigger": "rolling out Audit Service safely",
+      "learning": "pin the config bundle version before promoting the release; write down the Audit Service rollback path since a partial rollout once left stale connections behind.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Audit Service"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-8",
+          "label": "Audit Service deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "shipping Checkout Gateway safely",
+      "learning": "capture the rollback trace before the canary step begins; write down the Checkout Gateway rollback path since the last incident came from mismatched config revisions.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Checkout Gateway"
+      ]
+    },
+    {
+      "trigger": "promoting Auth Service safely",
+      "learning": "run migrations in a transaction before switching traffic; write down the Auth Service rollback path since background jobs duplicated work during a hot restart.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Service"
+      ]
+    },
+    {
+      "trigger": "releasing Billing Worker safely",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; write down the Billing Worker rollback path since an earlier deploy skipped a silent schema change.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Worker"
+      ]
+    },
+    {
+      "trigger": "rolling out Gateway API safely",
+      "learning": "drain the worker queue before restarting the service; write down the Gateway API rollback path since operators need a fast rollback path when latency spikes.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Gateway API"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-12",
+          "label": "Gateway API deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "shipping Orders Service safely",
+      "learning": "pin the config bundle version before promoting the release; write down the Orders Service rollback path since a partial rollout once left stale connections behind.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Orders Service"
+      ]
+    },
+    {
+      "trigger": "promoting Search API safely",
+      "learning": "capture the rollback trace before the canary step begins; write down the Search API rollback path since the last incident came from mismatched config revisions.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Search API"
+      ]
+    },
+    {
+      "trigger": "releasing Notification Worker safely",
+      "learning": "run migrations in a transaction before switching traffic; write down the Notification Worker rollback path since background jobs duplicated work during a hot restart.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Worker"
+      ]
+    },
+    {
+      "trigger": "rolling out Metrics Pipeline safely",
+      "learning": "verify the feature flag rollout plan before the deploy window opens; write down the Metrics Pipeline rollback path since an earlier deploy skipped a silent schema change.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Metrics Pipeline"
+      ],
+      "assets": [
+        {
+          "type": "trace",
+          "ref": "deploy-trace-16",
+          "label": "Metrics Pipeline deploy trace"
+        }
+      ]
+    },
+    {
+      "trigger": "shipping Cache Database safely",
+      "learning": "drain the worker queue before restarting the service; write down the Cache Database rollback path since operators need a fast rollback path when latency spikes.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Database"
+      ]
+    },
+    {
+      "trigger": "promoting Audit Service safely",
+      "learning": "pin the config bundle version before promoting the release; write down the Audit Service rollback path since a partial rollout once left stale connections behind.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Audit Service"
+      ]
+    },
+    {
+      "trigger": "releasing Checkout Gateway safely",
+      "learning": "capture the rollback trace before the canary step begins; write down the Checkout Gateway rollback path since the last incident came from mismatched config revisions.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Checkout Gateway"
+      ]
+    },
+    {
+      "trigger": "tidying Render Queue",
+      "learning": "use explicit constructor injection over shared mutable module state; capture it beside Render Queue since flaky tests were masking a real concurrency bug.",
+      "confidence": 0.66,
+      "scope": "shared",
+      "tags_expected": [
+        "Render Queue"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-0",
+          "label": "Render Queue log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "reworking Auth Middleware",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; capture it beside Auth Middleware since the team lost time chasing stale configuration in memory.",
+      "confidence": 0.71,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Middleware"
+      ]
+    },
+    {
+      "trigger": "debugging Config Loader",
+      "learning": "snapshot the parsed config object before mutating request-specific values; capture it beside Config Loader since profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Config Loader"
+      ]
+    },
+    {
+      "trigger": "stabilizing Billing Adapter",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; capture it beside Billing Adapter since dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.81,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Adapter"
+      ]
+    },
+    {
+      "trigger": "tidying Search Indexer",
+      "learning": "record cache key format changes in the module readme before renaming code; capture it beside Search Indexer since a previous refactor broke imports through side effects.",
+      "confidence": 0.66,
+      "scope": "shared",
+      "tags_expected": [
+        "Search Indexer"
+      ]
+    },
+    {
+      "trigger": "reworking Feature Flag Service",
+      "learning": "use explicit constructor injection over shared mutable module state; capture it beside Feature Flag Service since flaky tests were masking a real concurrency bug.",
+      "confidence": 0.71,
+      "scope": "shared",
+      "tags_expected": [
+        "Feature Flag Service"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-5",
+          "label": "Feature Flag Service log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "debugging Session Store",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; capture it beside Session Store since the team lost time chasing stale configuration in memory.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Session Store"
+      ]
+    },
+    {
+      "trigger": "stabilizing GraphQL Gateway",
+      "learning": "snapshot the parsed config object before mutating request-specific values; capture it beside GraphQL Gateway since profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.81,
+      "scope": "shared",
+      "tags_expected": [
+        "GraphQL Gateway"
+      ]
+    },
+    {
+      "trigger": "tidying Notification Scheduler",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; capture it beside Notification Scheduler since dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.66,
+      "scope": "shared",
+      "tags_expected": [
+        "Notification Scheduler"
+      ]
+    },
+    {
+      "trigger": "reworking Cache Layer",
+      "learning": "record cache key format changes in the module readme before renaming code; capture it beside Cache Layer since a previous refactor broke imports through side effects.",
+      "confidence": 0.71,
+      "scope": "shared",
+      "tags_expected": [
+        "Cache Layer"
+      ]
+    },
+    {
+      "trigger": "debugging Render Queue",
+      "learning": "use explicit constructor injection over shared mutable module state; capture it beside Render Queue since flaky tests were masking a real concurrency bug.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Render Queue"
+      ],
+      "assets": [
+        {
+          "type": "log",
+          "ref": "code-log-10",
+          "label": "Render Queue log bundle"
+        }
+      ]
+    },
+    {
+      "trigger": "stabilizing Auth Middleware",
+      "learning": "keep retry backoff parameters beside the caller instead of hidden helpers; capture it beside Auth Middleware since the team lost time chasing stale configuration in memory.",
+      "confidence": 0.81,
+      "scope": "shared",
+      "tags_expected": [
+        "Auth Middleware"
+      ]
+    },
+    {
+      "trigger": "tidying Config Loader",
+      "learning": "snapshot the parsed config object before mutating request-specific values; capture it beside Config Loader since profiling showed the hot path was dominated by object cloning.",
+      "confidence": 0.66,
+      "scope": "shared",
+      "tags_expected": [
+        "Config Loader"
+      ]
+    },
+    {
+      "trigger": "reworking Billing Adapter",
+      "learning": "isolate integration tests around the adapter boundary before refactoring; capture it beside Billing Adapter since dependency updates had hidden transitive behavior changes.",
+      "confidence": 0.71,
+      "scope": "shared",
+      "tags_expected": [
+        "Billing Adapter"
+      ]
+    },
+    {
+      "trigger": "debugging Search Indexer",
+      "learning": "record cache key format changes in the module readme before renaming code; capture it beside Search Indexer since a previous refactor broke imports through side effects.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Search Indexer"
+      ]
+    },
+    {
+      "trigger": "syncing with Maya Chen",
+      "learning": "summarize the decision in the project log before the meeting ends; mention Maya Chen explicitly since support updates were missing the actual external commitment date.",
+      "confidence": 0.64,
+      "scope": "shared",
+      "tags_expected": [
+        "Maya Chen"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/0",
+          "label": "Maya Chen notes"
+        }
+      ]
+    },
+    {
+      "trigger": "recapping Jordan Lee",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Jordan Lee explicitly since follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Jordan Lee"
+      ]
+    },
+    {
+      "trigger": "following up with Priya Patel",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Priya Patel explicitly since handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Priya Patel"
+      ]
+    },
+    {
+      "trigger": "meeting with Alex Gomez",
+      "learning": "separate open questions separately from commitments so they do not blur together; mention Alex Gomez explicitly since the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Alex Gomez"
+      ]
+    },
+    {
+      "trigger": "syncing with Sam Rivera",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Sam Rivera explicitly since cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Sam Rivera"
+      ]
+    },
+    {
+      "trigger": "recapping Nina Park",
+      "learning": "summarize the decision in the project log before the meeting ends; mention Nina Park explicitly since support updates were missing the actual external commitment date.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Nina Park"
+      ]
+    },
+    {
+      "trigger": "following up with Omar Khan",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Omar Khan explicitly since follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.64,
+      "scope": "shared",
+      "tags_expected": [
+        "Omar Khan"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/6",
+          "label": "Omar Khan notes"
+        }
+      ]
+    },
+    {
+      "trigger": "meeting with Lena Ortiz",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Lena Ortiz explicitly since handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Lena Ortiz"
+      ]
+    },
+    {
+      "trigger": "syncing with Victor Nguyen",
+      "learning": "separate open questions separately from commitments so they do not blur together; mention Victor Nguyen explicitly since the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Victor Nguyen"
+      ]
+    },
+    {
+      "trigger": "recapping Riley Brooks",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Riley Brooks explicitly since cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.76,
+      "scope": "shared",
+      "tags_expected": [
+        "Riley Brooks"
+      ]
+    },
+    {
+      "trigger": "following up with Maya Chen",
+      "learning": "summarize the decision in the project log before the meeting ends; mention Maya Chen explicitly since support updates were missing the actual external commitment date.",
+      "confidence": 0.8,
+      "scope": "shared",
+      "tags_expected": [
+        "Maya Chen"
+      ]
+    },
+    {
+      "trigger": "meeting with Jordan Lee",
+      "learning": "confirm the owner and due date in the same thread as the decision; mention Jordan Lee explicitly since follow-up items disappeared when action items and risks shared one list.",
+      "confidence": 0.84,
+      "scope": "shared",
+      "tags_expected": [
+        "Jordan Lee"
+      ]
+    },
+    {
+      "trigger": "syncing with Priya Patel",
+      "learning": "repeat launch criteria in plain language when multiple teams join the call; mention Priya Patel explicitly since handoffs were drifting when notes lived in private threads.",
+      "confidence": 0.64,
+      "scope": "shared",
+      "tags_expected": [
+        "Priya Patel"
+      ],
+      "assets": [
+        {
+          "type": "url",
+          "ref": "https://example.com/notes/12",
+          "label": "Priya Patel notes"
+        }
+      ]
+    },
+    {
+      "trigger": "recapping Alex Gomez",
+      "learning": "separate open questions separately from commitments so they do not blur together; mention Alex Gomez explicitly since the previous launch slipped because ownership was implied instead of written.",
+      "confidence": 0.68,
+      "scope": "shared",
+      "tags_expected": [
+        "Alex Gomez"
+      ]
+    },
+    {
+      "trigger": "following up with Sam Rivera",
+      "learning": "link the customer promise to the internal milestone before changing the date; mention Sam Rivera explicitly since cross-team meetings were ending with different interpretations of the same choice.",
+      "confidence": 0.72,
+      "scope": "shared",
+      "tags_expected": [
+        "Sam Rivera"
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "context": "shipping auth service into staging",
+      "expected_ids": [
+        0
+      ],
+      "unexpected_ids": [
+        37
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "render queue bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        0
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Billing Worker staging rollout verify",
+      "expected_ids": [
+        1
+      ],
+      "unexpected_ids": [
+        38
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "auth middleware refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        1
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Gateway API staging deploy checklist",
+      "expected_ids": [
+        2
+      ],
+      "unexpected_ids": [
+        39
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "config loader performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        2
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the orders service release and avoiding the last outage",
+      "expected_ids": [
+        3
+      ],
+      "unexpected_ids": [
+        40
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "billing adapter test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        3
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping search api into staging",
+      "expected_ids": [
+        4
+      ],
+      "unexpected_ids": [
+        41
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "search indexer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        4
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Notification Worker staging rollout run",
+      "expected_ids": [
+        5
+      ],
+      "unexpected_ids": [
+        42
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "feature flag service bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        5
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Metrics Pipeline staging deploy checklist",
+      "expected_ids": [
+        6
+      ],
+      "unexpected_ids": [
+        43
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "session store refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        6
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the cache database release and avoiding the last outage",
+      "expected_ids": [
+        7
+      ],
+      "unexpected_ids": [
+        44
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "graphql gateway performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        7
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping audit service into staging",
+      "expected_ids": [
+        8
+      ],
+      "unexpected_ids": [
+        45
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "notification scheduler test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        8
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Checkout Gateway staging rollout capture",
+      "expected_ids": [
+        9
+      ],
+      "unexpected_ids": [
+        46
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "cache layer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        9
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Auth Service production deploy checklist",
+      "expected_ids": [
+        10
+      ],
+      "unexpected_ids": [
+        47
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "render queue bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        10
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the billing worker release and avoiding the last outage",
+      "expected_ids": [
+        11
+      ],
+      "unexpected_ids": [
+        48
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "auth middleware refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        11
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping gateway api into production",
+      "expected_ids": [
+        12
+      ],
+      "unexpected_ids": [
+        49
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "config loader performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        12
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Orders Service production rollout pin",
+      "expected_ids": [
+        13
+      ],
+      "unexpected_ids": [
+        50
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "billing adapter test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        13
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Search API production deploy checklist",
+      "expected_ids": [
+        14
+      ],
+      "unexpected_ids": [
+        51
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "search indexer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        14
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the notification worker release and avoiding the last outage",
+      "expected_ids": [
+        15
+      ],
+      "unexpected_ids": [
+        52
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "feature flag service bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        15
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping metrics pipeline into production",
+      "expected_ids": [
+        16
+      ],
+      "unexpected_ids": [
+        53
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "session store refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        16
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Cache Database production rollout drain",
+      "expected_ids": [
+        17
+      ],
+      "unexpected_ids": [
+        54
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "graphql gateway performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        17
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Audit Service production deploy checklist",
+      "expected_ids": [
+        18
+      ],
+      "unexpected_ids": [
+        55
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "notification scheduler test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        18
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the checkout gateway release and avoiding the last outage",
+      "expected_ids": [
+        19
+      ],
+      "unexpected_ids": [
+        56
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cache layer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        19
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping auth service into canary",
+      "expected_ids": [
+        20
+      ],
+      "unexpected_ids": [
+        57
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "render queue bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        20
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Billing Worker canary rollout verify",
+      "expected_ids": [
+        21
+      ],
+      "unexpected_ids": [
+        58
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "auth middleware refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        21
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Gateway API canary deploy checklist",
+      "expected_ids": [
+        22
+      ],
+      "unexpected_ids": [
+        59
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "config loader performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        22
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the orders service release and avoiding the last outage",
+      "expected_ids": [
+        23
+      ],
+      "unexpected_ids": [
+        60
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "billing adapter test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        23
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping search api into canary",
+      "expected_ids": [
+        24
+      ],
+      "unexpected_ids": [
+        61
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "search indexer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        24
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Notification Worker canary rollout run",
+      "expected_ids": [
+        25
+      ],
+      "unexpected_ids": [
+        62
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "feature flag service bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        25
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Metrics Pipeline canary deploy checklist",
+      "expected_ids": [
+        26
+      ],
+      "unexpected_ids": [
+        63
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "session store refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        26
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the cache database release and avoiding the last outage",
+      "expected_ids": [
+        27
+      ],
+      "unexpected_ids": [
+        64
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "graphql gateway performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        27
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping audit service into canary",
+      "expected_ids": [
+        28
+      ],
+      "unexpected_ids": [
+        65
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "notification scheduler test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        28
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Checkout Gateway canary rollout capture",
+      "expected_ids": [
+        29
+      ],
+      "unexpected_ids": [
+        66
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "cache layer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        29
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Auth Service disaster recovery deploy checklist",
+      "expected_ids": [
+        30
+      ],
+      "unexpected_ids": [
+        67
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "render queue bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        30
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the billing worker release and avoiding the last outage",
+      "expected_ids": [
+        31
+      ],
+      "unexpected_ids": [
+        68
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "auth middleware refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        31
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping gateway api into disaster recovery",
+      "expected_ids": [
+        32
+      ],
+      "unexpected_ids": [
+        69
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "config loader performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        32
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Orders Service disaster recovery rollout pin",
+      "expected_ids": [
+        33
+      ],
+      "unexpected_ids": [
+        70
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "billing adapter test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        33
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Search API disaster recovery deploy checklist",
+      "expected_ids": [
+        34
+      ],
+      "unexpected_ids": [
+        71
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "search indexer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        34
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the notification worker release and avoiding the last outage",
+      "expected_ids": [
+        35
+      ],
+      "unexpected_ids": [
+        72
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "feature flag service bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        35
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping metrics pipeline into disaster recovery",
+      "expected_ids": [
+        36
+      ],
+      "unexpected_ids": [
+        73
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "session store refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        36
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Cache Database disaster recovery rollout drain",
+      "expected_ids": [
+        37
+      ],
+      "unexpected_ids": [
+        74
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "graphql gateway performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        37
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Audit Service disaster recovery deploy checklist",
+      "expected_ids": [
+        38
+      ],
+      "unexpected_ids": [
+        75
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "notification scheduler test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        38
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the checkout gateway release and avoiding the last outage",
+      "expected_ids": [
+        39
+      ],
+      "unexpected_ids": [
+        76
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cache layer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        39
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping auth service into nightly",
+      "expected_ids": [
+        40
+      ],
+      "unexpected_ids": [
+        77
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "render queue bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        40
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Billing Worker nightly rollout verify",
+      "expected_ids": [
+        41
+      ],
+      "unexpected_ids": [
+        78
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "auth middleware refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        41
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Gateway API nightly deploy checklist",
+      "expected_ids": [
+        42
+      ],
+      "unexpected_ids": [
+        79
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "config loader performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        42
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the orders service release and avoiding the last outage",
+      "expected_ids": [
+        43
+      ],
+      "unexpected_ids": [
+        80
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "billing adapter test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        43
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping search api into nightly",
+      "expected_ids": [
+        44
+      ],
+      "unexpected_ids": [
+        81
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "search indexer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        44
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Notification Worker nightly rollout run",
+      "expected_ids": [
+        45
+      ],
+      "unexpected_ids": [
+        82
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "feature flag service bug hunt notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        45
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "Metrics Pipeline nightly deploy checklist",
+      "expected_ids": [
+        46
+      ],
+      "unexpected_ids": [
+        83
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "session store refactor plan notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        46
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "promoting the cache database release and avoiding the last outage",
+      "expected_ids": [
+        47
+      ],
+      "unexpected_ids": [
+        84
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "graphql gateway performance pass notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        47
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "shipping audit service into nightly",
+      "expected_ids": [
+        48
+      ],
+      "unexpected_ids": [
+        85
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "notification scheduler test stabilization notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        48
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "Checkout Gateway nightly rollout capture",
+      "expected_ids": [
+        49
+      ],
+      "unexpected_ids": [
+        86
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "cache layer dependency upgrade notes",
+      "expected_ids": [],
+      "unexpected_ids": [
+        49
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "render queue dependency upgrade guidance",
+      "expected_ids": [
+        50
+      ],
+      "unexpected_ids": [
+        87
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "maya chen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        50
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on auth middleware and trying to avoid the earlier regression",
+      "expected_ids": [
+        51
+      ],
+      "unexpected_ids": [
+        88
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "jordan lee meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        51
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "dependency upgrade checklist for config loader",
+      "expected_ids": [
+        52
+      ],
+      "unexpected_ids": [
+        89
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "priya patel meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        52
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up billing adapter internals without repeating the flaky test issue",
+      "expected_ids": [
+        53
+      ],
+      "unexpected_ids": [
+        90
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "alex gomez meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        53
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "search indexer dependency upgrade guidance",
+      "expected_ids": [
+        54
+      ],
+      "unexpected_ids": [
+        91
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "sam rivera meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        54
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on feature flag service and trying to avoid the earlier regression",
+      "expected_ids": [
+        55
+      ],
+      "unexpected_ids": [
+        92
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "nina park meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        55
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "dependency upgrade checklist for session store",
+      "expected_ids": [
+        56
+      ],
+      "unexpected_ids": [
+        93
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "omar khan meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        56
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up graphql gateway internals without repeating the flaky test issue",
+      "expected_ids": [
+        57
+      ],
+      "unexpected_ids": [
+        94
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "lena ortiz meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        57
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "notification scheduler dependency upgrade guidance",
+      "expected_ids": [
+        58
+      ],
+      "unexpected_ids": [
+        95
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "victor nguyen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        58
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on cache layer and trying to avoid the earlier regression",
+      "expected_ids": [
+        59
+      ],
+      "unexpected_ids": [
+        96
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "riley brooks meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        59
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "bug hunt checklist for render queue",
+      "expected_ids": [
+        60
+      ],
+      "unexpected_ids": [
+        97
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "maya chen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        60
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up auth middleware internals without repeating the flaky test issue",
+      "expected_ids": [
+        61
+      ],
+      "unexpected_ids": [
+        98
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "jordan lee meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        61
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "config loader bug hunt guidance",
+      "expected_ids": [
+        62
+      ],
+      "unexpected_ids": [
+        99
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "priya patel meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        62
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on billing adapter and trying to avoid the earlier regression",
+      "expected_ids": [
+        63
+      ],
+      "unexpected_ids": [
+        100
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "alex gomez meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        63
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "bug hunt checklist for search indexer",
+      "expected_ids": [
+        64
+      ],
+      "unexpected_ids": [
+        101
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "sam rivera meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        64
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up feature flag service internals without repeating the flaky test issue",
+      "expected_ids": [
+        65
+      ],
+      "unexpected_ids": [
+        102
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "nina park meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        65
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "session store bug hunt guidance",
+      "expected_ids": [
+        66
+      ],
+      "unexpected_ids": [
+        103
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "omar khan meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        66
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on graphql gateway and trying to avoid the earlier regression",
+      "expected_ids": [
+        67
+      ],
+      "unexpected_ids": [
+        104
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "lena ortiz meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        67
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "bug hunt checklist for notification scheduler",
+      "expected_ids": [
+        68
+      ],
+      "unexpected_ids": [
+        105
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "victor nguyen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        68
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up cache layer internals without repeating the flaky test issue",
+      "expected_ids": [
+        69
+      ],
+      "unexpected_ids": [
+        106
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "riley brooks meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        69
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "render queue refactor plan guidance",
+      "expected_ids": [
+        70
+      ],
+      "unexpected_ids": [
+        107
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "maya chen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        70
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on auth middleware and trying to avoid the earlier regression",
+      "expected_ids": [
+        71
+      ],
+      "unexpected_ids": [
+        108
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "jordan lee meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        71
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "refactor plan checklist for config loader",
+      "expected_ids": [
+        72
+      ],
+      "unexpected_ids": [
+        109
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "priya patel meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        72
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up billing adapter internals without repeating the flaky test issue",
+      "expected_ids": [
+        73
+      ],
+      "unexpected_ids": [
+        110
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "alex gomez meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        73
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "search indexer refactor plan guidance",
+      "expected_ids": [
+        74
+      ],
+      "unexpected_ids": [
+        111
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "sam rivera meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        74
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on feature flag service and trying to avoid the earlier regression",
+      "expected_ids": [
+        75
+      ],
+      "unexpected_ids": [
+        112
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "nina park meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        75
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "refactor plan checklist for session store",
+      "expected_ids": [
+        76
+      ],
+      "unexpected_ids": [
+        113
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "omar khan meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        76
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up graphql gateway internals without repeating the flaky test issue",
+      "expected_ids": [
+        77
+      ],
+      "unexpected_ids": [
+        114
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "lena ortiz meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        77
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "notification scheduler refactor plan guidance",
+      "expected_ids": [
+        78
+      ],
+      "unexpected_ids": [
+        115
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "victor nguyen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        78
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on cache layer and trying to avoid the earlier regression",
+      "expected_ids": [
+        79
+      ],
+      "unexpected_ids": [
+        116
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "riley brooks meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        79
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "performance pass checklist for render queue",
+      "expected_ids": [
+        80
+      ],
+      "unexpected_ids": [
+        117
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "maya chen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        80
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up auth middleware internals without repeating the flaky test issue",
+      "expected_ids": [
+        81
+      ],
+      "unexpected_ids": [
+        118
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "jordan lee meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        81
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "config loader performance pass guidance",
+      "expected_ids": [
+        82
+      ],
+      "unexpected_ids": [
+        119
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "priya patel meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        82
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on billing adapter and trying to avoid the earlier regression",
+      "expected_ids": [
+        83
+      ],
+      "unexpected_ids": [
+        120
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "alex gomez meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        83
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "performance pass checklist for search indexer",
+      "expected_ids": [
+        84
+      ],
+      "unexpected_ids": [
+        121
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "sam rivera meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        84
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up feature flag service internals without repeating the flaky test issue",
+      "expected_ids": [
+        85
+      ],
+      "unexpected_ids": [
+        122
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "nina park meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        85
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "session store performance pass guidance",
+      "expected_ids": [
+        86
+      ],
+      "unexpected_ids": [
+        123
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "omar khan meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        86
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on graphql gateway and trying to avoid the earlier regression",
+      "expected_ids": [
+        87
+      ],
+      "unexpected_ids": [
+        124
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "lena ortiz meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        87
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "performance pass checklist for notification scheduler",
+      "expected_ids": [
+        88
+      ],
+      "unexpected_ids": [
+        125
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "victor nguyen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        88
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up cache layer internals without repeating the flaky test issue",
+      "expected_ids": [
+        89
+      ],
+      "unexpected_ids": [
+        126
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "riley brooks meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        89
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "render queue test stabilization guidance",
+      "expected_ids": [
+        90
+      ],
+      "unexpected_ids": [
+        127
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "maya chen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        90
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on auth middleware and trying to avoid the earlier regression",
+      "expected_ids": [
+        91
+      ],
+      "unexpected_ids": [
+        128
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "jordan lee meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        91
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "test stabilization checklist for config loader",
+      "expected_ids": [
+        92
+      ],
+      "unexpected_ids": [
+        129
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "priya patel meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        92
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up billing adapter internals without repeating the flaky test issue",
+      "expected_ids": [
+        93
+      ],
+      "unexpected_ids": [
+        130
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "alex gomez meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        93
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "search indexer test stabilization guidance",
+      "expected_ids": [
+        94
+      ],
+      "unexpected_ids": [
+        131
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "sam rivera meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        94
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on feature flag service and trying to avoid the earlier regression",
+      "expected_ids": [
+        95
+      ],
+      "unexpected_ids": [
+        132
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "nina park meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        95
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "test stabilization checklist for session store",
+      "expected_ids": [
+        96
+      ],
+      "unexpected_ids": [
+        133
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "omar khan meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        96
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cleaning up graphql gateway internals without repeating the flaky test issue",
+      "expected_ids": [
+        97
+      ],
+      "unexpected_ids": [
+        134
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "lena ortiz meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        97
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "notification scheduler test stabilization guidance",
+      "expected_ids": [
+        98
+      ],
+      "unexpected_ids": [
+        135
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "victor nguyen meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        98
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "working on cache layer and trying to avoid the earlier regression",
+      "expected_ids": [
+        99
+      ],
+      "unexpected_ids": [
+        136
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "riley brooks meeting notes about launch dates",
+      "expected_ids": [],
+      "unexpected_ids": [
+        99
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "maya chen planning review recap",
+      "expected_ids": [
+        100
+      ],
+      "unexpected_ids": [
+        137
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "auth service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        100
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with jordan lee about the milestone",
+      "expected_ids": [
+        101
+      ],
+      "unexpected_ids": [
+        138
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "billing worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        101
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "planning review notes for priya patel",
+      "expected_ids": [
+        102
+      ],
+      "unexpected_ids": [
+        139
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "gateway api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        102
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with alex gomez",
+      "expected_ids": [
+        103
+      ],
+      "unexpected_ids": [
+        140
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "orders service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        103
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "sam rivera planning review recap",
+      "expected_ids": [
+        104
+      ],
+      "unexpected_ids": [
+        141
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "search api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        104
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with nina park about the milestone",
+      "expected_ids": [
+        105
+      ],
+      "unexpected_ids": [
+        142
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "notification worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        105
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "planning review notes for omar khan",
+      "expected_ids": [
+        106
+      ],
+      "unexpected_ids": [
+        143
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "metrics pipeline rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        106
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with lena ortiz",
+      "expected_ids": [
+        107
+      ],
+      "unexpected_ids": [
+        144
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "cache database rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        107
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "victor nguyen planning review recap",
+      "expected_ids": [
+        108
+      ],
+      "unexpected_ids": [
+        145
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "audit service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        108
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with riley brooks about the milestone",
+      "expected_ids": [
+        109
+      ],
+      "unexpected_ids": [
+        146
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "checkout gateway rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        109
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "deadline reset notes for maya chen",
+      "expected_ids": [
+        110
+      ],
+      "unexpected_ids": [
+        147
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "auth service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        110
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with jordan lee",
+      "expected_ids": [
+        111
+      ],
+      "unexpected_ids": [
+        148
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "billing worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        111
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "priya patel deadline reset recap",
+      "expected_ids": [
+        112
+      ],
+      "unexpected_ids": [
+        149
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "gateway api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        112
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with alex gomez about the milestone",
+      "expected_ids": [
+        113
+      ],
+      "unexpected_ids": [
+        150
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "orders service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        113
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "deadline reset notes for sam rivera",
+      "expected_ids": [
+        114
+      ],
+      "unexpected_ids": [
+        151
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "search api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        114
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with nina park",
+      "expected_ids": [
+        115
+      ],
+      "unexpected_ids": [
+        152
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "notification worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        115
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "omar khan deadline reset recap",
+      "expected_ids": [
+        116
+      ],
+      "unexpected_ids": [
+        153
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "metrics pipeline rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        116
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with lena ortiz about the milestone",
+      "expected_ids": [
+        117
+      ],
+      "unexpected_ids": [
+        154
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cache database rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        117
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "deadline reset notes for victor nguyen",
+      "expected_ids": [
+        118
+      ],
+      "unexpected_ids": [
+        155
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "audit service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        118
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with riley brooks",
+      "expected_ids": [
+        119
+      ],
+      "unexpected_ids": [
+        156
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "checkout gateway rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        119
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "maya chen decision recap recap",
+      "expected_ids": [
+        120
+      ],
+      "unexpected_ids": [
+        157
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "auth service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        120
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with jordan lee about the milestone",
+      "expected_ids": [
+        121
+      ],
+      "unexpected_ids": [
+        158
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "billing worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        121
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "decision recap notes for priya patel",
+      "expected_ids": [
+        122
+      ],
+      "unexpected_ids": [
+        159
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "gateway api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        122
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with alex gomez",
+      "expected_ids": [
+        123
+      ],
+      "unexpected_ids": [
+        160
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "orders service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        123
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "sam rivera decision recap recap",
+      "expected_ids": [
+        124
+      ],
+      "unexpected_ids": [
+        161
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "search api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        124
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with nina park about the milestone",
+      "expected_ids": [
+        125
+      ],
+      "unexpected_ids": [
+        162
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "notification worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        125
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "decision recap notes for omar khan",
+      "expected_ids": [
+        126
+      ],
+      "unexpected_ids": [
+        163
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "metrics pipeline rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        126
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with lena ortiz",
+      "expected_ids": [
+        127
+      ],
+      "unexpected_ids": [
+        164
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "cache database rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        127
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "victor nguyen decision recap recap",
+      "expected_ids": [
+        128
+      ],
+      "unexpected_ids": [
+        165
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "audit service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        128
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with riley brooks about the milestone",
+      "expected_ids": [
+        129
+      ],
+      "unexpected_ids": [
+        166
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "checkout gateway rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        129
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "incident follow-up notes for maya chen",
+      "expected_ids": [
+        130
+      ],
+      "unexpected_ids": [
+        167
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "auth service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        130
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with jordan lee",
+      "expected_ids": [
+        131
+      ],
+      "unexpected_ids": [
+        168
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "billing worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        131
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "priya patel incident follow-up recap",
+      "expected_ids": [
+        132
+      ],
+      "unexpected_ids": [
+        169
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "gateway api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        132
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with alex gomez about the milestone",
+      "expected_ids": [
+        133
+      ],
+      "unexpected_ids": [
+        170
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "orders service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        133
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "incident follow-up notes for sam rivera",
+      "expected_ids": [
+        134
+      ],
+      "unexpected_ids": [
+        171
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "search api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        134
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with nina park",
+      "expected_ids": [
+        135
+      ],
+      "unexpected_ids": [
+        172
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "notification worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        135
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "omar khan incident follow-up recap",
+      "expected_ids": [
+        136
+      ],
+      "unexpected_ids": [
+        173
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "metrics pipeline rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        136
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with lena ortiz about the milestone",
+      "expected_ids": [
+        137
+      ],
+      "unexpected_ids": [
+        174
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "cache database rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        137
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "incident follow-up notes for victor nguyen",
+      "expected_ids": [
+        138
+      ],
+      "unexpected_ids": [
+        175
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "audit service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        138
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with riley brooks",
+      "expected_ids": [
+        139
+      ],
+      "unexpected_ids": [
+        176
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "checkout gateway rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        139
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "maya chen customer sync recap",
+      "expected_ids": [
+        140
+      ],
+      "unexpected_ids": [
+        177
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "auth service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        140
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with jordan lee about the milestone",
+      "expected_ids": [
+        141
+      ],
+      "unexpected_ids": [
+        178
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "billing worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        141
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "customer sync notes for priya patel",
+      "expected_ids": [
+        142
+      ],
+      "unexpected_ids": [
+        179
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "gateway api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        142
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with alex gomez",
+      "expected_ids": [
+        143
+      ],
+      "unexpected_ids": [
+        180
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "orders service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        143
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "sam rivera customer sync recap",
+      "expected_ids": [
+        144
+      ],
+      "unexpected_ids": [
+        181
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "search api rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        144
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with nina park about the milestone",
+      "expected_ids": [
+        145
+      ],
+      "unexpected_ids": [
+        182
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "notification worker rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        145
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "customer sync notes for omar khan",
+      "expected_ids": [
+        146
+      ],
+      "unexpected_ids": [
+        183
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "metrics pipeline rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        146
+      ],
+      "category": "single-hop"
+    },
+    {
+      "context": "follow-up from the call with lena ortiz",
+      "expected_ids": [
+        147
+      ],
+      "unexpected_ids": [
+        184
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "cache database rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        147
+      ],
+      "category": "multi-hop"
+    },
+    {
+      "context": "victor nguyen customer sync recap",
+      "expected_ids": [
+        148
+      ],
+      "unexpected_ids": [
+        185
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "audit service rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        148
+      ],
+      "category": "keyword-only"
+    },
+    {
+      "context": "what did we decide with riley brooks about the milestone",
+      "expected_ids": [
+        149
+      ],
+      "unexpected_ids": [
+        186
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "checkout gateway rollout rollback plan",
+      "expected_ids": [],
+      "unexpected_ids": [
+        149
+      ],
+      "category": "semantic-only"
+    },
+    {
+      "context": "auth service reminder from the earlier note",
+      "expected_ids": [
+        0
+      ],
+      "unexpected_ids": [
+        187
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        0
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "billing worker reminder from the earlier note",
+      "expected_ids": [
+        1
+      ],
+      "unexpected_ids": [
+        188
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        1
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "gateway api reminder from the earlier note",
+      "expected_ids": [
+        2
+      ],
+      "unexpected_ids": [
+        189
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        2
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "orders service reminder from the earlier note",
+      "expected_ids": [
+        3
+      ],
+      "unexpected_ids": [
+        190
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        3
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "search api reminder from the earlier note",
+      "expected_ids": [
+        4
+      ],
+      "unexpected_ids": [
+        191
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        4
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "notification worker reminder from the earlier note",
+      "expected_ids": [
+        5
+      ],
+      "unexpected_ids": [
+        192
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        5
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "metrics pipeline reminder from the earlier note",
+      "expected_ids": [
+        6
+      ],
+      "unexpected_ids": [
+        193
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        6
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "cache database reminder from the earlier note",
+      "expected_ids": [
+        7
+      ],
+      "unexpected_ids": [
+        194
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        7
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "audit service reminder from the earlier note",
+      "expected_ids": [
+        8
+      ],
+      "unexpected_ids": [
+        195
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        8
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "checkout gateway reminder from the earlier note",
+      "expected_ids": [
+        9
+      ],
+      "unexpected_ids": [
+        196
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        9
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "auth service reminder from the earlier note",
+      "expected_ids": [
+        10
+      ],
+      "unexpected_ids": [
+        197
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        10
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "billing worker reminder from the earlier note",
+      "expected_ids": [
+        11
+      ],
+      "unexpected_ids": [
+        198
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        11
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "gateway api reminder from the earlier note",
+      "expected_ids": [
+        12
+      ],
+      "unexpected_ids": [
+        199
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        12
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "orders service reminder from the earlier note",
+      "expected_ids": [
+        13
+      ],
+      "unexpected_ids": [
+        0
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        13
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "search api reminder from the earlier note",
+      "expected_ids": [
+        14
+      ],
+      "unexpected_ids": [
+        1
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        14
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "notification worker reminder from the earlier note",
+      "expected_ids": [
+        15
+      ],
+      "unexpected_ids": [
+        2
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        15
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "metrics pipeline reminder from the earlier note",
+      "expected_ids": [
+        16
+      ],
+      "unexpected_ids": [
+        3
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        16
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "cache database reminder from the earlier note",
+      "expected_ids": [
+        17
+      ],
+      "unexpected_ids": [
+        4
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        17
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "audit service reminder from the earlier note",
+      "expected_ids": [
+        18
+      ],
+      "unexpected_ids": [
+        5
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        18
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "checkout gateway reminder from the earlier note",
+      "expected_ids": [
+        19
+      ],
+      "unexpected_ids": [
+        6
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        19
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "render queue reminder from the earlier note",
+      "expected_ids": [
+        50
+      ],
+      "unexpected_ids": [
+        7
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        50
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "auth middleware reminder from the earlier note",
+      "expected_ids": [
+        51
+      ],
+      "unexpected_ids": [
+        8
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        51
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "config loader reminder from the earlier note",
+      "expected_ids": [
+        52
+      ],
+      "unexpected_ids": [
+        9
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        52
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "billing adapter reminder from the earlier note",
+      "expected_ids": [
+        53
+      ],
+      "unexpected_ids": [
+        10
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        53
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "search indexer reminder from the earlier note",
+      "expected_ids": [
+        54
+      ],
+      "unexpected_ids": [
+        11
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        54
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "feature flag service reminder from the earlier note",
+      "expected_ids": [
+        55
+      ],
+      "unexpected_ids": [
+        12
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        55
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "session store reminder from the earlier note",
+      "expected_ids": [
+        56
+      ],
+      "unexpected_ids": [
+        13
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        56
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "graphql gateway reminder from the earlier note",
+      "expected_ids": [
+        57
+      ],
+      "unexpected_ids": [
+        14
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        57
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "notification scheduler reminder from the earlier note",
+      "expected_ids": [
+        58
+      ],
+      "unexpected_ids": [
+        15
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        58
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "cache layer reminder from the earlier note",
+      "expected_ids": [
+        59
+      ],
+      "unexpected_ids": [
+        16
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        59
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "render queue reminder from the earlier note",
+      "expected_ids": [
+        60
+      ],
+      "unexpected_ids": [
+        17
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        60
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "auth middleware reminder from the earlier note",
+      "expected_ids": [
+        61
+      ],
+      "unexpected_ids": [
+        18
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        61
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "config loader reminder from the earlier note",
+      "expected_ids": [
+        62
+      ],
+      "unexpected_ids": [
+        19
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        62
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "billing adapter reminder from the earlier note",
+      "expected_ids": [
+        63
+      ],
+      "unexpected_ids": [
+        20
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        63
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "search indexer reminder from the earlier note",
+      "expected_ids": [
+        64
+      ],
+      "unexpected_ids": [
+        21
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        64
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "maya chen reminder from the earlier note",
+      "expected_ids": [
+        100
+      ],
+      "unexpected_ids": [
+        22
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        100
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "jordan lee reminder from the earlier note",
+      "expected_ids": [
+        101
+      ],
+      "unexpected_ids": [
+        23
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        101
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "priya patel reminder from the earlier note",
+      "expected_ids": [
+        102
+      ],
+      "unexpected_ids": [
+        24
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        102
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "alex gomez reminder from the earlier note",
+      "expected_ids": [
+        103
+      ],
+      "unexpected_ids": [
+        25
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        103
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "sam rivera reminder from the earlier note",
+      "expected_ids": [
+        104
+      ],
+      "unexpected_ids": [
+        26
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        104
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "nina park reminder from the earlier note",
+      "expected_ids": [
+        105
+      ],
+      "unexpected_ids": [
+        27
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        105
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "omar khan reminder from the earlier note",
+      "expected_ids": [
+        106
+      ],
+      "unexpected_ids": [
+        28
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        106
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "lena ortiz reminder from the earlier note",
+      "expected_ids": [
+        107
+      ],
+      "unexpected_ids": [
+        29
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        107
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "victor nguyen reminder from the earlier note",
+      "expected_ids": [
+        108
+      ],
+      "unexpected_ids": [
+        30
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        108
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "riley brooks reminder from the earlier note",
+      "expected_ids": [
+        109
+      ],
+      "unexpected_ids": [
+        31
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        109
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "maya chen reminder from the earlier note",
+      "expected_ids": [
+        110
+      ],
+      "unexpected_ids": [
+        32
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        110
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "jordan lee reminder from the earlier note",
+      "expected_ids": [
+        111
+      ],
+      "unexpected_ids": [
+        33
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        111
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "priya patel reminder from the earlier note",
+      "expected_ids": [
+        112
+      ],
+      "unexpected_ids": [
+        34
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        112
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "alex gomez reminder from the earlier note",
+      "expected_ids": [
+        113
+      ],
+      "unexpected_ids": [
+        35
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated team deadline question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        113
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "sam rivera reminder from the earlier note",
+      "expected_ids": [
+        114
+      ],
+      "unexpected_ids": [
+        36
+      ],
+      "category": "redundancy"
+    },
+    {
+      "context": "unrelated cache invalidation question",
+      "expected_ids": [],
+      "unexpected_ids": [
+        114
+      ],
+      "category": "redundancy"
+    }
+  ]
+}

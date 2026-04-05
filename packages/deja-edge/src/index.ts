@@ -20,6 +20,8 @@
  * ```
  */
 
+import { countTagOverlap, extractEntityTags } from './tagging'
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -27,11 +29,23 @@
 export interface Memory {
   id: string
   text: string
+  trigger?: string
+  learning?: string
+  reason?: string
+  scope?: string
+  tags?: string[]
+  assets?: AssetPointer[]
   confidence: number
   supersedes?: string
   createdAt: string
   source?: string
   type: 'memory' | 'anti-pattern'
+}
+
+export interface AssetPointer {
+  type: string
+  ref: string
+  label?: string
 }
 
 export interface RecallResult {
@@ -49,12 +63,53 @@ export interface RecallLogEntry {
   timestamp: string
 }
 
+export interface LearningRecord {
+  id: string
+  text: string
+  trigger: string
+  learning: string
+  tier?: 'trigger' | 'full'
+  tags?: string[]
+  assets?: AssetPointer[]
+  confidence: number
+  createdAt: string
+  scope: string
+  supersedes?: string
+  source?: string
+  reason?: string
+  type: 'memory' | 'anti-pattern'
+}
+
+export interface LearnOptions {
+  confidence?: number
+  scope?: string
+  reason?: string
+  source?: string
+  noveltyThreshold?: number
+  assets?: AssetPointer[]
+}
+
+export interface InjectOptions extends RecallOptions {
+  maxTokens?: number
+  format?: 'prompt' | 'learnings'
+  search?: 'text'
+  tagBoost?: boolean
+}
+
+export interface InjectResult {
+  prompt: string
+  learnings: LearningRecord[]
+}
+
 export interface EdgeMemoryStore {
   /** Store a memory. Deduplicates automatically via FTS5 similarity. */
   remember(text: string, options?: { source?: string }): Memory
 
   /** Find relevant memories via FTS5 full-text search. */
   recall(context: string, options?: RecallOptions): RecallResult[]
+
+  /** Retrieve structured learnings for injection. */
+  inject(context: string, options?: InjectOptions): InjectResult
 
   /** Signal that a recalled memory was useful. Boosts its confidence. */
   confirm(id: string): boolean
@@ -73,6 +128,13 @@ export interface EdgeMemoryStore {
 
   /** How many memories are stored. */
   readonly size: number
+
+  /** @deprecated Use remember() for legacy text-only writes. */
+  learn(
+    triggerOrText: string,
+    learningOrOptions?: string | LearnOptions | { source?: string },
+    options?: LearnOptions,
+  ): Memory | LearningRecord
 }
 
 export interface RecallOptions {
@@ -166,6 +228,70 @@ function clampConfidence(c: number): number {
   return Math.min(CONFIDENCE_MAX, Math.max(CONFIDENCE_MIN, Math.round(c * 1000) / 1000))
 }
 
+function buildLearningText(trigger: string, learning: string): string {
+  return `When ${trigger}, ${stripAntiPatternPrefix(learning)}`
+}
+
+function appendDistinctValue(current: string | undefined, incoming: string | undefined): string | undefined {
+  if (!incoming) return current
+  if (!current) return incoming
+  const existing = current.split('\n').map(value => value.trim()).filter(Boolean)
+  return existing.includes(incoming) ? current : `${current}\n${incoming}`
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4)
+}
+
+function buildLearningPayload(record: LearningRecord, tier: 'trigger' | 'full'): LearningRecord {
+  if (tier === 'trigger') {
+    return {
+      ...record,
+      tier,
+      learning: '',
+      reason: undefined,
+      source: undefined,
+    }
+  }
+  return {
+    ...record,
+    tier,
+  }
+}
+
+function applyInjectBudget(learnings: LearningRecord[], maxTokens?: number): LearningRecord[] {
+  if (!maxTokens || maxTokens <= 0) {
+    return learnings.map(learning => buildLearningPayload(learning, 'full'))
+  }
+
+  const triggerBudget = Math.floor(maxTokens * 0.3)
+  const results = new Map<string, LearningRecord>()
+  let triggerTokensUsed = 0
+
+  for (const learning of learnings) {
+    const triggerTokens = estimateTokens(learning.trigger)
+    if (results.size > 0 && triggerTokensUsed + triggerTokens > triggerBudget) break
+    results.set(learning.id, buildLearningPayload(learning, 'trigger'))
+    triggerTokensUsed += triggerTokens
+  }
+
+  let remainingTokens = maxTokens - triggerTokensUsed
+  for (const learning of learnings) {
+    if (!results.has(learning.id)) continue
+    const fullText = [learning.trigger, learning.learning, learning.reason, learning.source]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .join('\n')
+    const expansionCost = Math.max(estimateTokens(fullText) - estimateTokens(learning.trigger), 0)
+    if (expansionCost > remainingTokens) continue
+    results.set(learning.id, buildLearningPayload(learning, 'full'))
+    remainingTokens -= expansionCost
+  }
+
+  return learnings
+    .filter(learning => results.has(learning.id))
+    .map(learning => results.get(learning.id) as LearningRecord)
+}
+
 // ============================================================================
 // ID generation
 // ============================================================================
@@ -183,6 +309,12 @@ function initSchema(sql: DurableObjectState['storage']['sql']) {
     CREATE TABLE IF NOT EXISTS memories (
       id TEXT PRIMARY KEY,
       text TEXT NOT NULL,
+      trigger TEXT,
+      learning TEXT,
+      reason TEXT,
+      scope TEXT NOT NULL DEFAULT 'shared',
+      tags TEXT,
+      assets TEXT,
       confidence REAL NOT NULL DEFAULT 0.5,
       supersedes TEXT,
       created_at TEXT NOT NULL,
@@ -237,6 +369,24 @@ function migrateSchema(sql: DurableObjectState['storage']['sql']) {
   if (!colNames.has('type')) {
     sql.exec("ALTER TABLE memories ADD COLUMN type TEXT NOT NULL DEFAULT 'memory'")
   }
+  if (!colNames.has('trigger')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN trigger TEXT')
+  }
+  if (!colNames.has('learning')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN learning TEXT')
+  }
+  if (!colNames.has('reason')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN reason TEXT')
+  }
+  if (!colNames.has('scope')) {
+    sql.exec("ALTER TABLE memories ADD COLUMN scope TEXT NOT NULL DEFAULT 'shared'")
+  }
+  if (!colNames.has('assets')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN assets TEXT')
+  }
+  if (!colNames.has('tags')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN tags TEXT')
+  }
 }
 
 // ============================================================================
@@ -255,6 +405,37 @@ export function createEdgeMemory(
 
   // Initialize schema (idempotent)
   initSchema(sql)
+
+  function toLearningRecord(row: {
+    id: string
+    text: string
+    trigger: string | null
+    learning: string | null
+    reason: string | null
+    scope: string | null
+    tags?: string | null
+    confidence: number
+    supersedes?: string | null
+    created_at: string
+    source?: string | null
+    type: string
+  }): LearningRecord {
+    return {
+      id: row.id,
+      text: row.text,
+      trigger: row.trigger ?? row.text,
+      learning: row.learning ?? row.text,
+      confidence: row.confidence,
+      createdAt: row.created_at,
+      scope: row.scope ?? 'shared',
+      tags: row.tags ? JSON.parse(row.tags) : [],
+      assets: row.assets ? JSON.parse(row.assets) : [],
+      supersedes: row.supersedes ?? undefined,
+      source: row.source ?? undefined,
+      reason: row.reason ?? undefined,
+      type: (row.type as 'memory' | 'anti-pattern') ?? 'memory',
+    }
+  }
 
   function remember(text: string, options?: { source?: string }): Memory {
     const trimmed = text.trim()
@@ -292,6 +473,7 @@ export function createEdgeMemory(
         return {
           id: bestCandidate.id,
           text: bestCandidate.text,
+          assets: bestCandidate.assets ? JSON.parse(bestCandidate.assets) : [],
           confidence: bestCandidate.confidence,
           createdAt: bestCandidate.created_at,
           supersedes: bestCandidate.supersedes ?? undefined,
@@ -312,7 +494,7 @@ export function createEdgeMemory(
           `INSERT INTO memories (id, text, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           id, trimmed, CONFIDENCE_DEFAULT, bestCandidate.id, createdAt, source ?? null, type,
         )
-        return { id, text: trimmed, confidence: CONFIDENCE_DEFAULT, supersedes: bestCandidate.id, createdAt, source, type }
+        return { id, text: trimmed, assets: [], confidence: CONFIDENCE_DEFAULT, supersedes: bestCandidate.id, createdAt, source, type }
       }
     }
 
@@ -324,7 +506,193 @@ export function createEdgeMemory(
       `INSERT INTO memories (id, text, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       id, trimmed, CONFIDENCE_DEFAULT, null, createdAt, source ?? null, type,
     )
-    return { id, text: trimmed, confidence: CONFIDENCE_DEFAULT, createdAt, source, type }
+    return { id, text: trimmed, assets: [], confidence: CONFIDENCE_DEFAULT, createdAt, source, type }
+  }
+
+  function learnStructured(
+    trigger: string,
+    learning: string,
+    options: LearnOptions = {},
+  ): LearningRecord {
+    const normalizedTrigger = trigger.trim()
+    const normalizedLearning = learning.trim()
+    const scope = options.scope ?? 'shared'
+    const reason = options.reason?.trim() || undefined
+    const source = options.source?.trim() || undefined
+    const assets = options.assets
+    const noveltyThreshold = options.noveltyThreshold ?? 0.95
+    const nextConfidence = clampConfidence(options.confidence ?? CONFIDENCE_DEFAULT)
+    const text = buildLearningText(normalizedTrigger, normalizedLearning)
+    const tags = extractEntityTags(normalizedTrigger, normalizedLearning)
+    const keywords = extractKeywords(text)
+
+    if (keywords.length > 0) {
+      const ftsQuery = keywords.map(k => `"${k}"`).join(' OR ')
+      const candidates = [
+        ...sql.exec<{
+          id: string
+          text: string
+          trigger: string | null
+          learning: string | null
+          reason: string | null
+          scope: string | null
+          tags: string | null
+          confidence: number
+          supersedes: string | null
+          created_at: string
+          source: string | null
+          type: string
+        }>(
+          `SELECT m.id, m.text, m.trigger, m.learning, m.reason, m.scope, m.tags, m.confidence, m.supersedes, m.created_at, m.source, m.type
+           FROM memories m
+           JOIN memories_fts ON memories_fts.rowid = m.rowid
+           WHERE memories_fts MATCH ?
+           AND m.scope = ?
+           LIMIT 10`,
+          ftsQuery,
+          scope,
+        ),
+      ]
+
+      let bestSim = 0
+      let bestCandidate: typeof candidates[number] | null = null
+      for (const candidate of candidates) {
+        const similarity = trigramSimilarity(text, stripAntiPatternPrefix(candidate.text))
+        if (similarity > bestSim) {
+          bestSim = similarity
+          bestCandidate = candidate
+        }
+      }
+
+      if (
+        noveltyThreshold > 0 &&
+        bestCandidate &&
+        bestCandidate.trigger &&
+        bestCandidate.learning &&
+        bestSim >= noveltyThreshold
+      ) {
+        const keepIncomingVersion = nextConfidence > bestCandidate.confidence
+        const createdAt = new Date().toISOString()
+        const mergedTrigger = keepIncomingVersion ? normalizedTrigger : bestCandidate.trigger
+        const mergedLearning = keepIncomingVersion ? normalizedLearning : bestCandidate.learning
+        const mergedText = keepIncomingVersion ? text : bestCandidate.text
+        const mergedReason = appendDistinctValue(bestCandidate.reason ?? undefined, reason)
+        const mergedSource = appendDistinctValue(bestCandidate.source ?? undefined, source)
+        const mergedConfidence = Math.max(bestCandidate.confidence, nextConfidence)
+        const mergedTags = Array.from(
+          new Set([...(bestCandidate.tags ? JSON.parse(bestCandidate.tags) : []), ...tags]),
+        )
+
+        sql.exec(
+          `UPDATE memories
+           SET text = ?, trigger = ?, learning = ?, reason = ?, scope = ?, tags = ?, assets = ?, confidence = ?, created_at = ?, source = ?
+           WHERE id = ?`,
+          mergedText,
+          mergedTrigger,
+          mergedLearning,
+          mergedReason ?? null,
+          scope,
+          JSON.stringify(mergedTags),
+          JSON.stringify(assets),
+          mergedConfidence,
+          createdAt,
+          mergedSource ?? null,
+          bestCandidate.id,
+        )
+
+        return {
+          id: bestCandidate.id,
+          text: mergedText,
+          trigger: mergedTrigger,
+          learning: mergedLearning,
+          confidence: mergedConfidence,
+          createdAt,
+          scope,
+          tags: mergedTags,
+          assets,
+          supersedes: bestCandidate.supersedes ?? undefined,
+          source: mergedSource,
+          reason: mergedReason,
+          type: (bestCandidate.type as 'memory' | 'anti-pattern') ?? 'memory',
+        }
+      }
+
+      if (bestCandidate && bestSim >= conflictThreshold) {
+        const newConf = clampConfidence(bestCandidate.confidence * 0.3)
+        sql.exec(`UPDATE memories SET confidence = ? WHERE id = ?`, newConf, bestCandidate.id)
+
+        const id = createId()
+        const createdAt = new Date().toISOString()
+        const type: 'memory' | 'anti-pattern' = 'memory'
+        sql.exec(
+          `INSERT INTO memories (id, text, trigger, learning, reason, scope, tags, assets, confidence, supersedes, created_at, source, type)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id,
+          text,
+          normalizedTrigger,
+          normalizedLearning,
+          reason ?? null,
+          scope,
+          JSON.stringify(tags),
+          JSON.stringify(assets),
+          nextConfidence,
+          bestCandidate.id,
+          createdAt,
+          source ?? null,
+          type,
+        )
+        return {
+          id,
+          text,
+          trigger: normalizedTrigger,
+          learning: normalizedLearning,
+          confidence: nextConfidence,
+          createdAt,
+          scope,
+          tags,
+          assets,
+          supersedes: bestCandidate.id,
+          source,
+          reason,
+          type,
+        }
+      }
+    }
+
+    const id = createId()
+    const createdAt = new Date().toISOString()
+    const type: 'memory' | 'anti-pattern' = 'memory'
+    sql.exec(
+      `INSERT INTO memories (id, text, trigger, learning, reason, scope, tags, assets, confidence, supersedes, created_at, source, type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      text,
+      normalizedTrigger,
+      normalizedLearning,
+      reason ?? null,
+      scope,
+      JSON.stringify(tags),
+      JSON.stringify(assets),
+      nextConfidence,
+      null,
+      createdAt,
+      source ?? null,
+      type,
+    )
+    return {
+      id,
+      text,
+      trigger: normalizedTrigger,
+      learning: normalizedLearning,
+      confidence: nextConfidence,
+      createdAt,
+      scope,
+      tags,
+      assets,
+      source,
+      reason,
+      type,
+    }
   }
 
   function recall(context: string, options: RecallOptions = {}): RecallResult[] {
@@ -403,6 +771,91 @@ export function createEdgeMemory(
     return topResults
   }
 
+  function inject(context: string, options: InjectOptions = {}): InjectResult {
+    const search = options.search ?? 'text'
+    if (search !== 'text') {
+      throw new Error(`Unsupported edge inject search mode: ${search}`)
+    }
+
+    const limit = options.limit ?? 5
+    const minConf = options.minConfidence ?? defaultMinConfidence
+    const threshold = options.threshold ?? 0
+    const now = new Date().toISOString()
+    const nowMs = Date.now()
+    const ftsQuery = buildFtsQuery(context)
+    if (!ftsQuery) return { prompt: '', learnings: [] }
+
+    const rows = [
+      ...sql.exec<{
+        id: string
+        text: string
+        trigger: string | null
+        learning: string | null
+        reason: string | null
+        scope: string | null
+        tags: string | null
+        assets: string | null
+        confidence: number
+        supersedes: string | null
+        created_at: string
+        last_recalled_at: string | null
+        source: string | null
+        type: string
+        rank: number
+      }>(
+        `SELECT m.id, m.text, m.trigger, m.learning, m.reason, m.scope, m.tags, m.assets, m.confidence, m.supersedes, m.created_at, m.last_recalled_at, m.source, m.type, bm25(memories_fts) as rank
+         FROM memories_fts
+         JOIN memories m ON memories_fts.rowid = m.rowid
+         WHERE memories_fts MATCH ?
+         AND m.confidence >= ?
+         ORDER BY rank
+         LIMIT ?`,
+        ftsQuery,
+        minConf,
+        limit * 3,
+      ),
+    ]
+
+    if (rows.length === 0) return { prompt: '', learnings: [] }
+
+    const maxRank = Math.max(...rows.map(r => -r.rank))
+    const minRank = Math.min(...rows.map(r => -r.rank))
+    const range = maxRank - minRank
+
+    const scored = rows.map((row) => {
+      const normalizedRelevance = range === 0 ? 1.0 : (-row.rank - minRank) / range
+      const lastActiveAt = row.last_recalled_at ?? row.created_at
+      const daysSince = (nowMs - new Date(lastActiveAt).getTime()) / 86400000
+      const decayedConfidence = row.confidence * Math.pow(0.5, daysSince / HALF_LIFE_DAYS)
+      const score = normalizedRelevance * 0.7 + decayedConfidence * 0.3
+      return {
+        ...toLearningRecord(row),
+        score: Math.round(score * 1000) / 1000,
+      }
+    })
+
+    const queryTags = options.tagBoost === false ? [] : extractEntityTags(context)
+    scored.sort((a, b) => {
+      const overlapDiff = countTagOverlap(queryTags, b.tags ?? []) - countTagOverlap(queryTags, a.tags ?? [])
+      if (overlapDiff !== 0) return overlapDiff
+      return b.score - a.score
+    })
+    const ranked = scored.filter(row => row.score >= threshold).slice(0, limit)
+
+    for (const learning of ranked) {
+      sql.exec('UPDATE memories SET last_recalled_at = ? WHERE id = ?', now, learning.id)
+    }
+
+    const payloadLearnings = applyInjectBudget(
+      ranked.map(({ score: _, ...learning }) => learning),
+      options.maxTokens,
+    )
+    return {
+      prompt: payloadLearnings.map(learning => `When ${learning.trigger}, ${learning.learning}`).join('\n'),
+      learnings: payloadLearnings,
+    }
+  }
+
   const store: EdgeMemoryStore = {
     get size(): number {
       const row = [...sql.exec<{ count: number }>('SELECT COUNT(*) as count FROM memories')]
@@ -411,6 +864,7 @@ export function createEdgeMemory(
 
     remember,
     recall,
+    inject,
 
     confirm(id: string): boolean {
       const rows = [...sql.exec<{ confidence: number }>('SELECT confidence FROM memories WHERE id = ?', id)]
@@ -448,13 +902,14 @@ export function createEdgeMemory(
       const limit = options.limit ?? 1000
       const offset = options.offset ?? 0
       return [
-        ...sql.exec<{ id: string; text: string; confidence: number; supersedes: string | null; created_at: string; source: string | null; type: string }>(
-          'SELECT id, text, confidence, supersedes, created_at, source, type FROM memories ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        ...sql.exec<{ id: string; text: string; assets: string | null; confidence: number; supersedes: string | null; created_at: string; source: string | null; type: string }>(
+          'SELECT id, text, assets, confidence, supersedes, created_at, source, type FROM memories ORDER BY created_at DESC LIMIT ? OFFSET ?',
           limit, offset,
         ),
       ].map(r => ({
         id: r.id,
         text: r.text,
+        assets: r.assets ? JSON.parse(r.assets) : [],
         confidence: r.confidence,
         supersedes: r.supersedes ?? undefined,
         createdAt: r.created_at,
@@ -476,6 +931,13 @@ export function createEdgeMemory(
         results: JSON.parse(r.results),
         timestamp: r.timestamp,
       }))
+    },
+
+    learn(triggerOrText, learningOrOptions, options) {
+      if (typeof learningOrOptions === 'string') {
+        return learnStructured(triggerOrText, learningOrOptions, options)
+      }
+      return remember(triggerOrText, learningOrOptions as { source?: string } | undefined)
     },
   }
 

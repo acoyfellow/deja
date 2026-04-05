@@ -13,6 +13,8 @@ export function initializeStorage(state: DurableObjectState) {
         trigger TEXT NOT NULL,
         learning TEXT NOT NULL,
         reason TEXT,
+        tags TEXT,
+        assets TEXT,
         confidence REAL DEFAULT 1.0,
         source TEXT,
         scope TEXT NOT NULL,
@@ -31,6 +33,26 @@ export function initializeStorage(state: DurableObjectState) {
       CREATE INDEX IF NOT EXISTS idx_learnings_confidence ON learnings(confidence);
       CREATE INDEX IF NOT EXISTS idx_learnings_created_at ON learnings(created_at);
       CREATE INDEX IF NOT EXISTS idx_learnings_scope ON learnings(scope);
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS learnings_fts USING fts5(
+          trigger,
+          learning,
+          content='learnings',
+          content_rowid='rowid',
+          tokenize='porter unicode61'
+        );
+        CREATE TRIGGER IF NOT EXISTS learnings_ai AFTER INSERT ON learnings BEGIN
+          INSERT INTO learnings_fts(rowid, trigger, learning) VALUES (new.rowid, new.trigger, new.learning);
+        END;
+        CREATE TRIGGER IF NOT EXISTS learnings_ad AFTER DELETE ON learnings BEGIN
+          INSERT INTO learnings_fts(learnings_fts, rowid, trigger, learning)
+          VALUES('delete', old.rowid, old.trigger, old.learning);
+        END;
+        CREATE TRIGGER IF NOT EXISTS learnings_au AFTER UPDATE ON learnings BEGIN
+          INSERT INTO learnings_fts(learnings_fts, rowid, trigger, learning)
+          VALUES('delete', old.rowid, old.trigger, old.learning);
+          INSERT INTO learnings_fts(rowid, trigger, learning) VALUES (new.rowid, new.trigger, new.learning);
+        END;
     `);
     try {
       state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN last_recalled_at TEXT`);
@@ -64,6 +86,12 @@ export function initializeStorage(state: DurableObjectState) {
     } catch (_) {}
     try {
       state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN type TEXT NOT NULL DEFAULT 'memory'`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN assets TEXT`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN tags TEXT`);
     } catch (_) {}
 
     state.storage.sql.exec(`
@@ -167,11 +195,13 @@ export function convertDbLearning(dbLearning: any): Learning {
     trigger: dbLearning.trigger,
     learning: dbLearning.learning,
     reason: dbLearning.reason !== null ? dbLearning.reason : undefined,
+    assets: dbLearning.assets ? JSON.parse(dbLearning.assets) : [],
     confidence: dbLearning.confidence !== null ? dbLearning.confidence : 0,
     source: dbLearning.source !== null ? dbLearning.source : undefined,
     scope: dbLearning.scope,
     supersedes: dbLearning.supersedes ?? undefined,
     type: (dbLearning.type as Learning['type'] | null) ?? 'memory',
+    tags: dbLearning.tags ? JSON.parse(dbLearning.tags) : [],
     embedding: dbLearning.embedding ? JSON.parse(dbLearning.embedding) : undefined,
     createdAt: dbLearning.createdAt,
     lastRecalledAt: dbLearning.lastRecalledAt ?? undefined,

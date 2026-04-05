@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, like, sql } from 'drizzle-orm';
 
 import * as schema from '../schema';
 import { createLearningId } from './helpers';
+import { extractEntityTags } from '../tagging';
 import type {
   InjectResult,
   InjectTraceResult,
@@ -32,6 +33,80 @@ function buildEmbeddingText(trigger: string, learning: string): string {
 
 function clampConfidence(confidence: number): number {
   return Math.min(CONFIDENCE_MAX, Math.max(CONFIDENCE_MIN, Math.round(confidence * 1000) / 1000));
+}
+
+function appendDistinctValue(current: string | undefined, incoming: string | undefined): string | undefined {
+  if (!incoming) return current;
+  if (!current) return incoming;
+  const existingValues = current
+    .split('\n')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (existingValues.includes(incoming)) {
+    return current;
+  }
+  return `${current}\n${incoming}`;
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function buildLearningPayload(learning: Learning, tier: 'trigger' | 'full'): Learning {
+  return {
+    ...learning,
+    tier,
+    learning: tier === 'full' ? learning.learning : '',
+    reason: tier === 'full' ? learning.reason : undefined,
+    source: tier === 'full' ? learning.source : undefined,
+    assets: tier === 'full' ? learning.assets : learning.assets,
+  };
+}
+
+function applyInjectBudget(
+  learnings: Learning[],
+  maxTokens?: number,
+): Learning[] {
+  if (!maxTokens || maxTokens <= 0) {
+    return learnings.map((learning) => buildLearningPayload(learning, 'full'));
+  }
+
+  const triggerBudget = Math.floor(maxTokens * 0.3);
+  const triggerTier: Learning[] = [];
+  let triggerTokensUsed = 0;
+
+  for (const learning of learnings) {
+    const triggerTokens = estimateTokens(learning.trigger);
+    if (triggerTier.length > 0 && triggerTokensUsed + triggerTokens > triggerBudget) {
+      break;
+    }
+    triggerTier.push(buildLearningPayload(learning, 'trigger'));
+    triggerTokensUsed += triggerTokens;
+  }
+
+  const resultById = new Map<string, Learning>(triggerTier.map((learning) => [learning.id, learning]));
+  let remainingTokens = maxTokens - triggerTokensUsed;
+
+  for (const learning of learnings) {
+    if (!resultById.has(learning.id)) {
+      continue;
+    }
+    const fullText = [learning.trigger, learning.learning, learning.reason, learning.source]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .join('\n');
+    const fullTokens = estimateTokens(fullText);
+    const triggerTokens = estimateTokens(learning.trigger);
+    const expansionCost = Math.max(fullTokens - triggerTokens, 0);
+    if (expansionCost > remainingTokens) {
+      continue;
+    }
+    resultById.set(learning.id, buildLearningPayload(learning, 'full'));
+    remainingTokens -= expansionCost;
+  }
+
+  return learnings
+    .filter((learning) => resultById.has(learning.id))
+    .map((learning) => resultById.get(learning.id) as Learning);
 }
 
 function mergeIdentity(
@@ -87,8 +162,18 @@ function buildVectorMetadata(learning: Learning): Record<string, string> {
 
   if (learning.supersedes) metadata.supersedes = learning.supersedes;
   if (learning.source) metadata.source = learning.source;
+  if (learning.tags?.length) metadata.tags = JSON.stringify(learning.tags);
 
   return metadata;
+}
+
+function buildFtsQuery(text: string): string {
+  const keywords = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 1);
+  return keywords.map((keyword) => `"${keyword}"`).join(' OR ');
 }
 
 async function upsertLearningVector(
@@ -138,6 +223,84 @@ async function getNearestLearningMatches(
       return { row, similarity: match.score ?? 0 };
     })
     .filter((match: { row: any; similarity: number } | null): match is { row: any; similarity: number } => match !== null);
+}
+
+async function queryHostedTextSearch(
+  sqlDb: DurableObjectState['storage']['sql'] | undefined,
+  scopes: string[],
+  context: string,
+  limit: number,
+): Promise<any[]> {
+  if (!sqlDb) {
+    return [];
+  }
+  const ftsQuery = buildFtsQuery(context);
+  if (!ftsQuery) {
+    return [];
+  }
+
+  return [
+    ...sqlDb.exec<any>(
+      `SELECT l.*
+       FROM learnings_fts
+       JOIN learnings l ON l.rowid = learnings_fts.rowid
+       WHERE learnings_fts MATCH ?
+         AND l.scope IN (${scopes.map(() => '?').join(', ')})
+       ORDER BY bm25(learnings_fts)
+       LIMIT ?`,
+      ftsQuery,
+      ...scopes,
+      limit,
+    ),
+  ];
+}
+
+async function loadRankedLearnings(
+  ctx: MemoryOperationsContext,
+  db: any,
+  ids: string[],
+  scopes: string[],
+): Promise<Learning[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const rows = await db
+    .select()
+    .from(schema.learnings)
+    .where(
+      and(
+        inArray(schema.learnings.id, ids),
+        inArray(schema.learnings.scope, scopes),
+      ),
+    );
+  const rowById = new Map<string, any>(rows.map((row: any) => [row.id, row]));
+  return ids
+    .map((id) => rowById.get(id))
+    .filter((row: any | undefined): row is any => row !== undefined)
+    .map((row: any) => ctx.convertDbLearning(rowById.get(row.id) ?? row));
+}
+
+function countTagOverlap(queryTags: string[], learning: Learning): number {
+  if (!queryTags.length || !learning.tags?.length) {
+    return 0;
+  }
+  const learningTags = learning.tags.map((tag) => tag.toLowerCase());
+  let matches = 0;
+  for (const queryTag of queryTags) {
+    const normalizedQueryTag = queryTag.toLowerCase();
+    if (
+      learningTags.some(
+        (learningTag) =>
+          learningTag === normalizedQueryTag ||
+          learningTag.includes(normalizedQueryTag) ||
+          normalizedQueryTag.includes(learningTag),
+      )
+    ) {
+      matches += 1;
+    }
+  }
+  return matches;
 }
 
 export async function cleanupLearnings(
@@ -223,7 +386,10 @@ export async function injectMemories(
   context: string,
   limit: number = 5,
   format: 'prompt' | 'learnings' = 'prompt',
+  search: 'vector' | 'text' | 'hybrid' = 'hybrid',
   _identity?: SharedRunIdentity,
+  maxTokens?: number,
+  tagBoost: boolean = true,
 ): Promise<InjectResult> {
   const db = await ctx.initDB();
   const filteredScopes = ctx.filterScopesByPriority(scopes);
@@ -232,46 +398,53 @@ export async function injectMemories(
   }
 
   try {
-    const embedding = await ctx.createEmbedding(context);
-    const vectorResults = await ctx.env.VECTORIZE.query(embedding, {
-      topK: limit * 2,
-      returnValues: true,
-    });
-    const ids = vectorResults.matches.map((match: any) => match.id);
+    const ids: string[] = [];
+    const seen = new Set<string>();
+
+    if (search === 'vector' || search === 'hybrid') {
+      const embedding = await ctx.createEmbedding(context);
+      const vectorResults = await ctx.env.VECTORIZE.query(embedding, {
+        topK: limit * 2,
+        returnValues: true,
+      });
+      for (const match of vectorResults.matches) {
+        if (seen.has(match.id)) continue;
+        seen.add(match.id);
+        ids.push(match.id);
+      }
+    }
+
+    if (search === 'text' || search === 'hybrid') {
+      const textRows = await queryHostedTextSearch(ctx.sql, filteredScopes, context, limit * 2);
+      for (const row of textRows) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        ids.push(row.id);
+      }
+    }
 
     if (ids.length === 0) {
       return { prompt: '', learnings: [] };
     }
 
-    const dbLearnings = await db
-      .select()
-      .from(schema.learnings)
-      .where(
-        and(
-          inArray(schema.learnings.id, ids),
-          inArray(schema.learnings.scope, filteredScopes),
-        ),
-      )
-      .limit(limit);
-
-    const learnings = dbLearnings.map((learning: any) => ctx.convertDbLearning(learning));
+    const queryTags = tagBoost ? extractEntityTags(context) : [];
+    const rankedLearnings = (await loadRankedLearnings(ctx, db, ids, filteredScopes))
+      .sort((left: Learning, right: Learning) => {
+        const leftOverlap = countTagOverlap(queryTags, left);
+        const rightOverlap = countTagOverlap(queryTags, right);
+        const leftBoost = leftOverlap >= 2 ? 1 : 0;
+        const rightBoost = rightOverlap >= 2 ? 1 : 0;
+        if (rightBoost !== leftBoost) {
+          return rightBoost - leftBoost;
+        }
+        return ids.indexOf(left.id) - ids.indexOf(right.id);
+      })
+      .slice(0, limit);
+    const injectedLearnings = applyInjectBudget(rankedLearnings, maxTokens);
     const now = new Date().toISOString();
-    const nowMs = Date.now();
-
-    // Apply time-based confidence decay for ranking (read-side only, stored values unchanged)
-    const HALF_LIFE_DAYS = 90;
-    const rankedLearnings = [...learnings].sort((a: Learning, b: Learning) => {
-      const aLastActive = a.lastRecalledAt ?? a.createdAt;
-      const bLastActive = b.lastRecalledAt ?? b.createdAt;
-      const aDays = (nowMs - new Date(aLastActive).getTime()) / 86400000;
-      const bDays = (nowMs - new Date(bLastActive).getTime()) / 86400000;
-      const aDecayed = (a.confidence ?? 1.0) * Math.pow(0.5, aDays / HALF_LIFE_DAYS);
-      const bDecayed = (b.confidence ?? 1.0) * Math.pow(0.5, bDays / HALF_LIFE_DAYS);
-      return bDecayed - aDecayed;
-    });
 
     await Promise.all(
-      rankedLearnings.map((learning: Learning) =>
+      injectedLearnings.map((learning: Learning) =>
         db
           .update(schema.learnings)
           .set({
@@ -284,14 +457,18 @@ export async function injectMemories(
 
     if (format === 'prompt') {
       return {
-        prompt: rankedLearnings
-          .map((learning: Learning) => `When ${learning.trigger}, ${learning.learning}`)
+        prompt: injectedLearnings
+          .map((learning: Learning) =>
+            learning.tier === 'trigger'
+              ? learning.trigger
+              : `When ${learning.trigger}, ${learning.learning}`,
+          )
           .join('\n'),
-        learnings: rankedLearnings,
+        learnings: injectedLearnings,
       };
     }
 
-    return { prompt: '', learnings: rankedLearnings };
+    return { prompt: '', learnings: injectedLearnings };
   } catch (error) {
     console.error('Inject error:', error);
     return { prompt: '', learnings: [] };
@@ -422,7 +599,9 @@ export async function learnMemory(
   confidence: number = 0.5,
   reason?: string,
   source?: string,
+  assets?: Array<{ type: string; ref: string; label?: string }>,
   identity?: SharedRunIdentity,
+  noveltyThreshold: number = DEDUPE_THRESHOLD,
 ): Promise<Learning> {
   const db = await ctx.initDB();
   const normalizedConfidence = clampConfidence(confidence);
@@ -430,19 +609,60 @@ export async function learnMemory(
   const nearestMatches = await getNearestLearningMatches(ctx, db, embedding, scope);
   const bestMatch = nearestMatches[0];
 
-  if (bestMatch && bestMatch.similarity >= DEDUPE_THRESHOLD) {
+  if (noveltyThreshold > 0 && bestMatch && bestMatch.similarity >= noveltyThreshold) {
     const existingLearning = ctx.convertDbLearning(bestMatch.row);
     const mergedIdentity = mergeIdentity(existingLearning.identity, identity);
+    const keepIncomingVersion = normalizedConfidence > existingLearning.confidence;
+    const nextTrigger = keepIncomingVersion ? trigger : existingLearning.trigger;
+    const nextLearningText = keepIncomingVersion ? learning : existingLearning.learning;
+    const nextConfidence = Math.max(existingLearning.confidence, normalizedConfidence);
+    const nextReason = appendDistinctValue(existingLearning.reason, reason);
+    const nextSource = appendDistinctValue(existingLearning.source, source);
+    const nextAssets = assets ?? existingLearning.assets;
+    const nextCreatedAt = new Date().toISOString();
+    const nextEmbedding = keepIncomingVersion
+      ? embedding
+      : existingLearning.embedding ??
+        (bestMatch.row.embedding ? JSON.parse(bestMatch.row.embedding) : undefined);
 
-    if (!identitiesEqual(existingLearning.identity, mergedIdentity)) {
-      await db
-        .update(schema.learnings)
-        .set(learningIdentityFields(mergedIdentity))
-        .where(eq(schema.learnings.id, existingLearning.id));
-    }
+    await db
+      .update(schema.learnings)
+      .set({
+        trigger: nextTrigger,
+        learning: nextLearningText,
+        confidence: nextConfidence,
+        reason: nextReason ?? null,
+        source: nextSource ?? null,
+        assets: nextAssets ? JSON.stringify(nextAssets) : null,
+        createdAt: nextCreatedAt,
+        embedding: nextEmbedding ? JSON.stringify(nextEmbedding) : null,
+        ...learningIdentityFields(mergedIdentity),
+      })
+      .where(eq(schema.learnings.id, existingLearning.id));
+
+    await upsertLearningVector(ctx, {
+      ...existingLearning,
+      trigger: nextTrigger,
+      learning: nextLearningText,
+      confidence: nextConfidence,
+      reason: nextReason,
+      source: nextSource,
+      assets: nextAssets,
+      createdAt: nextCreatedAt,
+      identity: mergedIdentity,
+      embedding: nextEmbedding,
+    });
 
     return {
       ...existingLearning,
+      trigger: nextTrigger,
+      learning: nextLearningText,
+      confidence: nextConfidence,
+      reason: nextReason,
+      source: nextSource,
+      assets: nextAssets,
+      createdAt: nextCreatedAt,
+      embedding: nextEmbedding,
       identity: mergedIdentity,
     };
   }
@@ -458,13 +678,16 @@ export async function learnMemory(
   }
 
   const id = createLearningId();
+  const tags = extractEntityTags(trigger, learning);
   const newLearning: Learning = {
     id,
     trigger,
     learning,
+    tags,
     reason,
     confidence: normalizedConfidence,
     source,
+    assets,
     scope,
     supersedes,
     type: 'memory',
@@ -481,9 +704,11 @@ export async function learnMemory(
     reason: newLearning.reason,
     confidence: newLearning.confidence,
     source: newLearning.source,
+    assets: newLearning.assets ? JSON.stringify(newLearning.assets) : null,
     scope: newLearning.scope,
     supersedes: newLearning.supersedes ?? null,
     type: newLearning.type,
+    tags: JSON.stringify(newLearning.tags ?? []),
     embedding: newLearning.embedding ? JSON.stringify(newLearning.embedding) : null,
     createdAt: newLearning.createdAt,
     ...learningIdentityFields(identity),
