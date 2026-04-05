@@ -219,6 +219,31 @@ describe('inject maxTokens', () => {
   })
 })
 
+describe('entity tags', () => {
+  test('structured learn stores extracted tags', async () => {
+    const m = mem()
+    const learning = await m.learn(
+      'deploying Auth Service to staging',
+      'always run migrations in a transaction for the Auth Service API',
+      { scope: 'shared' },
+    ) as any
+
+    expect(learning.tags).toContain('Auth Service')
+    m.close()
+  })
+
+  test('inject boosts memories with 2+ overlapping tags', async () => {
+    const m = mem()
+    await m.learn('deploying worker', 'check logs before rollout', { scope: 'shared' })
+    await m.learn('deploying Auth Service to staging', 'run migrations through the Auth Service API', { scope: 'shared' })
+
+    const result = await m.inject('staging Auth Service API deploy', { format: 'learnings' })
+
+    expect(result.learnings[0].trigger).toContain('Auth Service')
+    m.close()
+  })
+})
+
 // ============================================================================
 // Trust guarantee: AUDITABILITY
 // ============================================================================

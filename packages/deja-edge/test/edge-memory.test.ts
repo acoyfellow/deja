@@ -137,6 +137,17 @@ describe('deja-edge: createEdgeMemory', () => {
     expect(result.learnings[0].tier).toBe('full')
   })
 
+  test('inject boosts memories with 2+ overlapping tags', () => {
+    freshMemory()
+    memory.learn('deploying Auth Service to staging', 'run migrations through the Auth Service API', {
+      scope: 'shared',
+    })
+    memory.learn('deploying worker', 'check logs before rollout', { scope: 'shared' })
+
+    const result = memory.inject('staging Auth Service API deploy', { format: 'learnings' })
+    expect(result.learnings[0].trigger).toContain('Auth Service')
+  })
+
   test('recall respects limit', () => {
     freshMemory()
     for (let i = 0; i < 10; i++) {

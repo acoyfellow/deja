@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, like, sql } from 'drizzle-orm';
 
 import * as schema from '../schema';
 import { createLearningId } from './helpers';
+import { extractEntityTags } from '../tagging';
 import type {
   InjectResult,
   InjectTraceResult,
@@ -160,6 +161,7 @@ function buildVectorMetadata(learning: Learning): Record<string, string> {
 
   if (learning.supersedes) metadata.supersedes = learning.supersedes;
   if (learning.source) metadata.source = learning.source;
+  if (learning.tags?.length) metadata.tags = JSON.stringify(learning.tags);
 
   return metadata;
 }
@@ -276,6 +278,28 @@ async function loadRankedLearnings(
     .map((id) => rowById.get(id))
     .filter((row: any | undefined): row is any => row !== undefined)
     .map((row: any) => ctx.convertDbLearning(rowById.get(row.id) ?? row));
+}
+
+function countTagOverlap(queryTags: string[], learning: Learning): number {
+  if (!queryTags.length || !learning.tags?.length) {
+    return 0;
+  }
+  const learningTags = learning.tags.map((tag) => tag.toLowerCase());
+  let matches = 0;
+  for (const queryTag of queryTags) {
+    const normalizedQueryTag = queryTag.toLowerCase();
+    if (
+      learningTags.some(
+        (learningTag) =>
+          learningTag === normalizedQueryTag ||
+          learningTag.includes(normalizedQueryTag) ||
+          normalizedQueryTag.includes(learningTag),
+      )
+    ) {
+      matches += 1;
+    }
+  }
+  return matches;
 }
 
 export async function cleanupLearnings(
@@ -401,7 +425,19 @@ export async function injectMemories(
       return { prompt: '', learnings: [] };
     }
 
-    const rankedLearnings = (await loadRankedLearnings(ctx, db, ids, filteredScopes)).slice(0, limit);
+    const queryTags = extractEntityTags(context);
+    const rankedLearnings = (await loadRankedLearnings(ctx, db, ids, filteredScopes))
+      .sort((left: Learning, right: Learning) => {
+        const leftOverlap = countTagOverlap(queryTags, left);
+        const rightOverlap = countTagOverlap(queryTags, right);
+        const leftBoost = leftOverlap >= 2 ? 1 : 0;
+        const rightBoost = rightOverlap >= 2 ? 1 : 0;
+        if (rightBoost !== leftBoost) {
+          return rightBoost - leftBoost;
+        }
+        return ids.indexOf(left.id) - ids.indexOf(right.id);
+      })
+      .slice(0, limit);
     const injectedLearnings = applyInjectBudget(rankedLearnings, maxTokens);
     const now = new Date().toISOString();
 
@@ -635,10 +671,12 @@ export async function learnMemory(
   }
 
   const id = createLearningId();
+  const tags = extractEntityTags(trigger, learning);
   const newLearning: Learning = {
     id,
     trigger,
     learning,
+    tags,
     reason,
     confidence: normalizedConfidence,
     source,
@@ -661,6 +699,7 @@ export async function learnMemory(
     scope: newLearning.scope,
     supersedes: newLearning.supersedes ?? null,
     type: newLearning.type,
+    tags: JSON.stringify(newLearning.tags ?? []),
     embedding: newLearning.embedding ? JSON.stringify(newLearning.embedding) : null,
     createdAt: newLearning.createdAt,
     ...learningIdentityFields(identity),

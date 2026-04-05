@@ -5,6 +5,7 @@ export const learnings = sqliteTable('learnings', {
   trigger: text('trigger').notNull(),
   learning: text('learning').notNull(),
   reason: text('reason'),
+  tags: text('tags'),
   confidence: real('confidence').default(1.0),
   source: text('source'),
   scope: text('scope').notNull(), // Added for scope support

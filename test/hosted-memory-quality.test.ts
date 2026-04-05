@@ -20,6 +20,7 @@ function makeLearningRow(overrides: Record<string, unknown> = {}) {
     scope: 'shared',
     supersedes: null,
     type: 'memory',
+    tags: null,
     embedding: JSON.stringify([0.11, 0.22, 0.33]),
     createdAt: '2026-03-01T00:00:00.000Z',
     lastRecalledAt: null,
@@ -424,6 +425,56 @@ describe('hosted memory quality', () => {
     expect(estimatedTokens).toBeLessThanOrEqual(100);
     expect(result.learnings[0].tier).toBe('full');
     expect(result.learnings[1].tier).toBe('trigger');
+  });
+
+  test('learnMemory extracts tags from trigger and learning text', async () => {
+    const { db, spies } = makeDb();
+    const { ctx } = makeMemoryContext(db, []);
+
+    const result = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploying Auth Service to staging',
+      'always run migrations in a transaction for the Auth Service API',
+    );
+
+    expect(result.tags).toContain('Auth Service');
+    expect(spies.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tags: expect.stringContaining('Auth Service'),
+      }),
+    );
+  });
+
+  test('injectMemories boosts learnings with 2+ overlapping tags', async () => {
+    const authRow = makeLearningRow({
+      id: 'auth-1',
+      trigger: 'deploying Auth Service to staging',
+      learning: 'run migrations through the Auth Service API',
+      tags: JSON.stringify(['Auth Service', 'staging', 'Service API']),
+    });
+    const genericRow = makeLearningRow({
+      id: 'generic-1',
+      trigger: 'deploying worker',
+      learning: 'check logs before rollout',
+      tags: JSON.stringify(['worker', 'logs']),
+    });
+    const { db } = makeDb([genericRow, authRow]);
+    const { ctx } = makeMemoryContext(db, [
+      { id: 'generic-1', score: 0.99 },
+      { id: 'auth-1', score: 0.95 },
+    ]);
+
+    const result = await injectMemories(
+      ctx as any,
+      ['shared'],
+      'staging Auth Service API deploy',
+      5,
+      'learnings',
+      'vector',
+    );
+
+    expect(result.learnings[0].id).toBe('auth-1');
   });
 });
 

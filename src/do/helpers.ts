@@ -85,6 +85,9 @@ export function initializeStorage(state: DurableObjectState) {
     try {
       state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN type TEXT NOT NULL DEFAULT 'memory'`);
     } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN tags TEXT`);
+    } catch (_) {}
 
     state.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS secrets (
@@ -192,6 +195,7 @@ export function convertDbLearning(dbLearning: any): Learning {
     scope: dbLearning.scope,
     supersedes: dbLearning.supersedes ?? undefined,
     type: (dbLearning.type as Learning['type'] | null) ?? 'memory',
+    tags: dbLearning.tags ? JSON.parse(dbLearning.tags) : [],
     embedding: dbLearning.embedding ? JSON.parse(dbLearning.embedding) : undefined,
     createdAt: dbLearning.createdAt,
     lastRecalledAt: dbLearning.lastRecalledAt ?? undefined,

@@ -13,6 +13,7 @@
 
 import { Database } from 'bun:sqlite'
 import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers'
+import { countTagOverlap, extractEntityTags } from './tagging'
 
 // ============================================================================
 // Types
@@ -51,6 +52,7 @@ export interface LearningRecord {
   trigger: string
   learning: string
   tier?: 'trigger' | 'full'
+  tags?: string[]
   confidence: number
   createdAt: string
   scope: string
@@ -269,6 +271,20 @@ function buildLearningPayload(record: LearningRecord, tier: 'trigger' | 'full'):
   }
 }
 
+function boostLearningRecordsByTags(learnings: LearningRecord[], queryTags: string[]): LearningRecord[] {
+  if (queryTags.length === 0) return learnings
+  const boosted = [...learnings]
+  boosted.sort((left, right) => {
+    const leftOverlap = countTagOverlap(queryTags, left.tags ?? [])
+    const rightOverlap = countTagOverlap(queryTags, right.tags ?? [])
+    const leftBoost = leftOverlap >= 2 ? 1 : 0
+    const rightBoost = rightOverlap >= 2 ? 1 : 0
+    if (leftBoost !== rightBoost) return rightBoost - leftBoost
+    return 0
+  })
+  return boosted
+}
+
 function applyInjectBudget(learnings: LearningRecord[], maxTokens?: number): LearningRecord[] {
   if (!maxTokens || maxTokens <= 0) {
     return learnings.map(learning => buildLearningPayload(learning, 'full'))
@@ -318,6 +334,7 @@ const SCHEMA = `
     learning TEXT,
     reason TEXT,
     scope TEXT NOT NULL DEFAULT 'shared',
+    tags TEXT,
     embedding BLOB NOT NULL,
     confidence REAL NOT NULL DEFAULT 0.5,
     supersedes TEXT,
@@ -369,6 +386,9 @@ function migrateSchema(db: Database) {
   if (!colNames.has('scope')) {
     db.exec("ALTER TABLE memories ADD COLUMN scope TEXT NOT NULL DEFAULT 'shared'")
   }
+  if (!colNames.has('tags')) {
+    db.exec('ALTER TABLE memories ADD COLUMN tags TEXT')
+  }
 }
 
 // ============================================================================
@@ -390,16 +410,16 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
 
   // Prepared statements
   const insertMemory = db.prepare(
-    'INSERT INTO memories (id, text, trigger, learning, reason, scope, embedding, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO memories (id, text, trigger, learning, reason, scope, tags, embedding, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   )
   const deleteMemory = db.prepare('DELETE FROM memories WHERE id = ?')
   const updateConfidence = db.prepare('UPDATE memories SET confidence = ? WHERE id = ?')
   const updateLastRecalledAt = db.prepare('UPDATE memories SET last_recalled_at = ? WHERE id = ?')
   const updateMemoryTextAndType = db.prepare('UPDATE memories SET text = ?, type = ?, confidence = ? WHERE id = ?')
   const updateStructuredMemory = db.prepare(
-    'UPDATE memories SET text = ?, trigger = ?, learning = ?, reason = ?, scope = ?, embedding = ?, confidence = ?, created_at = ?, source = ? WHERE id = ?'
+    'UPDATE memories SET text = ?, trigger = ?, learning = ?, reason = ?, scope = ?, tags = ?, embedding = ?, confidence = ?, created_at = ?, source = ? WHERE id = ?'
   )
-  const selectAll = db.prepare('SELECT id, text, trigger, learning, reason, scope, embedding, confidence, supersedes, created_at, last_recalled_at, source, type FROM memories')
+  const selectAll = db.prepare('SELECT id, text, trigger, learning, reason, scope, tags, embedding, confidence, supersedes, created_at, last_recalled_at, source, type FROM memories')
   const countMemories = db.prepare('SELECT COUNT(*) as count FROM memories')
   const insertRecall = db.prepare(
     'INSERT INTO recall_log (context, results, timestamp) VALUES (?, ?, ?)'
@@ -413,6 +433,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
     learning?: string
     reason?: string
     scope: string
+    tags?: string[]
     vec: number[]
     confidence: number
     supersedes?: string
@@ -424,7 +445,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
   const index: IndexEntry[] = []
 
   // Load existing memories into index
-  for (const row of selectAll.all() as Array<{ id: string; text: string; trigger: string | null; learning: string | null; reason: string | null; scope: string | null; embedding: Buffer; confidence: number; supersedes: string | null; created_at: string; last_recalled_at: string | null; source: string | null; type: string }>) {
+  for (const row of selectAll.all() as Array<{ id: string; text: string; trigger: string | null; learning: string | null; reason: string | null; scope: string | null; tags: string | null; embedding: Buffer; confidence: number; supersedes: string | null; created_at: string; last_recalled_at: string | null; source: string | null; type: string }>) {
     index.push({
       id: row.id,
       text: row.text,
@@ -432,6 +453,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       learning: row.learning ?? undefined,
       reason: row.reason ?? undefined,
       scope: row.scope ?? 'shared',
+      tags: row.tags ? JSON.parse(row.tags) : [],
       vec: bufferToVec(row.embedding),
       confidence: row.confidence,
       supersedes: row.supersedes ?? undefined,
@@ -486,6 +508,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       null,
       null,
       'shared',
+      JSON.stringify([]),
       buf,
       confidence,
       supersedes ?? null,
@@ -511,6 +534,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
     const noveltyThreshold = options.noveltyThreshold ?? dedupeThreshold
     const nextConfidence = clampConfidence(options.confidence ?? CONFIDENCE_DEFAULT)
     const text = buildLearningText(normalizedTrigger, normalizedLearning)
+    const tags = extractEntityTags(normalizedTrigger, normalizedLearning)
     const vec = await embed(text)
 
     let bestSimilarity = 0
@@ -548,6 +572,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
         mergedLearning,
         mergedReason ?? null,
         scope,
+        JSON.stringify(tags),
         vecToBuffer(mergedVec),
         mergedConfidence,
         createdAt,
@@ -560,6 +585,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       bestEntry.learning = mergedLearning
       bestEntry.reason = mergedReason
       bestEntry.scope = scope
+      bestEntry.tags = tags
       bestEntry.vec = mergedVec
       bestEntry.confidence = mergedConfidence
       bestEntry.createdAt = createdAt
@@ -573,6 +599,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
         confidence: mergedConfidence,
         createdAt,
         scope,
+        tags,
         supersedes: bestEntry.supersedes,
         source: mergedSource,
         reason: mergedReason,
@@ -599,6 +626,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       normalizedLearning,
       reason ?? null,
       scope,
+      JSON.stringify(tags),
       vecToBuffer(vec),
       nextConfidence,
       supersedes ?? null,
@@ -613,6 +641,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       learning: normalizedLearning,
       reason,
       scope,
+      tags,
       vec,
       confidence: nextConfidence,
       supersedes,
@@ -629,6 +658,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       confidence: nextConfidence,
       createdAt,
       scope,
+      tags,
       supersedes,
       source,
       reason,
@@ -732,6 +762,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
         text: entry.text,
         trigger: entry.trigger ?? entry.text,
         learning: entry.learning ?? entry.text,
+        tags: entry.tags ?? [],
         confidence: entry.confidence,
         createdAt: entry.createdAt,
         scope: entry.scope,
@@ -744,7 +775,10 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
     }
 
     scored.sort((a, b) => b.score - a.score)
-    const ranked = scored.slice(0, limit)
+    const ranked = boostLearningRecordsByTags(
+      scored.slice(0, Math.max(limit * 2, limit)),
+      extractEntityTags(context),
+    ).slice(0, limit)
 
     for (const learning of ranked) {
       updateLastRecalledAt.run(now, learning.id)
