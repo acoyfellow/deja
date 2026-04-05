@@ -31,6 +31,19 @@ const MCP_TOOLS = [
         scope: { type: 'string', description: 'Memory scope: "shared", "agent:<id>", or "session:<id>"', default: 'shared' },
         reason: { type: 'string', description: 'Why this was learned' },
         source: { type: 'string', description: 'Source identifier' },
+        assets: {
+          type: 'array',
+          description: 'Optional asset pointers returned as metadata only',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              ref: { type: 'string' },
+              label: { type: 'string' },
+            },
+            required: ['type', 'ref'],
+          },
+        },
         noveltyThreshold: { type: 'number', description: 'Novelty merge threshold. Default 0.95, set 0 to disable.' },
         proof_run_id: { type: 'string', description: 'Optional proof run identifier for the learning evidence' },
         proof_iteration_id: { type: 'string', description: 'Optional proof iteration identifier for the learning evidence' },
@@ -264,6 +277,7 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
           scope: args.scope ?? 'shared',
           reason: args.reason,
           source: args.source,
+          assets: args.assets,
           noveltyThreshold: args.noveltyThreshold,
           proof_run_id: args.proof_run_id,
           proof_iteration_id: args.proof_iteration_id,

@@ -148,6 +148,20 @@ describe('deja-edge: createEdgeMemory', () => {
     expect(result.learnings[0].trigger).toContain('Auth Service')
   })
 
+  test('learn stores asset pointers and inject returns them without affecting rank', () => {
+    freshMemory()
+    const learned = memory.learn('deploy auth service', 'attach runbook and trace', {
+      scope: 'shared',
+      assets: [{ type: 'trace', ref: 'lab-run-42' }],
+    }) as any
+
+    expect(learned.assets).toEqual([{ type: 'trace', ref: 'lab-run-42' }])
+
+    memory.learn('deploying worker', 'check logs before rollout', { scope: 'shared' })
+    const listed = memory.list() as any[]
+    expect(listed.some(learning => learning.assets?.[0]?.ref === 'lab-run-42')).toBe(true)
+  })
+
   test('recall respects limit', () => {
     freshMemory()
     for (let i = 0; i < 10; i++) {

@@ -146,6 +146,7 @@ describe('hosted memory quality', () => {
       0.8,
       undefined,
       undefined,
+      undefined,
       { proofRunId: 'proof-run-1', proofIterationId: 'proof-run-1:1' },
     );
 
@@ -218,6 +219,7 @@ describe('hosted memory quality', () => {
       'deploying auth service',
       'run smoke tests before switching traffic',
       0.8,
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -475,6 +477,67 @@ describe('hosted memory quality', () => {
     );
 
     expect(result.learnings[0].id).toBe('auth-1');
+  });
+
+  test('learnMemory stores asset pointers and injectMemories returns them without affecting rank', async () => {
+    const { db, spies } = makeDb();
+    const { ctx } = makeMemoryContext(db, []);
+
+    const learned = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploy auth service',
+      'attach runbook and trace',
+      0.8,
+      undefined,
+      undefined,
+      [
+        { type: 'trace', ref: 'lab-run-42' },
+        { type: 'url', ref: 'https://example.com/runbook', label: 'Runbook' },
+      ],
+      undefined,
+      0.95,
+    );
+
+    expect(learned.assets).toEqual([
+      { type: 'trace', ref: 'lab-run-42' },
+      { type: 'url', ref: 'https://example.com/runbook', label: 'Runbook' },
+    ]);
+    expect(spies.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assets: expect.stringContaining('lab-run-42'),
+      }),
+    );
+
+    const genericRow = makeLearningRow({
+      id: 'generic-1',
+      trigger: 'deploying worker',
+      learning: 'check logs before rollout',
+      assets: JSON.stringify([{ type: 'trace', ref: 'zzz' }]),
+    });
+    const assetRow = makeLearningRow({
+      id: 'asset-1',
+      trigger: 'deploy auth service',
+      learning: 'attach runbook and trace',
+      assets: JSON.stringify([{ type: 'trace', ref: 'lab-run-42' }]),
+    });
+    const { db: injectDb } = makeDb([genericRow, assetRow]);
+    const { ctx: injectCtx } = makeMemoryContext(injectDb, [
+      { id: 'generic-1', score: 0.99 },
+      { id: 'asset-1', score: 0.95 },
+    ]);
+
+    const injected = await injectMemories(
+      injectCtx as any,
+      ['shared'],
+      'deploy auth service',
+      5,
+      'learnings',
+      'vector',
+    );
+
+    expect(injected.learnings[0].id).toBe('generic-1');
+    expect(injected.learnings[1].assets).toEqual([{ type: 'trace', ref: 'lab-run-42' }]);
   });
 });
 

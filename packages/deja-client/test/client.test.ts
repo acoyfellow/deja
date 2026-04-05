@@ -38,6 +38,7 @@ const sampleLearning: Learning = {
   supersedes: 'older-memory',
   type: 'memory',
   tier: 'full',
+  assets: [{ type: 'trace', ref: 'lab-run-42', label: 'run trace' }],
   createdAt: '2026-02-04T12:00:00.000Z',
   lastRecalledAt: '2026-02-05T12:00:00.000Z',
   recallCount: 4,
@@ -108,6 +109,7 @@ describe('deja-client', () => {
         scope: 'shared',
         reason: undefined,
         source: undefined,
+        assets: undefined,
         noveltyThreshold: undefined,
       })
       expect(result).toEqual(sampleLearning)
@@ -127,6 +129,7 @@ describe('deja-client', () => {
         scope: 'agent:deployer',
         reason: 'Learned from production incident',
         source: 'ops-runbook',
+        assets: [{ type: 'trace', ref: 'trace-7', label: 'incident trace' }],
         identity: sampleIdentity,
       })
 
@@ -137,6 +140,7 @@ describe('deja-client', () => {
         scope: 'agent:deployer',
         reason: 'Learned from production incident',
         source: 'ops-runbook',
+        assets: [{ type: 'trace', ref: 'trace-7', label: 'incident trace' }],
         noveltyThreshold: undefined,
         identity: sampleIdentity,
       })
@@ -160,6 +164,7 @@ describe('deja-client', () => {
         scope: 'shared',
         reason: undefined,
         source: undefined,
+        assets: undefined,
         noveltyThreshold: 0.91,
       })
     })

@@ -53,6 +53,7 @@ export interface LearningRecord {
   learning: string
   tier?: 'trigger' | 'full'
   tags?: string[]
+  assets?: Array<{ type: string; ref: string; label?: string }>
   confidence: number
   createdAt: string
   scope: string
@@ -68,6 +69,7 @@ export interface LearnOptions {
   reason?: string
   source?: string
   noveltyThreshold?: number
+  assets?: Array<{ type: string; ref: string; label?: string }>
 }
 
 export interface InjectOptions {
@@ -386,6 +388,9 @@ function migrateSchema(db: Database) {
   if (!colNames.has('scope')) {
     db.exec("ALTER TABLE memories ADD COLUMN scope TEXT NOT NULL DEFAULT 'shared'")
   }
+  if (!colNames.has('assets')) {
+    db.exec('ALTER TABLE memories ADD COLUMN assets TEXT')
+  }
   if (!colNames.has('tags')) {
     db.exec('ALTER TABLE memories ADD COLUMN tags TEXT')
   }
@@ -410,16 +415,16 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
 
   // Prepared statements
   const insertMemory = db.prepare(
-    'INSERT INTO memories (id, text, trigger, learning, reason, scope, tags, embedding, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO memories (id, text, trigger, learning, reason, scope, tags, assets, embedding, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   )
   const deleteMemory = db.prepare('DELETE FROM memories WHERE id = ?')
   const updateConfidence = db.prepare('UPDATE memories SET confidence = ? WHERE id = ?')
   const updateLastRecalledAt = db.prepare('UPDATE memories SET last_recalled_at = ? WHERE id = ?')
   const updateMemoryTextAndType = db.prepare('UPDATE memories SET text = ?, type = ?, confidence = ? WHERE id = ?')
   const updateStructuredMemory = db.prepare(
-    'UPDATE memories SET text = ?, trigger = ?, learning = ?, reason = ?, scope = ?, tags = ?, embedding = ?, confidence = ?, created_at = ?, source = ? WHERE id = ?'
+    'UPDATE memories SET text = ?, trigger = ?, learning = ?, reason = ?, scope = ?, tags = ?, assets = ?, embedding = ?, confidence = ?, created_at = ?, source = ? WHERE id = ?'
   )
-  const selectAll = db.prepare('SELECT id, text, trigger, learning, reason, scope, tags, embedding, confidence, supersedes, created_at, last_recalled_at, source, type FROM memories')
+  const selectAll = db.prepare('SELECT id, text, trigger, learning, reason, scope, tags, assets, embedding, confidence, supersedes, created_at, last_recalled_at, source, type FROM memories')
   const countMemories = db.prepare('SELECT COUNT(*) as count FROM memories')
   const insertRecall = db.prepare(
     'INSERT INTO recall_log (context, results, timestamp) VALUES (?, ?, ?)'
@@ -434,6 +439,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
     reason?: string
     scope: string
     tags?: string[]
+    assets?: Array<{ type: string; ref: string; label?: string }>
     vec: number[]
     confidence: number
     supersedes?: string
@@ -445,7 +451,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
   const index: IndexEntry[] = []
 
   // Load existing memories into index
-  for (const row of selectAll.all() as Array<{ id: string; text: string; trigger: string | null; learning: string | null; reason: string | null; scope: string | null; tags: string | null; embedding: Buffer; confidence: number; supersedes: string | null; created_at: string; last_recalled_at: string | null; source: string | null; type: string }>) {
+  for (const row of selectAll.all() as Array<{ id: string; text: string; trigger: string | null; learning: string | null; reason: string | null; scope: string | null; tags: string | null; assets: string | null; embedding: Buffer; confidence: number; supersedes: string | null; created_at: string; last_recalled_at: string | null; source: string | null; type: string }>) {
     index.push({
       id: row.id,
       text: row.text,
@@ -454,6 +460,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       reason: row.reason ?? undefined,
       scope: row.scope ?? 'shared',
       tags: row.tags ? JSON.parse(row.tags) : [],
+      assets: row.assets ? JSON.parse(row.assets) : [],
       vec: bufferToVec(row.embedding),
       confidence: row.confidence,
       supersedes: row.supersedes ?? undefined,
@@ -509,6 +516,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       null,
       'shared',
       JSON.stringify([]),
+      JSON.stringify([]),
       buf,
       confidence,
       supersedes ?? null,
@@ -531,6 +539,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
     const scope = options.scope ?? 'shared'
     const reason = options.reason?.trim() || undefined
     const source = options.source?.trim() || undefined
+    const assets = options.assets ?? []
     const noveltyThreshold = options.noveltyThreshold ?? dedupeThreshold
     const nextConfidence = clampConfidence(options.confidence ?? CONFIDENCE_DEFAULT)
     const text = buildLearningText(normalizedTrigger, normalizedLearning)
@@ -573,6 +582,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
         mergedReason ?? null,
         scope,
         JSON.stringify(tags),
+        JSON.stringify(assets),
         vecToBuffer(mergedVec),
         mergedConfidence,
         createdAt,
@@ -600,6 +610,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
         createdAt,
         scope,
         tags,
+        assets,
         supersedes: bestEntry.supersedes,
         source: mergedSource,
         reason: mergedReason,
@@ -627,6 +638,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       reason ?? null,
       scope,
       JSON.stringify(tags),
+      JSON.stringify(assets),
       vecToBuffer(vec),
       nextConfidence,
       supersedes ?? null,
@@ -659,6 +671,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       createdAt,
       scope,
       tags,
+      assets,
       supersedes,
       source,
       reason,
@@ -763,6 +776,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
         trigger: entry.trigger ?? entry.text,
         learning: entry.learning ?? entry.text,
         tags: entry.tags ?? [],
+        assets: entry.assets ?? [],
         confidence: entry.confidence,
         createdAt: entry.createdAt,
         scope: entry.scope,

@@ -128,6 +128,7 @@ export class DejaDO extends DurableObject<Env> {
     confidence: number = 0.5,
     reason?: string,
     source?: string,
+    assets?: Array<{ type: string; ref: string; label?: string }>,
     identity?: SharedRunIdentity,
     noveltyThreshold?: number,
   ): Promise<Learning> {
@@ -139,6 +140,7 @@ export class DejaDO extends DurableObject<Env> {
       confidence,
       reason,
       source,
+      assets,
       identity,
       noveltyThreshold,
     );

@@ -13,6 +13,8 @@ export function initializeStorage(state: DurableObjectState) {
         trigger TEXT NOT NULL,
         learning TEXT NOT NULL,
         reason TEXT,
+        tags TEXT,
+        assets TEXT,
         confidence REAL DEFAULT 1.0,
         source TEXT,
         scope TEXT NOT NULL,
@@ -84,6 +86,9 @@ export function initializeStorage(state: DurableObjectState) {
     } catch (_) {}
     try {
       state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN type TEXT NOT NULL DEFAULT 'memory'`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN assets TEXT`);
     } catch (_) {}
     try {
       state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN tags TEXT`);
@@ -190,6 +195,7 @@ export function convertDbLearning(dbLearning: any): Learning {
     trigger: dbLearning.trigger,
     learning: dbLearning.learning,
     reason: dbLearning.reason !== null ? dbLearning.reason : undefined,
+    assets: dbLearning.assets ? JSON.parse(dbLearning.assets) : [],
     confidence: dbLearning.confidence !== null ? dbLearning.confidence : 0,
     source: dbLearning.source !== null ? dbLearning.source : undefined,
     scope: dbLearning.scope,

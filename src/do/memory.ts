@@ -59,6 +59,7 @@ function buildLearningPayload(learning: Learning, tier: 'trigger' | 'full'): Lea
     learning: tier === 'full' ? learning.learning : '',
     reason: tier === 'full' ? learning.reason : undefined,
     source: tier === 'full' ? learning.source : undefined,
+    assets: tier === 'full' ? learning.assets : learning.assets,
   };
 }
 
@@ -597,6 +598,7 @@ export async function learnMemory(
   confidence: number = 0.5,
   reason?: string,
   source?: string,
+  assets?: Array<{ type: string; ref: string; label?: string }>,
   identity?: SharedRunIdentity,
   noveltyThreshold: number = DEDUPE_THRESHOLD,
 ): Promise<Learning> {
@@ -615,6 +617,7 @@ export async function learnMemory(
     const nextConfidence = Math.max(existingLearning.confidence, normalizedConfidence);
     const nextReason = appendDistinctValue(existingLearning.reason, reason);
     const nextSource = appendDistinctValue(existingLearning.source, source);
+    const nextAssets = assets ?? existingLearning.assets;
     const nextCreatedAt = new Date().toISOString();
     const nextEmbedding = keepIncomingVersion
       ? embedding
@@ -629,6 +632,7 @@ export async function learnMemory(
         confidence: nextConfidence,
         reason: nextReason ?? null,
         source: nextSource ?? null,
+        assets: nextAssets ? JSON.stringify(nextAssets) : null,
         createdAt: nextCreatedAt,
         embedding: nextEmbedding ? JSON.stringify(nextEmbedding) : null,
         ...learningIdentityFields(mergedIdentity),
@@ -642,6 +646,7 @@ export async function learnMemory(
       confidence: nextConfidence,
       reason: nextReason,
       source: nextSource,
+      assets: nextAssets,
       createdAt: nextCreatedAt,
       identity: mergedIdentity,
       embedding: nextEmbedding,
@@ -654,6 +659,7 @@ export async function learnMemory(
       confidence: nextConfidence,
       reason: nextReason,
       source: nextSource,
+      assets: nextAssets,
       createdAt: nextCreatedAt,
       embedding: nextEmbedding,
       identity: mergedIdentity,
@@ -680,6 +686,7 @@ export async function learnMemory(
     reason,
     confidence: normalizedConfidence,
     source,
+    assets,
     scope,
     supersedes,
     type: 'memory',
@@ -696,6 +703,7 @@ export async function learnMemory(
     reason: newLearning.reason,
     confidence: newLearning.confidence,
     source: newLearning.source,
+    assets: newLearning.assets ? JSON.stringify(newLearning.assets) : null,
     scope: newLearning.scope,
     supersedes: newLearning.supersedes ?? null,
     type: newLearning.type,

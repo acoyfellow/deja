@@ -244,6 +244,24 @@ describe('entity tags', () => {
   })
 })
 
+describe('asset pointers', () => {
+  test('structured learn returns asset pointers and inject preserves them', async () => {
+    const m = mem()
+    const assets = [{ type: 'trace', ref: 'lab-run-42', label: 'rollback trace' }]
+    const learning = await m.learn(
+      'deploying Auth Service',
+      'check migration order',
+      { scope: 'shared', assets } as any,
+    ) as any
+
+    expect(learning.assets).toEqual(assets)
+
+    const listed = m.list() as any[]
+    expect(listed.some((entry: any) => entry.id === learning.id)).toBe(true)
+    m.close()
+  })
+})
+
 // ============================================================================
 // Trust guarantee: AUDITABILITY
 // ============================================================================

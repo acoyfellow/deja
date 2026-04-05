@@ -27,6 +27,7 @@ interface RouteHandlers {
     confidence?: number,
     reason?: string,
     source?: string,
+    assets?: Array<{ type: string; ref: string; label?: string }>,
     identity?: SharedRunIdentity,
     noveltyThreshold?: number,
   ): Promise<Learning>;
@@ -103,6 +104,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.confidence,
       body.reason,
       body.source,
+      body.assets,
       identity,
       body.noveltyThreshold,
     );

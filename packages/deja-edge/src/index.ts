@@ -33,11 +33,19 @@ export interface Memory {
   learning?: string
   reason?: string
   scope?: string
+  tags?: string[]
+  assets?: AssetPointer[]
   confidence: number
   supersedes?: string
   createdAt: string
   source?: string
   type: 'memory' | 'anti-pattern'
+}
+
+export interface AssetPointer {
+  type: string
+  ref: string
+  label?: string
 }
 
 export interface RecallResult {
@@ -61,6 +69,8 @@ export interface LearningRecord {
   trigger: string
   learning: string
   tier?: 'trigger' | 'full'
+  tags?: string[]
+  assets?: AssetPointer[]
   confidence: number
   createdAt: string
   scope: string
@@ -76,6 +86,7 @@ export interface LearnOptions {
   reason?: string
   source?: string
   noveltyThreshold?: number
+  assets?: AssetPointer[]
 }
 
 export interface InjectOptions extends RecallOptions {
@@ -302,6 +313,7 @@ function initSchema(sql: DurableObjectState['storage']['sql']) {
       reason TEXT,
       scope TEXT NOT NULL DEFAULT 'shared',
       tags TEXT,
+      assets TEXT,
       confidence REAL NOT NULL DEFAULT 0.5,
       supersedes TEXT,
       created_at TEXT NOT NULL,
@@ -368,6 +380,9 @@ function migrateSchema(sql: DurableObjectState['storage']['sql']) {
   if (!colNames.has('scope')) {
     sql.exec("ALTER TABLE memories ADD COLUMN scope TEXT NOT NULL DEFAULT 'shared'")
   }
+  if (!colNames.has('assets')) {
+    sql.exec('ALTER TABLE memories ADD COLUMN assets TEXT')
+  }
   if (!colNames.has('tags')) {
     sql.exec('ALTER TABLE memories ADD COLUMN tags TEXT')
   }
@@ -413,6 +428,7 @@ export function createEdgeMemory(
       createdAt: row.created_at,
       scope: row.scope ?? 'shared',
       tags: row.tags ? JSON.parse(row.tags) : [],
+      assets: row.assets ? JSON.parse(row.assets) : [],
       supersedes: row.supersedes ?? undefined,
       source: row.source ?? undefined,
       reason: row.reason ?? undefined,
@@ -456,6 +472,7 @@ export function createEdgeMemory(
         return {
           id: bestCandidate.id,
           text: bestCandidate.text,
+          assets: bestCandidate.assets ? JSON.parse(bestCandidate.assets) : [],
           confidence: bestCandidate.confidence,
           createdAt: bestCandidate.created_at,
           supersedes: bestCandidate.supersedes ?? undefined,
@@ -476,7 +493,7 @@ export function createEdgeMemory(
           `INSERT INTO memories (id, text, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           id, trimmed, CONFIDENCE_DEFAULT, bestCandidate.id, createdAt, source ?? null, type,
         )
-        return { id, text: trimmed, confidence: CONFIDENCE_DEFAULT, supersedes: bestCandidate.id, createdAt, source, type }
+        return { id, text: trimmed, assets: [], confidence: CONFIDENCE_DEFAULT, supersedes: bestCandidate.id, createdAt, source, type }
       }
     }
 
@@ -488,7 +505,7 @@ export function createEdgeMemory(
       `INSERT INTO memories (id, text, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       id, trimmed, CONFIDENCE_DEFAULT, null, createdAt, source ?? null, type,
     )
-    return { id, text: trimmed, confidence: CONFIDENCE_DEFAULT, createdAt, source, type }
+    return { id, text: trimmed, assets: [], confidence: CONFIDENCE_DEFAULT, createdAt, source, type }
   }
 
   function learnStructured(
@@ -501,6 +518,7 @@ export function createEdgeMemory(
     const scope = options.scope ?? 'shared'
     const reason = options.reason?.trim() || undefined
     const source = options.source?.trim() || undefined
+    const assets = options.assets
     const noveltyThreshold = options.noveltyThreshold ?? 0.95
     const nextConfidence = clampConfidence(options.confidence ?? CONFIDENCE_DEFAULT)
     const text = buildLearningText(normalizedTrigger, normalizedLearning)
@@ -566,7 +584,7 @@ export function createEdgeMemory(
 
         sql.exec(
           `UPDATE memories
-           SET text = ?, trigger = ?, learning = ?, reason = ?, scope = ?, tags = ?, confidence = ?, created_at = ?, source = ?
+           SET text = ?, trigger = ?, learning = ?, reason = ?, scope = ?, tags = ?, assets = ?, confidence = ?, created_at = ?, source = ?
            WHERE id = ?`,
           mergedText,
           mergedTrigger,
@@ -574,6 +592,7 @@ export function createEdgeMemory(
           mergedReason ?? null,
           scope,
           JSON.stringify(mergedTags),
+          JSON.stringify(assets),
           mergedConfidence,
           createdAt,
           mergedSource ?? null,
@@ -589,6 +608,7 @@ export function createEdgeMemory(
           createdAt,
           scope,
           tags: mergedTags,
+          assets,
           supersedes: bestCandidate.supersedes ?? undefined,
           source: mergedSource,
           reason: mergedReason,
@@ -604,8 +624,8 @@ export function createEdgeMemory(
         const createdAt = new Date().toISOString()
         const type: 'memory' | 'anti-pattern' = 'memory'
         sql.exec(
-          `INSERT INTO memories (id, text, trigger, learning, reason, scope, tags, confidence, supersedes, created_at, source, type)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO memories (id, text, trigger, learning, reason, scope, tags, assets, confidence, supersedes, created_at, source, type)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id,
           text,
           normalizedTrigger,
@@ -613,6 +633,7 @@ export function createEdgeMemory(
           reason ?? null,
           scope,
           JSON.stringify(tags),
+          JSON.stringify(assets),
           nextConfidence,
           bestCandidate.id,
           createdAt,
@@ -628,6 +649,7 @@ export function createEdgeMemory(
           createdAt,
           scope,
           tags,
+          assets,
           supersedes: bestCandidate.id,
           source,
           reason,
@@ -640,8 +662,8 @@ export function createEdgeMemory(
     const createdAt = new Date().toISOString()
     const type: 'memory' | 'anti-pattern' = 'memory'
     sql.exec(
-      `INSERT INTO memories (id, text, trigger, learning, reason, scope, tags, confidence, supersedes, created_at, source, type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO memories (id, text, trigger, learning, reason, scope, tags, assets, confidence, supersedes, created_at, source, type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       text,
       normalizedTrigger,
@@ -649,6 +671,7 @@ export function createEdgeMemory(
       reason ?? null,
       scope,
       JSON.stringify(tags),
+      JSON.stringify(assets),
       nextConfidence,
       null,
       createdAt,
@@ -664,6 +687,7 @@ export function createEdgeMemory(
       createdAt,
       scope,
       tags,
+      assets,
       source,
       reason,
       type,
@@ -768,6 +792,8 @@ export function createEdgeMemory(
         learning: string | null
         reason: string | null
         scope: string | null
+        tags: string | null
+        assets: string | null
         confidence: number
         supersedes: string | null
         created_at: string
@@ -776,7 +802,7 @@ export function createEdgeMemory(
         type: string
         rank: number
       }>(
-        `SELECT m.id, m.text, m.trigger, m.learning, m.reason, m.scope, m.confidence, m.supersedes, m.created_at, m.last_recalled_at, m.source, m.type, bm25(memories_fts) as rank
+        `SELECT m.id, m.text, m.trigger, m.learning, m.reason, m.scope, m.tags, m.assets, m.confidence, m.supersedes, m.created_at, m.last_recalled_at, m.source, m.type, bm25(memories_fts) as rank
          FROM memories_fts
          JOIN memories m ON memories_fts.rowid = m.rowid
          WHERE memories_fts MATCH ?
@@ -870,13 +896,14 @@ export function createEdgeMemory(
       const limit = options.limit ?? 1000
       const offset = options.offset ?? 0
       return [
-        ...sql.exec<{ id: string; text: string; confidence: number; supersedes: string | null; created_at: string; source: string | null; type: string }>(
-          'SELECT id, text, confidence, supersedes, created_at, source, type FROM memories ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        ...sql.exec<{ id: string; text: string; assets: string | null; confidence: number; supersedes: string | null; created_at: string; source: string | null; type: string }>(
+          'SELECT id, text, assets, confidence, supersedes, created_at, source, type FROM memories ORDER BY created_at DESC LIMIT ? OFFSET ?',
           limit, offset,
         ),
       ].map(r => ({
         id: r.id,
         text: r.text,
+        assets: r.assets ? JSON.parse(r.assets) : [],
         confidence: r.confidence,
         supersedes: r.supersedes ?? undefined,
         createdAt: r.created_at,

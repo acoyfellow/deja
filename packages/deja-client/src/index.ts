@@ -29,6 +29,7 @@ export interface Learning {
   id: string
   trigger: string
   learning: string
+  assets?: Array<{ type: string; ref: string; label?: string }>
   reason?: string
   confidence: number
   source?: string
@@ -125,6 +126,7 @@ export interface LearnOptions {
   scope?: string
   reason?: string
   source?: string
+  assets?: Array<{ type: string; ref: string; label?: string }>
   noveltyThreshold?: number
   identity?: SharedRunIdentity
 }
@@ -346,6 +348,7 @@ function mapLearning(raw: Learning): Learning {
     createdAt: raw.createdAt,
     recallCount: raw.recallCount ?? 0,
   }
+  if (raw.assets !== undefined) mapped.assets = raw.assets
   if (raw.reason !== undefined) mapped.reason = raw.reason
   if (raw.source !== undefined) mapped.source = raw.source
   if (raw.supersedes !== undefined) mapped.supersedes = raw.supersedes
@@ -526,6 +529,7 @@ export function deja(url: string, options: ClientOptions = {}): DejaClient {
             scope: opts.scope ?? 'shared',
             reason: opts.reason,
             source: opts.source,
+            assets: opts.assets,
             noveltyThreshold: opts.noveltyThreshold,
           },
           opts.identity,
