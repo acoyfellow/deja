@@ -38,6 +38,7 @@ export interface Learning {
   createdAt: string
   lastRecalledAt?: string
   recallCount: number
+  tier?: 'trigger' | 'full'
   identity?: SharedRunIdentity
 }
 
@@ -133,6 +134,7 @@ export interface InjectOptions {
   limit?: number
   format?: 'prompt' | 'learnings'
   search?: 'vector' | 'text' | 'hybrid'
+  maxTokens?: number
   includeState?: boolean
   runId?: string
   identity?: SharedRunIdentity
@@ -334,21 +336,23 @@ type RawLearningNeighbor = Learning & { similarity_score: number }
 // ============================================================================
 
 function mapLearning(raw: Learning): Learning {
-  return {
+  const mapped: Learning = {
     id: raw.id,
     trigger: raw.trigger,
     learning: raw.learning,
-    reason: raw.reason ?? undefined,
     confidence: raw.confidence,
-    source: raw.source ?? undefined,
     scope: raw.scope,
-    supersedes: raw.supersedes ?? undefined,
     type: raw.type ?? 'memory',
     createdAt: raw.createdAt,
-    lastRecalledAt: raw.lastRecalledAt ?? undefined,
     recallCount: raw.recallCount ?? 0,
-    identity: raw.identity ?? undefined,
   }
+  if (raw.reason !== undefined) mapped.reason = raw.reason
+  if (raw.source !== undefined) mapped.source = raw.source
+  if (raw.supersedes !== undefined) mapped.supersedes = raw.supersedes
+  if (raw.lastRecalledAt !== undefined) mapped.lastRecalledAt = raw.lastRecalledAt
+  if (raw.tier !== undefined) mapped.tier = raw.tier
+  if (raw.identity !== undefined) mapped.identity = raw.identity
+  return mapped
 }
 
 function toWireStatePayload(payload: Partial<WorkingStatePayload>): RawWorkingStatePayload {
@@ -550,6 +554,7 @@ export function deja(url: string, options: ClientOptions = {}): DejaClient {
             limit: opts.limit ?? 5,
             format: opts.format ?? 'prompt',
             search: opts.search,
+            maxTokens: opts.maxTokens,
             includeState: opts.includeState,
             runId: opts.runId,
           },

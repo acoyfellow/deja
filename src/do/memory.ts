@@ -47,6 +47,66 @@ function appendDistinctValue(current: string | undefined, incoming: string | und
   return `${current}\n${incoming}`;
 }
 
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function buildLearningPayload(learning: Learning, tier: 'trigger' | 'full'): Learning {
+  return {
+    ...learning,
+    tier,
+    learning: tier === 'full' ? learning.learning : '',
+    reason: tier === 'full' ? learning.reason : undefined,
+    source: tier === 'full' ? learning.source : undefined,
+  };
+}
+
+function applyInjectBudget(
+  learnings: Learning[],
+  maxTokens?: number,
+): Learning[] {
+  if (!maxTokens || maxTokens <= 0) {
+    return learnings.map((learning) => buildLearningPayload(learning, 'full'));
+  }
+
+  const triggerBudget = Math.floor(maxTokens * 0.3);
+  const triggerTier: Learning[] = [];
+  let triggerTokensUsed = 0;
+
+  for (const learning of learnings) {
+    const triggerTokens = estimateTokens(learning.trigger);
+    if (triggerTier.length > 0 && triggerTokensUsed + triggerTokens > triggerBudget) {
+      break;
+    }
+    triggerTier.push(buildLearningPayload(learning, 'trigger'));
+    triggerTokensUsed += triggerTokens;
+  }
+
+  const resultById = new Map<string, Learning>(triggerTier.map((learning) => [learning.id, learning]));
+  let remainingTokens = maxTokens - triggerTokensUsed;
+
+  for (const learning of learnings) {
+    if (!resultById.has(learning.id)) {
+      continue;
+    }
+    const fullText = [learning.trigger, learning.learning, learning.reason, learning.source]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .join('\n');
+    const fullTokens = estimateTokens(fullText);
+    const triggerTokens = estimateTokens(learning.trigger);
+    const expansionCost = Math.max(fullTokens - triggerTokens, 0);
+    if (expansionCost > remainingTokens) {
+      continue;
+    }
+    resultById.set(learning.id, buildLearningPayload(learning, 'full'));
+    remainingTokens -= expansionCost;
+  }
+
+  return learnings
+    .filter((learning) => resultById.has(learning.id))
+    .map((learning) => resultById.get(learning.id) as Learning);
+}
+
 function mergeIdentity(
   current: SharedRunIdentity | undefined,
   updates: SharedRunIdentity | undefined,
@@ -303,6 +363,7 @@ export async function injectMemories(
   format: 'prompt' | 'learnings' = 'prompt',
   search: 'vector' | 'text' | 'hybrid' = 'hybrid',
   _identity?: SharedRunIdentity,
+  maxTokens?: number,
 ): Promise<InjectResult> {
   const db = await ctx.initDB();
   const filteredScopes = ctx.filterScopesByPriority(scopes);
@@ -341,10 +402,11 @@ export async function injectMemories(
     }
 
     const rankedLearnings = (await loadRankedLearnings(ctx, db, ids, filteredScopes)).slice(0, limit);
+    const injectedLearnings = applyInjectBudget(rankedLearnings, maxTokens);
     const now = new Date().toISOString();
 
     await Promise.all(
-      rankedLearnings.map((learning: Learning) =>
+      injectedLearnings.map((learning: Learning) =>
         db
           .update(schema.learnings)
           .set({
@@ -357,14 +419,18 @@ export async function injectMemories(
 
     if (format === 'prompt') {
       return {
-        prompt: rankedLearnings
-          .map((learning: Learning) => `When ${learning.trigger}, ${learning.learning}`)
+        prompt: injectedLearnings
+          .map((learning: Learning) =>
+            learning.tier === 'trigger'
+              ? learning.trigger
+              : `When ${learning.trigger}, ${learning.learning}`,
+          )
           .join('\n'),
-        learnings: rankedLearnings,
+        learnings: injectedLearnings,
       };
     }
 
-    return { prompt: '', learnings: rankedLearnings };
+    return { prompt: '', learnings: injectedLearnings };
   } catch (error) {
     console.error('Inject error:', error);
     return { prompt: '', learnings: [] };

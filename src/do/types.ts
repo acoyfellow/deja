@@ -19,6 +19,7 @@ export interface Learning {
   id: string;
   trigger: string;
   learning: string;
+  tier?: 'trigger' | 'full';
   reason?: string;
   confidence: number;
   source?: string;

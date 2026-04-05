@@ -378,6 +378,53 @@ describe('hosted memory quality', () => {
     expect(text.learnings.map((learning) => learning.id)).toEqual(['txt-1']);
     expect(ctxSpies.vectorize.query).toHaveBeenCalledTimes(2);
   });
+
+  test('injectMemories maxTokens keeps total estimated tokens within budget', async () => {
+    const rows = [
+      makeLearningRow({
+        id: 'mem-1',
+        trigger: 'deploy auth service',
+        learning: 'x'.repeat(160),
+        reason: 'r'.repeat(80),
+        source: 's'.repeat(40),
+      }),
+      makeLearningRow({
+        id: 'mem-2',
+        trigger: 'rollback billing worker',
+        learning: 'y'.repeat(120),
+        reason: 'r2',
+        source: 's2',
+      }),
+    ];
+    const { db } = makeDb(rows);
+    const { ctx } = makeMemoryContext(db, [
+      { id: 'mem-1', score: 0.98 },
+      { id: 'mem-2', score: 0.95 },
+    ]);
+
+    const result = await injectMemories(
+      ctx as any,
+      ['shared'],
+      'deploy rollback',
+      5,
+      'learnings',
+      'vector',
+      undefined,
+      100,
+    );
+
+    const estimatedTokens = result.learnings.reduce((total, learning) => {
+      const text =
+        learning.tier === 'full'
+          ? `${learning.trigger}${learning.learning}${learning.confidence}${learning.reason ?? ''}${learning.source ?? ''}`
+          : learning.trigger;
+      return total + Math.ceil(text.length / 4);
+    }, 0);
+
+    expect(estimatedTokens).toBeLessThanOrEqual(100);
+    expect(result.learnings[0].tier).toBe('full');
+    expect(result.learnings[1].tier).toBe('trigger');
+  });
 });
 
 describe('hosted routes and worker entrypoints', () => {

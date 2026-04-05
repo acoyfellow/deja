@@ -75,6 +75,7 @@ const MCP_TOOLS = [
         limit: { type: 'number', description: 'Max memories to return', default: 5 },
         includeState: { type: 'boolean', description: 'Include live working state in prompt', default: false },
         runId: { type: 'string', description: 'Run/session ID when includeState is true' },
+        maxTokens: { type: 'number', description: 'Optional response token budget for tiered trigger/full memory expansion.' },
         search: {
           type: 'string',
           enum: ['vector', 'text', 'hybrid'],

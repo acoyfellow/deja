@@ -118,6 +118,25 @@ describe('deja-edge: createEdgeMemory', () => {
     expect(results.length).toBe(0)
   })
 
+  test('inject respects maxTokens and prioritizes higher-ranked learnings', () => {
+    freshMemory()
+    memory.learn('deploy auth service', 'x'.repeat(160), { scope: 'shared' })
+    memory.learn('rollback billing worker', 'y'.repeat(120), { scope: 'shared' })
+
+    const result = memory.inject('deploy rollback', { maxTokens: 100, format: 'learnings' })
+    const estimatedTokens = result.learnings.reduce((total, learning) => {
+      const text =
+        learning.tier === 'full'
+          ? `${learning.trigger}${learning.learning}${learning.confidence}${learning.reason ?? ''}${learning.source ?? ''}`
+          : learning.trigger
+      return total + Math.ceil(text.length / 4)
+    }, 0)
+
+    expect(estimatedTokens).toBeLessThanOrEqual(100)
+    expect(result.learnings.length).toBeGreaterThan(0)
+    expect(result.learnings[0].tier).toBe('full')
+  })
+
   test('recall respects limit', () => {
     freshMemory()
     for (let i = 0; i < 10; i++) {

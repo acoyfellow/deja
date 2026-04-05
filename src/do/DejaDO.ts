@@ -106,8 +106,9 @@ export class DejaDO extends DurableObject<Env> {
     format: 'prompt' | 'learnings' = 'prompt',
     search: 'vector' | 'text' | 'hybrid' = 'hybrid',
     identity?: SharedRunIdentity,
+    maxTokens?: number,
   ): Promise<InjectResult> {
-    return injectMemories(this.getMemoryContext(), scopes, context, limit, format, search, identity);
+    return injectMemories(this.getMemoryContext(), scopes, context, limit, format, search, identity, maxTokens);
   }
 
   async injectTrace(

@@ -40,6 +40,7 @@ interface RouteHandlers {
     format?: 'prompt' | 'learnings',
     search?: 'vector' | 'text' | 'hybrid',
     identity?: SharedRunIdentity,
+    maxTokens?: number,
   ): Promise<{ prompt: string; learnings: Learning[]; state?: WorkingStateResponse }>;
   injectTrace(
     scopes: string[],
@@ -147,6 +148,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.format,
       body.search,
       resolveRunIdentityPayload(body),
+      body.maxTokens,
     );
 
     const stateRunId =

@@ -197,6 +197,28 @@ describe('structured learn novelty gate', () => {
   })
 })
 
+describe('inject maxTokens', () => {
+  test('returns higher-relevance learnings first within the token budget', async () => {
+    const m = mem()
+    await m.learn('deploy auth service', 'x'.repeat(160), { scope: 'shared' })
+    await m.learn('rollback billing worker', 'y'.repeat(120), { scope: 'shared' })
+
+    const result = await m.inject('deploy rollback', { maxTokens: 100, format: 'learnings' })
+    const estimatedTokens = result.learnings.reduce((total, learning) => {
+      const text =
+        learning.tier === 'full'
+          ? `${learning.trigger}${learning.learning}${learning.confidence}${learning.reason ?? ''}${learning.source ?? ''}`
+          : learning.trigger
+      return total + Math.ceil(text.length / 4)
+    }, 0)
+
+    expect(estimatedTokens).toBeLessThanOrEqual(100)
+    expect(result.learnings[0].tier).toBe('full')
+    expect(result.learnings).toHaveLength(1)
+    m.close()
+  })
+})
+
 // ============================================================================
 // Trust guarantee: AUDITABILITY
 // ============================================================================
