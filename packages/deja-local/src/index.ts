@@ -596,6 +596,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       bestEntry.reason = mergedReason
       bestEntry.scope = scope
       bestEntry.tags = tags
+      bestEntry.assets = assets
       bestEntry.vec = mergedVec
       bestEntry.confidence = mergedConfidence
       bestEntry.createdAt = createdAt
@@ -654,6 +655,7 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
       reason,
       scope,
       tags,
+      assets,
       vec,
       confidence: nextConfidence,
       supersedes,
