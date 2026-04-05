@@ -137,6 +137,7 @@ export interface InjectOptions {
   format?: 'prompt' | 'learnings'
   search?: 'vector' | 'text' | 'hybrid'
   maxTokens?: number
+  tagBoost?: boolean
   includeState?: boolean
   runId?: string
   identity?: SharedRunIdentity
@@ -559,6 +560,7 @@ export function deja(url: string, options: ClientOptions = {}): DejaClient {
             format: opts.format ?? 'prompt',
             search: opts.search,
             maxTokens: opts.maxTokens,
+            tagBoost: opts.tagBoost,
             includeState: opts.includeState,
             runId: opts.runId,
           },

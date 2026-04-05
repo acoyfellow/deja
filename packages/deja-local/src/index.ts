@@ -79,6 +79,7 @@ export interface InjectOptions {
   maxTokens?: number
   format?: 'prompt' | 'learnings'
   search?: 'vector'
+  tagBoost?: boolean
 }
 
 export interface InjectResult {
@@ -791,9 +792,13 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
     }
 
     scored.sort((a, b) => b.score - a.score)
-    const ranked = boostLearningRecordsByTags(
-      scored.slice(0, Math.max(limit * 2, limit)),
-      extractEntityTags(context),
+    const ranked = (
+      options.tagBoost === false
+        ? scored.slice(0, Math.max(limit * 2, limit))
+        : boostLearningRecordsByTags(
+            scored.slice(0, Math.max(limit * 2, limit)),
+            extractEntityTags(context),
+          )
     ).slice(0, limit)
 
     for (const learning of ranked) {

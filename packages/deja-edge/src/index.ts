@@ -93,6 +93,7 @@ export interface InjectOptions extends RecallOptions {
   maxTokens?: number
   format?: 'prompt' | 'learnings'
   search?: 'text'
+  tagBoost?: boolean
 }
 
 export interface InjectResult {
@@ -833,7 +834,12 @@ export function createEdgeMemory(
       }
     })
 
-    scored.sort((a, b) => b.score - a.score)
+    const queryTags = options.tagBoost === false ? [] : extractEntityTags(context)
+    scored.sort((a, b) => {
+      const overlapDiff = countTagOverlap(queryTags, b.tags ?? []) - countTagOverlap(queryTags, a.tags ?? [])
+      if (overlapDiff !== 0) return overlapDiff
+      return b.score - a.score
+    })
     const ranked = scored.filter(row => row.score >= threshold).slice(0, limit)
 
     for (const learning of ranked) {

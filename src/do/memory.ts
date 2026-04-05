@@ -389,6 +389,7 @@ export async function injectMemories(
   search: 'vector' | 'text' | 'hybrid' = 'hybrid',
   _identity?: SharedRunIdentity,
   maxTokens?: number,
+  tagBoost: boolean = true,
 ): Promise<InjectResult> {
   const db = await ctx.initDB();
   const filteredScopes = ctx.filterScopesByPriority(scopes);
@@ -426,7 +427,7 @@ export async function injectMemories(
       return { prompt: '', learnings: [] };
     }
 
-    const queryTags = extractEntityTags(context);
+    const queryTags = tagBoost ? extractEntityTags(context) : [];
     const rankedLearnings = (await loadRankedLearnings(ctx, db, ids, filteredScopes))
       .sort((left: Learning, right: Learning) => {
         const leftOverlap = countTagOverlap(queryTags, left);

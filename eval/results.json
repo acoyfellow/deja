@@ -1,0 +1,134 @@
+[
+  {
+    "runtime": "local",
+    "config": "baseline",
+    "metrics": {
+      "precision": 0.008,
+      "recall": 0.13,
+      "f1": 0.015,
+      "redundancyRate": 0,
+      "tokenEfficiency": 421.703
+    }
+  },
+  {
+    "runtime": "hosted-sim",
+    "config": "baseline",
+    "metrics": {
+      "precision": 0.021,
+      "recall": 0.335,
+      "f1": 0.039,
+      "redundancyRate": 0,
+      "tokenEfficiency": 419.688
+    }
+  },
+  {
+    "runtime": "local",
+    "config": "+novelty",
+    "metrics": {
+      "precision": 0.003,
+      "recall": 0.04,
+      "f1": 0.006,
+      "redundancyRate": 0.97,
+      "tokenEfficiency": 313
+    }
+  },
+  {
+    "runtime": "hosted-sim",
+    "config": "+novelty",
+    "metrics": {
+      "precision": 0.005,
+      "recall": 0.045,
+      "f1": 0.008,
+      "redundancyRate": 0.975,
+      "tokenEfficiency": 271
+    }
+  },
+  {
+    "runtime": "local",
+    "config": "+hybrid",
+    "metrics": {
+      "precision": 0.003,
+      "recall": 0.04,
+      "f1": 0.006,
+      "redundancyRate": 0.97,
+      "tokenEfficiency": 313
+    }
+  },
+  {
+    "runtime": "hosted-sim",
+    "config": "+hybrid",
+    "metrics": {
+      "precision": 0.005,
+      "recall": 0.045,
+      "f1": 0.008,
+      "redundancyRate": 0.975,
+      "tokenEfficiency": 271
+    }
+  },
+  {
+    "runtime": "local",
+    "config": "+budget",
+    "metrics": {
+      "precision": 0.003,
+      "recall": 0.04,
+      "f1": 0.006,
+      "redundancyRate": 0.97,
+      "tokenEfficiency": 313
+    }
+  },
+  {
+    "runtime": "hosted-sim",
+    "config": "+budget",
+    "metrics": {
+      "precision": 0.005,
+      "recall": 0.045,
+      "f1": 0.008,
+      "redundancyRate": 0.975,
+      "tokenEfficiency": 271
+    }
+  },
+  {
+    "runtime": "local",
+    "config": "+tags",
+    "metrics": {
+      "precision": 0.003,
+      "recall": 0.04,
+      "f1": 0.006,
+      "redundancyRate": 0.97,
+      "tokenEfficiency": 313
+    }
+  },
+  {
+    "runtime": "hosted-sim",
+    "config": "+tags",
+    "metrics": {
+      "precision": 0.005,
+      "recall": 0.045,
+      "f1": 0.008,
+      "redundancyRate": 0.975,
+      "tokenEfficiency": 271
+    }
+  },
+  {
+    "runtime": "local",
+    "config": "all-features",
+    "metrics": {
+      "precision": 0.003,
+      "recall": 0.04,
+      "f1": 0.006,
+      "redundancyRate": 0.97,
+      "tokenEfficiency": 313
+    }
+  },
+  {
+    "runtime": "hosted-sim",
+    "config": "all-features",
+    "metrics": {
+      "precision": 0.005,
+      "recall": 0.045,
+      "f1": 0.008,
+      "redundancyRate": 0.975,
+      "tokenEfficiency": 271
+    }
+  }
+]

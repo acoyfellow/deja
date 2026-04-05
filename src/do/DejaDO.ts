@@ -107,8 +107,19 @@ export class DejaDO extends DurableObject<Env> {
     search: 'vector' | 'text' | 'hybrid' = 'hybrid',
     identity?: SharedRunIdentity,
     maxTokens?: number,
+    tagBoost: boolean = true,
   ): Promise<InjectResult> {
-    return injectMemories(this.getMemoryContext(), scopes, context, limit, format, search, identity, maxTokens);
+    return injectMemories(
+      this.getMemoryContext(),
+      scopes,
+      context,
+      limit,
+      format,
+      search,
+      identity,
+      maxTokens,
+      tagBoost,
+    );
   }
 
   async injectTrace(
