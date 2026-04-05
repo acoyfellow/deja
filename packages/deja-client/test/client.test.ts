@@ -107,6 +107,7 @@ describe('deja-client', () => {
         scope: 'shared',
         reason: undefined,
         source: undefined,
+        noveltyThreshold: undefined,
       })
       expect(result).toEqual(sampleLearning)
     })
@@ -135,7 +136,30 @@ describe('deja-client', () => {
         scope: 'agent:deployer',
         reason: 'Learned from production incident',
         source: 'ops-runbook',
+        noveltyThreshold: undefined,
         identity: sampleIdentity,
+      })
+    })
+
+    test('includes noveltyThreshold when provided', async () => {
+      let capturedBody: unknown = null
+
+      const mockFetch = mock(async (_url: string, init?: RequestInit) => {
+        capturedBody = init?.body ? JSON.parse(init.body as string) : null
+        return mockResponse(sampleLearning)
+      })
+
+      const mem = deja('https://deja.example.com', { fetch: mockFetch as typeof fetch })
+      await mem.learn('auth deploy', 'run smoke tests first', { noveltyThreshold: 0.91 })
+
+      expect(capturedBody).toEqual({
+        trigger: 'auth deploy',
+        learning: 'run smoke tests first',
+        confidence: 0.8,
+        scope: 'shared',
+        reason: undefined,
+        source: undefined,
+        noveltyThreshold: 0.91,
       })
     })
 

@@ -127,7 +127,7 @@ describe('hosted memory quality', () => {
     jest.clearAllMocks();
   });
 
-  test('learnMemory deduplicates a near-identical Vectorize neighbor and records proof ids', async () => {
+  test('learnMemory merges a near-identical Vectorize neighbor and records proof ids', async () => {
     const existingRow = makeLearningRow();
     const { db, spies } = makeDb([existingRow]);
     const { ctx, spies: ctxSpies } = makeMemoryContext(db, [{ id: 'mem-1', score: 0.97 }]);
@@ -145,9 +145,11 @@ describe('hosted memory quality', () => {
 
     expect(result.id).toBe('mem-1');
     expect(db.insert).not.toHaveBeenCalled();
-    expect(ctxSpies.vectorize.insert).not.toHaveBeenCalled();
+    expect(ctxSpies.vectorize.insert).toHaveBeenCalledTimes(1);
     expect(spies.updateSet).toHaveBeenCalledWith(
       expect.objectContaining({
+        confidence: 0.8,
+        createdAt: expect.any(String),
         proofRunId: 'proof-run-1',
         proofIterationId: 'proof-run-1:1',
       }),
@@ -160,6 +162,65 @@ describe('hosted memory quality', () => {
       proofRunId: 'proof-run-1',
       proofIterationId: 'proof-run-1:1',
     });
+  });
+
+  test('learnMemory keeps the higher-confidence wording and appends new reason/source', async () => {
+    const existingRow = makeLearningRow({
+      reason: 'Original incident',
+      source: 'runbook',
+      confidence: 0.6,
+    });
+    const { db, spies } = makeDb([existingRow]);
+    const { ctx } = makeMemoryContext(db, [{ id: 'mem-1', score: 0.99 }]);
+
+    const result = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploying auth service',
+      'run smoke tests before switching traffic',
+      0.9,
+      'Validated during hotfix',
+      'pager',
+    );
+
+    expect(result.id).toBe('mem-1');
+    expect(result.trigger).toBe('deploying auth service');
+    expect(result.learning).toBe('run smoke tests before switching traffic');
+    expect(result.reason).toBe('Original incident\nValidated during hotfix');
+    expect(result.source).toBe('runbook\npager');
+    expect(result.confidence).toBe(0.9);
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(spies.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'deploying auth service',
+        learning: 'run smoke tests before switching traffic',
+        reason: 'Original incident\nValidated during hotfix',
+        source: 'runbook\npager',
+        confidence: 0.9,
+      }),
+    );
+  });
+
+  test('learnMemory inserts a new row when noveltyThreshold is disabled', async () => {
+    const existingRow = makeLearningRow();
+    const { db } = makeDb([existingRow]);
+    const { ctx, spies: ctxSpies } = makeMemoryContext(db, [{ id: 'mem-1', score: 0.99 }]);
+
+    const result = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploying auth service',
+      'run smoke tests before switching traffic',
+      0.8,
+      undefined,
+      undefined,
+      undefined,
+      0,
+    );
+
+    expect(result.id).not.toBe('mem-1');
+    expect(db.insert).toHaveBeenCalled();
+    expect(ctxSpies.vectorize.insert).toHaveBeenCalledTimes(1);
   });
 
   test('learnMemory inserts conflicting memories with supersedes and crushes the old confidence', async () => {

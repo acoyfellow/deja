@@ -147,6 +147,7 @@ export interface LoopRunsOperationsContext {
     reason?: string,
     source?: string,
     identity?: SharedRunIdentity,
+    noveltyThreshold?: number,
   ): Promise<Learning>;
 }
 
@@ -179,5 +180,6 @@ export interface WorkingStateOperationsContext {
     reason?: string,
     source?: string,
     identity?: SharedRunIdentity,
+    noveltyThreshold?: number,
   ): Promise<Learning>;
 }

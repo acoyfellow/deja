@@ -124,6 +124,7 @@ export interface LearnOptions {
   scope?: string
   reason?: string
   source?: string
+  noveltyThreshold?: number
   identity?: SharedRunIdentity
 }
 
@@ -520,6 +521,7 @@ export function deja(url: string, options: ClientOptions = {}): DejaClient {
             scope: opts.scope ?? 'shared',
             reason: opts.reason,
             source: opts.source,
+            noveltyThreshold: opts.noveltyThreshold,
           },
           opts.identity,
         ),

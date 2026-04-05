@@ -45,6 +45,28 @@ export interface RecallLogEntry {
   timestamp: string
 }
 
+export interface LearningRecord {
+  id: string
+  text: string
+  trigger: string
+  learning: string
+  confidence: number
+  createdAt: string
+  scope: string
+  supersedes?: string
+  source?: string
+  reason?: string
+  type: 'memory' | 'anti-pattern'
+}
+
+export interface LearnOptions {
+  confidence?: number
+  scope?: string
+  reason?: string
+  source?: string
+  noveltyThreshold?: number
+}
+
 export interface MemoryStore {
   /** Store a memory. Deduplicates and resolves conflicts automatically. */
   remember(text: string, options?: { source?: string }): Promise<Memory>
@@ -74,8 +96,12 @@ export interface MemoryStore {
   close(): void
 
   // Backward compat
-  /** @deprecated Use remember() */
-  learn(text: string, options?: { source?: string }): Promise<Memory>
+  /** @deprecated Use remember() for legacy text-only memory writes. */
+  learn(
+    triggerOrText: string,
+    learningOrOptions?: string | LearnOptions | { source?: string },
+    options?: LearnOptions,
+  ): Promise<Memory | LearningRecord>
 }
 
 export interface CreateMemoryOptions {
@@ -194,6 +220,17 @@ function clampConfidence(c: number): number {
   return Math.min(CONFIDENCE_MAX, Math.max(CONFIDENCE_MIN, Math.round(c * 1000) / 1000))
 }
 
+function buildLearningText(trigger: string, learning: string): string {
+  return `When ${trigger}, ${stripAntiPatternPrefix(learning)}`
+}
+
+function appendDistinctValue(current: string | undefined, incoming: string | undefined): string | undefined {
+  if (!incoming) return current
+  if (!current) return incoming
+  const existing = current.split('\n').map(value => value.trim()).filter(Boolean)
+  return existing.includes(incoming) ? current : `${current}\n${incoming}`
+}
+
 // ============================================================================
 // Schema
 // ============================================================================
@@ -202,6 +239,10 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
     text TEXT NOT NULL,
+    trigger TEXT,
+    learning TEXT,
+    reason TEXT,
+    scope TEXT NOT NULL DEFAULT 'shared',
     embedding BLOB NOT NULL,
     confidence REAL NOT NULL DEFAULT 0.5,
     supersedes TEXT,
@@ -241,6 +282,18 @@ function migrateSchema(db: Database) {
   if (!colNames.has('type')) {
     db.exec("ALTER TABLE memories ADD COLUMN type TEXT NOT NULL DEFAULT 'memory'")
   }
+  if (!colNames.has('trigger')) {
+    db.exec('ALTER TABLE memories ADD COLUMN trigger TEXT')
+  }
+  if (!colNames.has('learning')) {
+    db.exec('ALTER TABLE memories ADD COLUMN learning TEXT')
+  }
+  if (!colNames.has('reason')) {
+    db.exec('ALTER TABLE memories ADD COLUMN reason TEXT')
+  }
+  if (!colNames.has('scope')) {
+    db.exec("ALTER TABLE memories ADD COLUMN scope TEXT NOT NULL DEFAULT 'shared'")
+  }
 }
 
 // ============================================================================
@@ -262,27 +315,48 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
 
   // Prepared statements
   const insertMemory = db.prepare(
-    'INSERT INTO memories (id, text, embedding, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO memories (id, text, trigger, learning, reason, scope, embedding, confidence, supersedes, created_at, source, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   )
   const deleteMemory = db.prepare('DELETE FROM memories WHERE id = ?')
   const updateConfidence = db.prepare('UPDATE memories SET confidence = ? WHERE id = ?')
   const updateLastRecalledAt = db.prepare('UPDATE memories SET last_recalled_at = ? WHERE id = ?')
   const updateMemoryTextAndType = db.prepare('UPDATE memories SET text = ?, type = ?, confidence = ? WHERE id = ?')
-  const selectAll = db.prepare('SELECT id, text, embedding, confidence, supersedes, created_at, last_recalled_at, source, type FROM memories')
+  const updateStructuredMemory = db.prepare(
+    'UPDATE memories SET text = ?, trigger = ?, learning = ?, reason = ?, scope = ?, embedding = ?, confidence = ?, created_at = ?, source = ? WHERE id = ?'
+  )
+  const selectAll = db.prepare('SELECT id, text, trigger, learning, reason, scope, embedding, confidence, supersedes, created_at, last_recalled_at, source, type FROM memories')
   const countMemories = db.prepare('SELECT COUNT(*) as count FROM memories')
   const insertRecall = db.prepare(
     'INSERT INTO recall_log (context, results, timestamp) VALUES (?, ?, ?)'
   )
 
   // In-memory vector index — loaded from DB on startup
-  interface IndexEntry { id: string; text: string; vec: number[]; confidence: number; supersedes?: string; createdAt: string; lastRecalledAt?: string; source?: string; type: 'memory' | 'anti-pattern' }
+  interface IndexEntry {
+    id: string
+    text: string
+    trigger?: string
+    learning?: string
+    reason?: string
+    scope: string
+    vec: number[]
+    confidence: number
+    supersedes?: string
+    createdAt: string
+    lastRecalledAt?: string
+    source?: string
+    type: 'memory' | 'anti-pattern'
+  }
   const index: IndexEntry[] = []
 
   // Load existing memories into index
-  for (const row of selectAll.all() as Array<{ id: string; text: string; embedding: Buffer; confidence: number; supersedes: string | null; created_at: string; last_recalled_at: string | null; source: string | null; type: string }>) {
+  for (const row of selectAll.all() as Array<{ id: string; text: string; trigger: string | null; learning: string | null; reason: string | null; scope: string | null; embedding: Buffer; confidence: number; supersedes: string | null; created_at: string; last_recalled_at: string | null; source: string | null; type: string }>) {
     index.push({
       id: row.id,
       text: row.text,
+      trigger: row.trigger ?? undefined,
+      learning: row.learning ?? undefined,
+      reason: row.reason ?? undefined,
+      scope: row.scope ?? 'shared',
       vec: bufferToVec(row.embedding),
       confidence: row.confidence,
       supersedes: row.supersedes ?? undefined,
@@ -330,10 +404,161 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
     const buf = vecToBuffer(vec)
     const type: 'memory' | 'anti-pattern' = 'memory'
 
-    insertMemory.run(id, text, buf, confidence, supersedes ?? null, createdAt, source ?? null, type)
-    index.push({ id, text, vec, confidence, supersedes, createdAt, source, type })
+    insertMemory.run(
+      id,
+      text,
+      null,
+      null,
+      null,
+      'shared',
+      buf,
+      confidence,
+      supersedes ?? null,
+      createdAt,
+      source ?? null,
+      type,
+    )
+    index.push({ id, text, scope: 'shared', vec, confidence, supersedes, createdAt, source, type })
 
     return { id, text, confidence, createdAt, supersedes, source, type }
+  }
+
+  async function learnStructured(
+    trigger: string,
+    learning: string,
+    options: LearnOptions = {},
+  ): Promise<LearningRecord> {
+    const normalizedTrigger = trigger.trim()
+    const normalizedLearning = learning.trim()
+    const scope = options.scope ?? 'shared'
+    const reason = options.reason?.trim() || undefined
+    const source = options.source?.trim() || undefined
+    const noveltyThreshold = options.noveltyThreshold ?? dedupeThreshold
+    const nextConfidence = clampConfidence(options.confidence ?? CONFIDENCE_DEFAULT)
+    const text = buildLearningText(normalizedTrigger, normalizedLearning)
+    const vec = await embed(text)
+
+    let bestSimilarity = 0
+    let bestEntry: IndexEntry | null = null
+
+    for (const entry of index) {
+      if (entry.scope !== scope) continue
+      const sim = cosine(vec, entry.vec)
+      if (sim > bestSimilarity) {
+        bestSimilarity = sim
+        bestEntry = entry
+      }
+    }
+
+    if (
+      noveltyThreshold > 0 &&
+      bestEntry &&
+      bestEntry.trigger &&
+      bestEntry.learning &&
+      bestSimilarity >= noveltyThreshold
+    ) {
+      const keepIncomingVersion = nextConfidence > bestEntry.confidence
+      const createdAt = new Date().toISOString()
+      const mergedReason = appendDistinctValue(bestEntry.reason, reason)
+      const mergedSource = appendDistinctValue(bestEntry.source, source)
+      const mergedConfidence = Math.max(bestEntry.confidence, nextConfidence)
+      const mergedTrigger = keepIncomingVersion ? normalizedTrigger : bestEntry.trigger
+      const mergedLearning = keepIncomingVersion ? normalizedLearning : bestEntry.learning
+      const mergedText = keepIncomingVersion ? text : bestEntry.text
+      const mergedVec = keepIncomingVersion ? vec : bestEntry.vec
+
+      updateStructuredMemory.run(
+        mergedText,
+        mergedTrigger,
+        mergedLearning,
+        mergedReason ?? null,
+        scope,
+        vecToBuffer(mergedVec),
+        mergedConfidence,
+        createdAt,
+        mergedSource ?? null,
+        bestEntry.id,
+      )
+
+      bestEntry.text = mergedText
+      bestEntry.trigger = mergedTrigger
+      bestEntry.learning = mergedLearning
+      bestEntry.reason = mergedReason
+      bestEntry.scope = scope
+      bestEntry.vec = mergedVec
+      bestEntry.confidence = mergedConfidence
+      bestEntry.createdAt = createdAt
+      bestEntry.source = mergedSource
+
+      return {
+        id: bestEntry.id,
+        text: mergedText,
+        trigger: mergedTrigger,
+        learning: mergedLearning,
+        confidence: mergedConfidence,
+        createdAt,
+        scope,
+        supersedes: bestEntry.supersedes,
+        source: mergedSource,
+        reason: mergedReason,
+        type: bestEntry.type,
+      }
+    }
+
+    let supersedes: string | undefined
+    if (bestEntry && bestSimilarity >= conflictThreshold) {
+      supersedes = bestEntry.id
+      const newConf = clampConfidence(bestEntry.confidence * 0.3)
+      updateConfidence.run(newConf, bestEntry.id)
+      bestEntry.confidence = newConf
+    }
+
+    const id = crypto.randomUUID()
+    const createdAt = new Date().toISOString()
+    const type: 'memory' | 'anti-pattern' = 'memory'
+
+    insertMemory.run(
+      id,
+      text,
+      normalizedTrigger,
+      normalizedLearning,
+      reason ?? null,
+      scope,
+      vecToBuffer(vec),
+      nextConfidence,
+      supersedes ?? null,
+      createdAt,
+      source ?? null,
+      type,
+    )
+    index.push({
+      id,
+      text,
+      trigger: normalizedTrigger,
+      learning: normalizedLearning,
+      reason,
+      scope,
+      vec,
+      confidence: nextConfidence,
+      supersedes,
+      createdAt,
+      source,
+      type,
+    })
+
+    return {
+      id,
+      text,
+      trigger: normalizedTrigger,
+      learning: normalizedLearning,
+      confidence: nextConfidence,
+      createdAt,
+      scope,
+      supersedes,
+      source,
+      reason,
+      type,
+    }
   }
 
   async function recall(context: string, options: { limit?: number; threshold?: number; minConfidence?: number } = {}): Promise<RecallResult[]> {
@@ -465,7 +690,12 @@ export function createMemory(opts: CreateMemoryOptions): MemoryStore {
     close() { db.close() },
 
     // Backward compat
-    learn: remember,
+    learn(triggerOrText, learningOrOptions, options) {
+      if (typeof learningOrOptions === 'string') {
+        return learnStructured(triggerOrText, learningOrOptions, options)
+      }
+      return remember(triggerOrText, learningOrOptions as { source?: string } | undefined)
+    },
   }
 
   return store
@@ -502,8 +732,14 @@ export class DejaLocal implements MemoryStore {
   recallLog(options?: Parameters<MemoryStore['recallLog']>[0]) { return this.store.recallLog(options) }
   get size() { return this.store.size }
   close() { return this.store.close() }
-  /** @deprecated Use remember() */
-  learn(text: string, options?: { source?: string }) { return this.store.learn(text, options) }
+  /** @deprecated Use remember() for legacy text-only writes. */
+  learn(
+    triggerOrText: string,
+    learningOrOptions?: string | LearnOptions | { source?: string },
+    options?: LearnOptions,
+  ) {
+    return this.store.learn(triggerOrText, learningOrOptions as any, options)
+  }
 }
 
 export { createModelEmbed }

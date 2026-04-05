@@ -28,6 +28,7 @@ interface RouteHandlers {
     reason?: string,
     source?: string,
     identity?: SharedRunIdentity,
+    noveltyThreshold?: number,
   ): Promise<Learning>;
   confirm(id: string, identity?: SharedRunIdentity): Promise<Learning | null>;
   reject(id: string, identity?: SharedRunIdentity): Promise<Learning | null>;
@@ -101,6 +102,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.reason,
       body.source,
       identity,
+      body.noveltyThreshold,
     );
     return c.json(result);
   });

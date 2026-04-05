@@ -140,6 +140,63 @@ describe('deduplication', () => {
   })
 })
 
+describe('structured learn novelty gate', () => {
+  test('semantically identical learnings merge into one structured memory', async () => {
+    const semanticEmbed = (text: string): number[] => {
+      const lower = text.toLowerCase()
+      if (lower.includes('auth service') && (lower.includes('migrations') || lower.includes('schema'))) {
+        return [1, 0, 0]
+      }
+      if (lower.includes('redis')) {
+        return [0, 1, 0]
+      }
+      return [0, 0, 1]
+    }
+
+    const p = tmpDb()
+    cleanup.push(p)
+    const m = createMemory({ path: p, embed: semanticEmbed, threshold: 0.1 })
+
+    const first = await m.learn('deploying Auth Service', 'run database migrations in a transaction', {
+      confidence: 0.6,
+      reason: 'first incident',
+      source: 'ops',
+    } as any)
+    const second = await m.learn('shipping Auth Service', 'wrap schema changes in a transaction', {
+      confidence: 0.9,
+      reason: 'second incident',
+      source: 'pager',
+    } as any)
+
+    expect(m.size).toBe(1)
+    expect(second.id).toBe(first.id)
+    expect((second as any).trigger).toBe('shipping Auth Service')
+    expect((second as any).learning).toBe('wrap schema changes in a transaction')
+    expect((second as any).reason).toBe('first incident\nsecond incident')
+    expect((second as any).source).toBe('ops\npager')
+    m.close()
+  })
+
+  test('different structured learnings remain distinct', async () => {
+    const semanticEmbed = (text: string): number[] => {
+      const lower = text.toLowerCase()
+      if (lower.includes('auth service')) return [1, 0, 0]
+      if (lower.includes('redis')) return [0, 1, 0]
+      return [0, 0, 1]
+    }
+
+    const p = tmpDb()
+    cleanup.push(p)
+    const m = createMemory({ path: p, embed: semanticEmbed, threshold: 0.1 })
+
+    await m.learn('deploying Auth Service', 'run database migrations in a transaction', { confidence: 0.6 } as any)
+    await m.learn('debugging Redis cache', 'clear stale keys before replaying jobs', { confidence: 0.6 } as any)
+
+    expect(m.size).toBe(2)
+    m.close()
+  })
+})
+
 // ============================================================================
 // Trust guarantee: AUDITABILITY
 // ============================================================================

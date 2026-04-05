@@ -34,6 +34,19 @@ function clampConfidence(confidence: number): number {
   return Math.min(CONFIDENCE_MAX, Math.max(CONFIDENCE_MIN, Math.round(confidence * 1000) / 1000));
 }
 
+function appendDistinctValue(current: string | undefined, incoming: string | undefined): string | undefined {
+  if (!incoming) return current;
+  if (!current) return incoming;
+  const existingValues = current
+    .split('\n')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (existingValues.includes(incoming)) {
+    return current;
+  }
+  return `${current}\n${incoming}`;
+}
+
 function mergeIdentity(
   current: SharedRunIdentity | undefined,
   updates: SharedRunIdentity | undefined,
@@ -423,6 +436,7 @@ export async function learnMemory(
   reason?: string,
   source?: string,
   identity?: SharedRunIdentity,
+  noveltyThreshold: number = DEDUPE_THRESHOLD,
 ): Promise<Learning> {
   const db = await ctx.initDB();
   const normalizedConfidence = clampConfidence(confidence);
@@ -430,19 +444,56 @@ export async function learnMemory(
   const nearestMatches = await getNearestLearningMatches(ctx, db, embedding, scope);
   const bestMatch = nearestMatches[0];
 
-  if (bestMatch && bestMatch.similarity >= DEDUPE_THRESHOLD) {
+  if (noveltyThreshold > 0 && bestMatch && bestMatch.similarity >= noveltyThreshold) {
     const existingLearning = ctx.convertDbLearning(bestMatch.row);
     const mergedIdentity = mergeIdentity(existingLearning.identity, identity);
+    const keepIncomingVersion = normalizedConfidence > existingLearning.confidence;
+    const nextTrigger = keepIncomingVersion ? trigger : existingLearning.trigger;
+    const nextLearningText = keepIncomingVersion ? learning : existingLearning.learning;
+    const nextConfidence = Math.max(existingLearning.confidence, normalizedConfidence);
+    const nextReason = appendDistinctValue(existingLearning.reason, reason);
+    const nextSource = appendDistinctValue(existingLearning.source, source);
+    const nextCreatedAt = new Date().toISOString();
+    const nextEmbedding = keepIncomingVersion
+      ? embedding
+      : existingLearning.embedding ??
+        (bestMatch.row.embedding ? JSON.parse(bestMatch.row.embedding) : undefined);
 
-    if (!identitiesEqual(existingLearning.identity, mergedIdentity)) {
-      await db
-        .update(schema.learnings)
-        .set(learningIdentityFields(mergedIdentity))
-        .where(eq(schema.learnings.id, existingLearning.id));
-    }
+    await db
+      .update(schema.learnings)
+      .set({
+        trigger: nextTrigger,
+        learning: nextLearningText,
+        confidence: nextConfidence,
+        reason: nextReason ?? null,
+        source: nextSource ?? null,
+        createdAt: nextCreatedAt,
+        embedding: nextEmbedding ? JSON.stringify(nextEmbedding) : null,
+        ...learningIdentityFields(mergedIdentity),
+      })
+      .where(eq(schema.learnings.id, existingLearning.id));
+
+    await upsertLearningVector(ctx, {
+      ...existingLearning,
+      trigger: nextTrigger,
+      learning: nextLearningText,
+      confidence: nextConfidence,
+      reason: nextReason,
+      source: nextSource,
+      createdAt: nextCreatedAt,
+      identity: mergedIdentity,
+      embedding: nextEmbedding,
+    });
 
     return {
       ...existingLearning,
+      trigger: nextTrigger,
+      learning: nextLearningText,
+      confidence: nextConfidence,
+      reason: nextReason,
+      source: nextSource,
+      createdAt: nextCreatedAt,
+      embedding: nextEmbedding,
       identity: mergedIdentity,
     };
   }

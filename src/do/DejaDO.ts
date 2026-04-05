@@ -112,8 +112,27 @@ export class DejaDO extends DurableObject<Env> {
     return injectMemoriesWithTrace(this.getMemoryContext(), scopes, context, limit, threshold, identity);
   }
 
-  async learn(scope: string, trigger: string, learning: string, confidence: number = 0.5, reason?: string, source?: string, identity?: SharedRunIdentity): Promise<Learning> {
-    return learnMemory(this.getMemoryContext(), scope, trigger, learning, confidence, reason, source, identity);
+  async learn(
+    scope: string,
+    trigger: string,
+    learning: string,
+    confidence: number = 0.5,
+    reason?: string,
+    source?: string,
+    identity?: SharedRunIdentity,
+    noveltyThreshold?: number,
+  ): Promise<Learning> {
+    return learnMemory(
+      this.getMemoryContext(),
+      scope,
+      trigger,
+      learning,
+      confidence,
+      reason,
+      source,
+      identity,
+      noveltyThreshold,
+    );
   }
 
   async confirm(id: string, identity?: SharedRunIdentity): Promise<Learning | null> {
