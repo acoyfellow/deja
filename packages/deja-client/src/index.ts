@@ -132,6 +132,7 @@ export interface InjectOptions {
   scopes?: string[]
   limit?: number
   format?: 'prompt' | 'learnings'
+  search?: 'vector' | 'text' | 'hybrid'
   includeState?: boolean
   runId?: string
   identity?: SharedRunIdentity
@@ -548,6 +549,7 @@ export function deja(url: string, options: ClientOptions = {}): DejaClient {
             scopes: opts.scopes ?? ['shared'],
             limit: opts.limit ?? 5,
             format: opts.format ?? 'prompt',
+            search: opts.search,
             includeState: opts.includeState,
             runId: opts.runId,
           },

@@ -62,6 +62,7 @@ export class DejaDO extends DurableObject<Env> {
       createEmbedding: (text: string) => this.createEmbedding(text),
       filterScopesByPriority,
       convertDbLearning,
+      sql: this.ctx.storage.sql,
     };
   }
 
@@ -98,8 +99,15 @@ export class DejaDO extends DurableObject<Env> {
     return cleanupLearnings(this.getMemoryContext());
   }
 
-  async inject(scopes: string[], context: string, limit: number = 5, format: 'prompt' | 'learnings' = 'prompt', identity?: SharedRunIdentity): Promise<InjectResult> {
-    return injectMemories(this.getMemoryContext(), scopes, context, limit, format, identity);
+  async inject(
+    scopes: string[],
+    context: string,
+    limit: number = 5,
+    format: 'prompt' | 'learnings' = 'prompt',
+    search: 'vector' | 'text' | 'hybrid' = 'hybrid',
+    identity?: SharedRunIdentity,
+  ): Promise<InjectResult> {
+    return injectMemories(this.getMemoryContext(), scopes, context, limit, format, search, identity);
   }
 
   async injectTrace(

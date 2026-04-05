@@ -104,6 +104,15 @@ function buildVectorMetadata(learning: Learning): Record<string, string> {
   return metadata;
 }
 
+function buildFtsQuery(text: string): string {
+  const keywords = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 1);
+  return keywords.map((keyword) => `"${keyword}"`).join(' OR ');
+}
+
 async function upsertLearningVector(
   ctx: MemoryOperationsContext,
   learning: Learning,
@@ -151,6 +160,62 @@ async function getNearestLearningMatches(
       return { row, similarity: match.score ?? 0 };
     })
     .filter((match: { row: any; similarity: number } | null): match is { row: any; similarity: number } => match !== null);
+}
+
+async function queryHostedTextSearch(
+  sqlDb: DurableObjectState['storage']['sql'] | undefined,
+  scopes: string[],
+  context: string,
+  limit: number,
+): Promise<any[]> {
+  if (!sqlDb) {
+    return [];
+  }
+  const ftsQuery = buildFtsQuery(context);
+  if (!ftsQuery) {
+    return [];
+  }
+
+  return [
+    ...sqlDb.exec<any>(
+      `SELECT l.*
+       FROM learnings_fts
+       JOIN learnings l ON l.rowid = learnings_fts.rowid
+       WHERE learnings_fts MATCH ?
+         AND l.scope IN (${scopes.map(() => '?').join(', ')})
+       ORDER BY bm25(learnings_fts)
+       LIMIT ?`,
+      ftsQuery,
+      ...scopes,
+      limit,
+    ),
+  ];
+}
+
+async function loadRankedLearnings(
+  ctx: MemoryOperationsContext,
+  db: any,
+  ids: string[],
+  scopes: string[],
+): Promise<Learning[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const rows = await db
+    .select()
+    .from(schema.learnings)
+    .where(
+      and(
+        inArray(schema.learnings.id, ids),
+        inArray(schema.learnings.scope, scopes),
+      ),
+    );
+  const rowById = new Map<string, any>(rows.map((row: any) => [row.id, row]));
+  return ids
+    .map((id) => rowById.get(id))
+    .filter((row: any | undefined): row is any => row !== undefined)
+    .map((row: any) => ctx.convertDbLearning(rowById.get(row.id) ?? row));
 }
 
 export async function cleanupLearnings(
@@ -236,6 +301,7 @@ export async function injectMemories(
   context: string,
   limit: number = 5,
   format: 'prompt' | 'learnings' = 'prompt',
+  search: 'vector' | 'text' | 'hybrid' = 'hybrid',
   _identity?: SharedRunIdentity,
 ): Promise<InjectResult> {
   const db = await ctx.initDB();
@@ -245,43 +311,37 @@ export async function injectMemories(
   }
 
   try {
-    const embedding = await ctx.createEmbedding(context);
-    const vectorResults = await ctx.env.VECTORIZE.query(embedding, {
-      topK: limit * 2,
-      returnValues: true,
-    });
-    const ids = vectorResults.matches.map((match: any) => match.id);
+    const ids: string[] = [];
+    const seen = new Set<string>();
+
+    if (search === 'vector' || search === 'hybrid') {
+      const embedding = await ctx.createEmbedding(context);
+      const vectorResults = await ctx.env.VECTORIZE.query(embedding, {
+        topK: limit * 2,
+        returnValues: true,
+      });
+      for (const match of vectorResults.matches) {
+        if (seen.has(match.id)) continue;
+        seen.add(match.id);
+        ids.push(match.id);
+      }
+    }
+
+    if (search === 'text' || search === 'hybrid') {
+      const textRows = await queryHostedTextSearch(ctx.sql, filteredScopes, context, limit * 2);
+      for (const row of textRows) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        ids.push(row.id);
+      }
+    }
 
     if (ids.length === 0) {
       return { prompt: '', learnings: [] };
     }
 
-    const dbLearnings = await db
-      .select()
-      .from(schema.learnings)
-      .where(
-        and(
-          inArray(schema.learnings.id, ids),
-          inArray(schema.learnings.scope, filteredScopes),
-        ),
-      )
-      .limit(limit);
-
-    const learnings = dbLearnings.map((learning: any) => ctx.convertDbLearning(learning));
+    const rankedLearnings = (await loadRankedLearnings(ctx, db, ids, filteredScopes)).slice(0, limit);
     const now = new Date().toISOString();
-    const nowMs = Date.now();
-
-    // Apply time-based confidence decay for ranking (read-side only, stored values unchanged)
-    const HALF_LIFE_DAYS = 90;
-    const rankedLearnings = [...learnings].sort((a: Learning, b: Learning) => {
-      const aLastActive = a.lastRecalledAt ?? a.createdAt;
-      const bLastActive = b.lastRecalledAt ?? b.createdAt;
-      const aDays = (nowMs - new Date(aLastActive).getTime()) / 86400000;
-      const bDays = (nowMs - new Date(bLastActive).getTime()) / 86400000;
-      const aDecayed = (a.confidence ?? 1.0) * Math.pow(0.5, aDays / HALF_LIFE_DAYS);
-      const bDecayed = (b.confidence ?? 1.0) * Math.pow(0.5, bDays / HALF_LIFE_DAYS);
-      return bDecayed - aDecayed;
-    });
 
     await Promise.all(
       rankedLearnings.map((learning: Learning) =>

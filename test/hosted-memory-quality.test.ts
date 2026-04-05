@@ -95,11 +95,15 @@ function makeMemoryContext(db: any, matches: Array<{ id: string; score: number }
     insert: jest.fn().mockResolvedValue(undefined),
     deleteByIds: jest.fn().mockResolvedValue(undefined),
   };
+  const sql = {
+    exec: jest.fn().mockReturnValue([]),
+  };
 
   return {
     ctx: {
       env: { VECTORIZE: vectorize },
       initDB: jest.fn().mockResolvedValue(db),
+      sql,
       createEmbedding,
       filterScopesByPriority: (scopes: string[]) => scopes,
       convertDbLearning,
@@ -107,6 +111,7 @@ function makeMemoryContext(db: any, matches: Array<{ id: string; score: number }
     spies: {
       createEmbedding,
       vectorize,
+      sql,
     },
   };
 }
@@ -324,6 +329,54 @@ describe('hosted memory quality', () => {
     expect(result.learnings[0].type).toBe('anti-pattern');
     expect(result.learnings[0].identity?.proofRunId).toBe('proof-run-9');
     expect(result.learnings[0].identity?.proofIterationId).toBe('proof-run-9:2');
+  });
+
+  test('injectMemories hybrid mode unions vector and text results and preserves vector order', async () => {
+    const vectorFirst = makeLearningRow({ id: 'vec-1', trigger: 'semantic auth deploy' });
+    const vectorSecond = makeLearningRow({ id: 'vec-2', trigger: 'semantic billing deploy' });
+    const textOnly = makeLearningRow({ id: 'txt-1', trigger: 'keyword rollback checklist' });
+    const allRows = [vectorFirst, vectorSecond, textOnly];
+    const { db, spies } = makeDb(allRows);
+    const { ctx, spies: ctxSpies } = makeMemoryContext(db, [
+      { id: 'vec-1', score: 0.95 },
+      { id: 'vec-2', score: 0.9 },
+    ]);
+
+    const sqlRows = [{ id: 'vec-2' }, { id: 'txt-1' }];
+    ctxSpies.sql.exec.mockReturnValue(sqlRows);
+
+    const result = await injectMemories(
+      ctx as any,
+      ['shared'],
+      'deploy auth rollback',
+      5,
+      'learnings',
+      'hybrid',
+      undefined,
+    );
+
+    expect(ctxSpies.vectorize.query).toHaveBeenCalledTimes(1);
+    expect(ctxSpies.sql.exec).toHaveBeenCalledTimes(1);
+    expect(result.learnings.map((learning) => learning.id)).toEqual(['vec-1', 'vec-2', 'txt-1']);
+    expect(spies.updateWhere).toHaveBeenCalledTimes(3);
+  });
+
+  test('injectMemories search modes return expected subsets', async () => {
+    const vectorOnly = makeLearningRow({ id: 'vec-1', trigger: 'semantic auth deploy' });
+    const textOnly = makeLearningRow({ id: 'txt-1', trigger: 'keyword rollback checklist' });
+    const { db } = makeDb([vectorOnly, textOnly], [vectorOnly], [textOnly]);
+    const { ctx, spies: ctxSpies } = makeMemoryContext(db, [{ id: 'vec-1', score: 0.95 }]);
+
+    ctxSpies.sql.exec.mockReturnValue([{ id: 'txt-1' }]);
+
+    const hybrid = await injectMemories(ctx as any, ['shared'], 'deploy auth rollback', 5, 'learnings', 'hybrid');
+    const vector = await injectMemories(ctx as any, ['shared'], 'deploy auth rollback', 5, 'learnings', 'vector');
+    const text = await injectMemories(ctx as any, ['shared'], 'deploy auth rollback', 5, 'learnings', 'text');
+
+    expect(hybrid.learnings.map((learning) => learning.id)).toEqual(['vec-1', 'txt-1']);
+    expect(vector.learnings.map((learning) => learning.id)).toEqual(['vec-1']);
+    expect(text.learnings.map((learning) => learning.id)).toEqual(['txt-1']);
+    expect(ctxSpies.vectorize.query).toHaveBeenCalledTimes(2);
   });
 });
 

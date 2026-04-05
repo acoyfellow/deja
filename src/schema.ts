@@ -22,6 +22,12 @@ export const learnings = sqliteTable('learnings', {
   proofIterationId: text('proof_iteration_id'),
 });
 
+export const learningsText = sqliteTable('learnings_fts', {
+  rowid: integer('rowid'),
+  trigger: text('trigger'),
+  learning: text('learning'),
+});
+
 export const secrets = sqliteTable('secrets', {
   name: text('name').primaryKey(),
   value: text('value').notNull(),

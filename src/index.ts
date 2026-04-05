@@ -75,6 +75,11 @@ const MCP_TOOLS = [
         limit: { type: 'number', description: 'Max memories to return', default: 5 },
         includeState: { type: 'boolean', description: 'Include live working state in prompt', default: false },
         runId: { type: 'string', description: 'Run/session ID when includeState is true' },
+        search: {
+          type: 'string',
+          enum: ['vector', 'text', 'hybrid'],
+          description: 'Search mode. Hosted defaults to hybrid.',
+        },
       },
       required: ['context'],
     },
@@ -297,6 +302,7 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
           limit: args.limit ?? 5,
           includeState: args.includeState ?? false,
           runId: args.runId,
+          search: args.search,
         }),
       }));
       return response.json();

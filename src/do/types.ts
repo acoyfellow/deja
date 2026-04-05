@@ -4,6 +4,8 @@ export interface Env {
   API_KEY?: string;
 }
 
+export type InjectSearchMode = 'vector' | 'text' | 'hybrid';
+
 export interface SharedRunIdentity {
   traceId?: string | null;
   workspaceId?: string | null;
@@ -157,6 +159,7 @@ export interface MemoryOperationsContext {
   createEmbedding(text: string): Promise<number[]>;
   filterScopesByPriority(scopes: string[]): string[];
   convertDbLearning(dbLearning: any): Learning;
+  sql?: DurableObjectState['storage']['sql'];
 }
 
 export interface SecretsOperationsContext {

@@ -31,6 +31,26 @@ export function initializeStorage(state: DurableObjectState) {
       CREATE INDEX IF NOT EXISTS idx_learnings_confidence ON learnings(confidence);
       CREATE INDEX IF NOT EXISTS idx_learnings_created_at ON learnings(created_at);
       CREATE INDEX IF NOT EXISTS idx_learnings_scope ON learnings(scope);
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS learnings_fts USING fts5(
+          trigger,
+          learning,
+          content='learnings',
+          content_rowid='rowid',
+          tokenize='porter unicode61'
+        );
+        CREATE TRIGGER IF NOT EXISTS learnings_ai AFTER INSERT ON learnings BEGIN
+          INSERT INTO learnings_fts(rowid, trigger, learning) VALUES (new.rowid, new.trigger, new.learning);
+        END;
+        CREATE TRIGGER IF NOT EXISTS learnings_ad AFTER DELETE ON learnings BEGIN
+          INSERT INTO learnings_fts(learnings_fts, rowid, trigger, learning)
+          VALUES('delete', old.rowid, old.trigger, old.learning);
+        END;
+        CREATE TRIGGER IF NOT EXISTS learnings_au AFTER UPDATE ON learnings BEGIN
+          INSERT INTO learnings_fts(learnings_fts, rowid, trigger, learning)
+          VALUES('delete', old.rowid, old.trigger, old.learning);
+          INSERT INTO learnings_fts(rowid, trigger, learning) VALUES (new.rowid, new.trigger, new.learning);
+        END;
     `);
     try {
       state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN last_recalled_at TEXT`);
