@@ -33,6 +33,20 @@ jobs:
 
       - run: bun install
 
+      # Opt-in destructive wipe. Gate on [wipe-vectorize] in the HEAD commit
+      # message so normal deploys don't trip it. Used to reset the shared
+      # embeddings index when the Worker's API_KEY is rotated — new DO id
+      # = new empty SQLite, but Vectorize is shared across DOs and needs an
+      # explicit purge to remove orphaned vectors from the old DO.
+      - name: Wipe Vectorize index (one-shot, gated on commit message)
+        if: contains(github.event.head_commit.message, '[wipe-vectorize]')
+        run: |
+          echo "Wipe marker present — deleting deja-embeddings"
+          bunx wrangler vectorize delete deja-embeddings --force || echo "Nothing to delete"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Create Vectorize index (if needed)
         run: |
           bunx wrangler vectorize create deja-embeddings --dimensions 384 --metric cosine || echo "Index may already exist"
