@@ -55,16 +55,29 @@ export interface InjectResult {
   state?: WorkingStateResponse;
 }
 
+export interface InjectTraceCandidate {
+  id: string;
+  trigger: string;
+  learning: string;
+  similarity_score: number;
+  passed_threshold: boolean;
+  // Additive integrity metadata. Cheap to compute at query time and used by
+  // the lean-MCP `search` verb so agents can triage hits without pulling
+  // learning bodies into context.
+  confidence: number;
+  scope: string;
+  recall_count: number;
+  created_at: string;
+  last_recalled_at: string | null;
+  anti_pattern: boolean;
+  supersedes: string | null;
+  suspect_score: number;
+}
+
 export interface InjectTraceResult {
   input_context: string;
   embedding_generated: number[];
-  candidates: Array<{
-    id: string;
-    trigger: string;
-    learning: string;
-    similarity_score: number;
-    passed_threshold: boolean;
-  }>;
+  candidates: InjectTraceCandidate[];
   threshold_applied: number;
   injected: Learning[];
   duration_ms: number;

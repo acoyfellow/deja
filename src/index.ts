@@ -243,6 +243,170 @@ const MCP_TOOLS = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Lean MCP surface — 2 front-door tools (search, execute) + 1 common-path
+// shortcut (inject). Every capability the 17-tool MCP exposes is reachable
+// through `execute({ op, args })`. This cuts the agent's per-session tool-
+// schema footprint from ~5KB to ~1KB without removing any functionality.
+//
+// Design follows Cloudflare's MCP convention (cloudflare-docs, backstage,
+// wiki): one searcher that returns cheap metadata, one executor that pulls
+// bodies / performs writes on demand. Progressive disclosure by default.
+// ---------------------------------------------------------------------------
+
+const LEAN_EXECUTE_OPS = [
+  'read', 'inject', 'learn', 'confirm', 'reject', 'forget', 'forget_bulk',
+  'neighbors', 'trace', 'list', 'stats',
+  'state_get', 'state_put', 'state_patch', 'state_resolve',
+  'record_run', 'get_runs',
+] as const;
+type LeanExecuteOp = typeof LEAN_EXECUTE_OPS[number];
+
+const MCP_TOOLS_LEAN = [
+  {
+    name: 'search',
+    description:
+      'Find relevant memories. Returns metadata-only hits (id, trigger, confidence, scope, recall_count, suspect_score, similarity_score) — not learning bodies. Use execute({op:"read", id}) or execute({op:"inject", context}) to pull content. suspect_score is 0..1 (higher = more likely stale/poisoned/superseded) — prefer hits with suspect_score < 0.3.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Context or text to search for' },
+        scopes: { type: 'array', items: { type: 'string' }, description: 'Scopes to search', default: ['shared'] },
+        limit: { type: 'number', description: 'Max hits to return', default: 10 },
+        threshold: { type: 'number', description: 'Minimum similarity (0-1). Hits below this are flagged as rejected.', default: 0 },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'execute',
+    description:
+      'Dispatch a memory operation. Use search() first to discover ids and triage via suspect_score, then execute() to read bodies or mutate. Ops: ' +
+      LEAN_EXECUTE_OPS.join(' | ') +
+      '. Each op takes its own args shape — see op descriptions in server docs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        op: { type: 'string', enum: LEAN_EXECUTE_OPS as unknown as string[], description: 'Operation verb' },
+        args: { type: 'object', description: 'Op-specific arguments', default: {} },
+      },
+      required: ['op'],
+    },
+  },
+  {
+    name: 'inject',
+    description:
+      'Common-path shortcut: search + read + assemble prompt in one call. Returns ready-to-use memory prompt plus the underlying learnings. Use this when the agent just wants "context for what I\'m about to do" and doesn\'t need fine-grained triage.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        context: { type: 'string', description: 'Current context to find relevant memories for' },
+        scopes: { type: 'array', items: { type: 'string' }, description: 'Scopes to search', default: ['shared'] },
+        limit: { type: 'number', description: 'Max memories to return', default: 5 },
+        includeState: { type: 'boolean', description: 'Include live working state in prompt', default: false },
+        runId: { type: 'string', description: 'Run/session ID when includeState is true' },
+      },
+      required: ['context'],
+    },
+  },
+];
+
+// Map lean-execute ops to the existing 17-tool handlers. Keeps the legacy
+// path authoritative — lean is strictly a re-skin.
+const LEAN_OP_TO_LEGACY: Record<LeanExecuteOp, string | null> = {
+  read: null, // handled inline (list+filter by id; cheaper than adding a new REST endpoint)
+  inject: 'inject',
+  learn: 'learn',
+  confirm: 'confirm',
+  reject: 'reject',
+  forget: 'forget',
+  forget_bulk: 'forget_bulk',
+  neighbors: 'learning_neighbors',
+  trace: 'inject_trace',
+  list: 'list',
+  stats: 'stats',
+  state_get: 'state_get',
+  state_put: 'state_put',
+  state_patch: 'state_patch',
+  state_resolve: 'state_resolve',
+  record_run: 'record_run',
+  get_runs: 'get_runs',
+};
+
+async function handleLeanToolCall(
+  stub: DurableObjectStub,
+  toolName: string,
+  args: any,
+): Promise<any> {
+  switch (toolName) {
+    case 'search': {
+      // search = inject_trace with threshold, stripping learning bodies from candidates.
+      const traceResult = await handleMcpToolCall(stub, 'inject_trace', {
+        context: args.query,
+        scopes: args.scopes ?? ['shared'],
+        limit: args.limit ?? 10,
+        threshold: args.threshold ?? 0,
+      });
+      const hits = (traceResult?.candidates ?? []).map((candidate: any) => ({
+        id: candidate.id,
+        trigger: candidate.trigger,
+        similarity_score: candidate.similarity_score,
+        passed_threshold: candidate.passed_threshold,
+        confidence: candidate.confidence,
+        scope: candidate.scope,
+        recall_count: candidate.recall_count,
+        created_at: candidate.created_at,
+        last_recalled_at: candidate.last_recalled_at,
+        anti_pattern: candidate.anti_pattern,
+        supersedes: candidate.supersedes,
+        suspect_score: candidate.suspect_score,
+      }));
+      return {
+        hits,
+        threshold_applied: traceResult?.threshold_applied ?? 0,
+        metadata: traceResult?.metadata ?? { total_candidates: 0, above_threshold: 0, below_threshold: 0 },
+      };
+    }
+    case 'inject': {
+      return handleMcpToolCall(stub, 'inject', args);
+    }
+    case 'execute': {
+      const op = args?.op as LeanExecuteOp | undefined;
+      const opArgs = (args?.args ?? {}) as any;
+      if (!op || !(LEAN_EXECUTE_OPS as readonly string[]).includes(op)) {
+        throw new Error(`Unknown op: ${op ?? '(missing)'}. Valid ops: ${LEAN_EXECUTE_OPS.join(', ')}`);
+      }
+      if (op === 'read') {
+        // Pull a single learning body by id via the existing list endpoint.
+        if (!opArgs.id) throw new Error('execute(read) requires args.id');
+        const listResult = await handleMcpToolCall(stub, 'list', { limit: 10000 });
+        const rows = Array.isArray(listResult) ? listResult : (listResult?.learnings ?? []);
+        const hit = rows.find((row: any) => row?.id === opArgs.id);
+        if (!hit) return { found: false, id: opArgs.id };
+        return { found: true, learning: hit };
+      }
+      const legacy = LEAN_OP_TO_LEGACY[op];
+      if (!legacy) throw new Error(`execute(${op}) has no legacy mapping — implementation bug`);
+      // `trace` exposes the inject_trace candidate shape directly, which
+      // carries the new suspect_score metadata; no extra plumbing needed.
+      if (op === 'trace') {
+        return handleMcpToolCall(stub, 'inject_trace', {
+          context: opArgs.context ?? opArgs.query,
+          scopes: opArgs.scopes,
+          limit: opArgs.limit,
+          threshold: opArgs.threshold,
+        });
+      }
+      if (op === 'neighbors') {
+        return handleMcpToolCall(stub, 'learning_neighbors', opArgs);
+      }
+      return handleMcpToolCall(stub, legacy, opArgs);
+    }
+    default:
+      throw new Error(`Unknown lean tool: ${toolName}`);
+  }
+}
+
 // Handle MCP tool calls
 async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args: any): Promise<any> {
   switch (toolName) {
@@ -418,8 +582,13 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
   }
 }
 
-// Handle MCP JSON-RPC requests
-async function handleMcpRequest(request: Request, stub: DurableObjectStub): Promise<Response> {
+// Handle MCP JSON-RPC requests. `variant` switches between the full 17-tool
+// surface and the lean 3-tool surface without changing transport shape.
+async function handleMcpRequest(
+  request: Request,
+  stub: DurableObjectStub,
+  variant: 'full' | 'lean' = 'full',
+): Promise<Response> {
   const body = await request.json() as any;
   const { jsonrpc, id, method, params } = body;
 
@@ -439,17 +608,23 @@ async function handleMcpRequest(request: Request, stub: DurableObjectStub): Prom
         result = {
           protocolVersion: '2024-11-05',
           capabilities: { tools: {} },
-          serverInfo: { name: 'deja', version: '1.0.0' },
+          serverInfo: {
+            name: variant === 'lean' ? 'deja-lean' : 'deja',
+            version: '1.0.0',
+          },
         };
         break;
 
       case 'tools/list':
-        result = { tools: MCP_TOOLS };
+        result = { tools: variant === 'lean' ? MCP_TOOLS_LEAN : MCP_TOOLS };
         break;
 
       case 'tools/call': {
         const { name, arguments: args } = params;
-        const toolResult = await handleMcpToolCall(stub, name, args || {});
+        const toolResult =
+          variant === 'lean'
+            ? await handleLeanToolCall(stub, name, args || {})
+            : await handleMcpToolCall(stub, name, args || {});
         result = {
           content: [{ type: 'text', text: JSON.stringify(toolResult, null, 2) }],
         };
@@ -533,9 +708,9 @@ export default {
     const userId = getUserIdFromApiKey(env.API_KEY, request.headers.get('Authorization'));
     const stub = env.DEJA.get(env.DEJA.idFromName(userId));
 
-    // MCP endpoint - Model Context Protocol
+    // MCP endpoint - Model Context Protocol (full 17-tool surface)
     if (path === '/mcp' && request.method === 'POST') {
-      return handleMcpRequest(request, stub);
+      return handleMcpRequest(request, stub, 'full');
     }
 
     // MCP discovery endpoint
@@ -547,6 +722,26 @@ export default {
         protocol: 'mcp',
         endpoint: `${url.origin}/mcp`,
         tools: MCP_TOOLS.map(t => t.name),
+        variants: { lean: `${url.origin}/mcp/lean` },
+      }), { headers: corsHeaders });
+    }
+
+    // Lean MCP endpoint - 2 front-door tools (search, execute) + inject shortcut.
+    // Same capabilities as /mcp, 1/5th the schema footprint in the agent's context.
+    if (path === '/mcp/lean' && request.method === 'POST') {
+      return handleMcpRequest(request, stub, 'lean');
+    }
+
+    if (path === '/mcp/lean' && request.method === 'GET') {
+      return new Response(JSON.stringify({
+        name: 'deja-lean',
+        version: '1.0.0',
+        description:
+          'Lean MCP surface over deja. Two front-door tools (search, execute) + one common-path shortcut (inject). Progressive disclosure by default.',
+        protocol: 'mcp',
+        endpoint: `${url.origin}/mcp/lean`,
+        tools: MCP_TOOLS_LEAN.map(t => t.name),
+        execute_ops: LEAN_EXECUTE_OPS,
       }), { headers: corsHeaders });
     }
 

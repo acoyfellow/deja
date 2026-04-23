@@ -22,6 +22,61 @@ const CONFIDENCE_DEFAULT = 0.5;
 const ANTI_PATTERN_THRESHOLD = 0.15;
 const ANTI_PATTERN_PREFIX = 'KNOWN PITFALL: ';
 
+// suspect_score composition — higher = more suspicious, range [0, 1].
+// Weights are deliberately small and additive so that no single signal can
+// push a memory over 1.0 on its own; only compounding signals do.
+const SUSPECT_WEIGHT_AGE = 0.2;                    // age / 365 days, clamped
+const SUSPECT_WEIGHT_STALE_UNRECALLED = 0.2;       // unrecalled AND older than a week
+const SUSPECT_WEIGHT_ANTI_PATTERN = 0.3;           // type === 'anti-pattern'
+const SUSPECT_WEIGHT_LOW_CONFIDENCE = 0.3;         // confidence < 0.3
+const SUSPECT_WEIGHT_SUPERSEDES = 0.1;             // this memory replaced another (chain signal)
+const SUSPECT_STALE_AGE_DAYS = 7;
+const SUSPECT_LOW_CONFIDENCE_THRESHOLD = 0.3;
+const SUSPECT_MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+/**
+ * Compute a 0..1 integrity-suspect score for a learning at query time.
+ *
+ * This is a cheap, purely-derived signal meant to ride alongside similarity
+ * scores in search/trace responses so agents can make context-bounded
+ * decisions about whether to trust a hit without pulling its full body.
+ *
+ * Signals, weighted additively and clamped to [0, 1]:
+ *   - age (linear up to 365 days)
+ *   - stale + never-recalled (older than SUSPECT_STALE_AGE_DAYS and recallCount === 0)
+ *   - anti-pattern type
+ *   - low confidence (< SUSPECT_LOW_CONFIDENCE_THRESHOLD)
+ *   - is a superseding memory (chain depth > 0)
+ */
+export function computeSuspectScore(learning: Learning, nowMs: number = Date.now()): number {
+  let score = 0;
+
+  const createdMs = Date.parse(learning.createdAt);
+  const ageDays = Number.isFinite(createdMs)
+    ? Math.max(0, (nowMs - createdMs) / SUSPECT_MS_PER_DAY)
+    : 0;
+
+  score += Math.min(1, ageDays / 365) * SUSPECT_WEIGHT_AGE;
+
+  if (learning.recallCount === 0 && ageDays > SUSPECT_STALE_AGE_DAYS) {
+    score += SUSPECT_WEIGHT_STALE_UNRECALLED;
+  }
+
+  if (learning.type === 'anti-pattern') {
+    score += SUSPECT_WEIGHT_ANTI_PATTERN;
+  }
+
+  if (learning.confidence < SUSPECT_LOW_CONFIDENCE_THRESHOLD) {
+    score += SUSPECT_WEIGHT_LOW_CONFIDENCE;
+  }
+
+  if (typeof learning.supersedes === 'string' && learning.supersedes.length > 0) {
+    score += SUSPECT_WEIGHT_SUPERSEDES;
+  }
+
+  return Math.min(1, Math.round(score * 1000) / 1000);
+}
+
 function stripAntiPatternPrefix(text: string): string {
   return text.startsWith(ANTI_PATTERN_PREFIX) ? text.slice(ANTI_PATTERN_PREFIX.length) : text;
 }
@@ -355,6 +410,7 @@ export async function injectMemoriesWithTrace(
         ),
       );
 
+    const nowMs = Date.now();
     const candidates = dbLearnings.map((row: any) => {
       const learning = ctx.convertDbLearning(row);
       const similarity_score = scoreById.get(row.id) ?? 0;
@@ -364,6 +420,17 @@ export async function injectMemoriesWithTrace(
         learning: learning.learning,
         similarity_score,
         passed_threshold: similarity_score >= threshold,
+        // Metadata additions used by the lean-MCP `search` tool to let agents
+        // triage hits without pulling the learning body. Cheap to compute,
+        // safe for existing consumers (additive fields only).
+        confidence: learning.confidence,
+        scope: learning.scope,
+        recall_count: learning.recallCount,
+        created_at: learning.createdAt,
+        last_recalled_at: learning.lastRecalledAt ?? null,
+        anti_pattern: learning.type === 'anti-pattern',
+        supersedes: learning.supersedes ?? null,
+        suspect_score: computeSuspectScore(learning, nowMs),
       };
     });
 
