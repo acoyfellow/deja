@@ -33,6 +33,7 @@ const MCP_TOOLS = [
         source: { type: 'string', description: 'Source identifier' },
         proof_run_id: { type: 'string', description: 'Optional proof run identifier for the learning evidence' },
         proof_iteration_id: { type: 'string', description: 'Optional proof iteration identifier for the learning evidence' },
+        sync: { type: 'boolean', description: 'Wait for Vectorize to index the new row before returning so it is immediately queryable. Adds ~15-20s latency; use only when you plan to recall this memory in the same session. Default false.', default: false },
       },
       required: ['trigger', 'learning'],
     },
@@ -486,6 +487,9 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
           source: args.source,
           proof_run_id: args.proof_run_id,
           proof_iteration_id: args.proof_iteration_id,
+          // Opt-in Vectorize consistency. Forwarded verbatim; the DO
+          // decides whether to poll the index before returning.
+          sync: args.sync === true ? true : undefined,
         }),
       }));
       return response.json();

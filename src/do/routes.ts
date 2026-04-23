@@ -30,7 +30,8 @@ interface RouteHandlers {
     reason?: string,
     source?: string,
     identity?: SharedRunIdentity,
-  ): Promise<Learning>;
+    opts?: { sync?: boolean },
+  ): Promise<Learning & { synced?: boolean }>;
   confirm(id: string, identity?: SharedRunIdentity): Promise<Learning | null>;
   reject(id: string, identity?: SharedRunIdentity): Promise<Learning | null>;
   query(scopes: string[], text: string, limit?: number, identity?: SharedRunIdentity): Promise<QueryResult>;
@@ -99,6 +100,10 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
   app.post('/learn', async (c) => {
     const body: any = await c.req.json();
     const identity = resolveRunIdentityPayload(body);
+    // `sync` is an opt-in wait for Vectorize to index the new row. When
+    // true the call blocks until the embedding is queryable (or we hit
+    // the SYNC_MAX_WAIT_MS budget). Response includes `synced: boolean`.
+    const sync = body.sync === true;
     const result = await handlers.learn(
       body.scope || 'shared',
       body.trigger,
@@ -107,6 +112,7 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
       body.reason,
       body.source,
       identity,
+      sync ? { sync: true } : undefined,
     );
     return c.json(result);
   });

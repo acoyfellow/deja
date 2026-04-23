@@ -23,6 +23,17 @@ const CONFIDENCE_DEFAULT = 0.5;
 const ANTI_PATTERN_THRESHOLD = 0.15;
 const ANTI_PATTERN_PREFIX = 'KNOWN PITFALL: ';
 
+// Vectorize is eventually consistent: a fresh insert is not queryable for
+// ~15-20s. Callers that want write-then-read consistency (e.g. an agent
+// about to recall what it just wrote) pass `sync: true` to learn() and we
+// poll VECTORIZE.query for the new id until it shows up or we time out.
+//
+// Defaults keep the fast-path async; sync is opt-in because it adds ~15-20s
+// of wall-clock latency per write and would cripple bulk ingest.
+const SYNC_MAX_WAIT_MS = 30_000;
+const SYNC_INITIAL_INTERVAL_MS = 500;
+const SYNC_MAX_INTERVAL_MS = 2_000;
+
 // suspect_score composition — higher = more suspicious, range [0, 1].
 // Weights are deliberately small and additive so that no single signal can
 // push a memory over 1.0 on its own; only compounding signals do.
@@ -204,6 +215,44 @@ async function upsertLearningVector(
       metadata: buildVectorMetadata(learning),
     },
   ]);
+}
+
+/**
+ * Poll VECTORIZE.query until the freshly-inserted id shows up in results,
+ * or the overall budget runs out. Returns true on confirmation, false on
+ * timeout. The caller decides whether to surface the synced state to
+ * callers — we never throw here, because a timeout is not an error: the
+ * write itself succeeded and will show up eventually.
+ *
+ * Poll schedule: 500ms, doubling to a 2s cap, until SYNC_MAX_WAIT_MS.
+ */
+async function waitForVectorIndex(
+  ctx: MemoryOperationsContext,
+  learningId: string,
+  embedding: number[],
+): Promise<boolean> {
+  const deadline = Date.now() + SYNC_MAX_WAIT_MS;
+  let interval = SYNC_INITIAL_INTERVAL_MS;
+
+  while (Date.now() < deadline) {
+    try {
+      const result = await ctx.env.VECTORIZE.query(embedding, { topK: 1 });
+      const matches: any[] = (result as any)?.matches ?? [];
+      if (matches.some((match) => match?.id === learningId)) {
+        return true;
+      }
+    } catch (err) {
+      // Transient query errors during indexing are expected; keep polling.
+    }
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const wait = Math.min(interval, remaining);
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    interval = Math.min(SYNC_MAX_INTERVAL_MS, interval * 2);
+  }
+
+  return false;
 }
 
 async function getLearningRowById(db: any, id: string): Promise<any | null> {
@@ -563,7 +612,8 @@ export async function learnMemory(
   reason?: string,
   source?: string,
   identity?: SharedRunIdentity,
-): Promise<Learning> {
+  opts?: { sync?: boolean },
+): Promise<Learning & { synced?: boolean }> {
   const db = await ctx.initDB();
   const normalizedConfidence = clampConfidence(confidence);
   const embedding = await ctx.createEmbedding(buildEmbeddingText(trigger, learning));
@@ -581,10 +631,15 @@ export async function learnMemory(
         .where(eq(schema.learnings.id, existingLearning.id));
     }
 
-    return {
+    // Dedupe hit — no new vector was inserted, so there's nothing to wait
+    // for. Report synced:true when the caller asked for sync so the
+    // contract ("returned; safe to query") is honored.
+    const result: Learning & { synced?: boolean } = {
       ...existingLearning,
       identity: mergedIdentity,
     };
+    if (opts?.sync) result.synced = true;
+    return result;
   }
 
   let supersedes: string | undefined;
@@ -647,6 +702,11 @@ export async function learnMemory(
   });
 
   await upsertLearningVector(ctx, newLearning);
+
+  if (opts?.sync) {
+    const synced = await waitForVectorIndex(ctx, newLearning.id, embedding);
+    return { ...newLearning, synced };
+  }
 
   return newLearning;
 }

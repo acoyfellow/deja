@@ -240,6 +240,99 @@ describe('hosted memory quality', () => {
     expect(ctxSpies.vectorize.insert).toHaveBeenCalledTimes(1);
   });
 
+  test('learnMemory without sync returns no `synced` field and skips VECTORIZE.query for polling', async () => {
+    const { db } = makeDb([]); // no dedupe hit
+    const { ctx, spies: ctxSpies } = makeMemoryContext(db, []);
+
+    const result = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploying',
+      'check wrangler.toml',
+    );
+
+    expect(result.id).toBeDefined();
+    expect(result).not.toHaveProperty('synced');
+    // The only VECTORIZE.query call should be the dedupe lookup inside
+    // getNearestLearningMatches (1 call). No additional polling.
+    expect(ctxSpies.vectorize.query).toHaveBeenCalledTimes(1);
+    expect(ctxSpies.vectorize.insert).toHaveBeenCalledTimes(1);
+  });
+
+  test('learnMemory with sync:true returns synced:true when VECTORIZE.query reports the new id', async () => {
+    const { db } = makeDb([]); // no dedupe hit
+    const { ctx, spies: ctxSpies } = makeMemoryContext(db, []);
+
+    // First query call = dedupe lookup (no matches). Subsequent calls =
+    // the sync-wait polling: make it succeed immediately by returning the
+    // freshly-inserted id.
+    let call = 0;
+    ctxSpies.vectorize.query.mockImplementation(async () => {
+      call += 1;
+      if (call === 1) return { matches: [] }; // dedupe pass
+      // Polling: grab the id that was just inserted.
+      const insertedId = ctxSpies.vectorize.insert.mock.calls[0]?.[0]?.[0]?.id;
+      return { matches: insertedId ? [{ id: insertedId, score: 1 }] : [] };
+    });
+
+    const result = await learnMemory(
+      ctx as any,
+      'shared',
+      'deploying',
+      'check wrangler.toml',
+      0.5,
+      undefined,
+      undefined,
+      undefined,
+      { sync: true },
+    );
+
+    expect(result.synced).toBe(true);
+    // dedupe query + at least one poll query.
+    expect(ctxSpies.vectorize.query.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('learnMemory with sync:true returns synced:false when Vectorize never reports the id', async () => {
+    const { db } = makeDb([]); // no dedupe hit
+    const { ctx, spies: ctxSpies } = makeMemoryContext(db, []);
+
+    // Use fake timers + a guaranteed-never-sync mock: dedupe query returns
+    // empty, poll queries return empty forever. We tick past the 30s
+    // budget to force the wait function to bail with synced:false.
+    // fake-timers also makes the setTimeout-based backoff instant.
+    jest.useFakeTimers();
+
+    try {
+      const promise = learnMemory(
+        ctx as any,
+        'shared',
+        'deploying',
+        'check wrangler.toml',
+        0.5,
+        undefined,
+        undefined,
+        undefined,
+        { sync: true },
+      );
+
+      // Flush microtasks + timers repeatedly until we've pushed past the
+      // 30s budget. Each tick advances enough to clear the 2s cap-interval.
+      for (let i = 0; i < 40; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+        jest.advanceTimersByTime(2_000);
+      }
+
+      const result = await promise;
+
+      expect(result.synced).toBe(false);
+      // At least dedupe + one poll attempt before timeout bail.
+      expect(ctxSpies.vectorize.query.mock.calls.length).toBeGreaterThanOrEqual(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('injectMemories returns proof citations on the recalled learning objects', async () => {
     const recalledRow = makeLearningRow({
       id: 'mem-proof',

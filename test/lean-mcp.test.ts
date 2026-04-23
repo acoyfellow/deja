@@ -152,6 +152,39 @@ describe('lean MCP', () => {
     expect(payload.id).toBe('mem-new');
   });
 
+  test('lean execute(op=learn, args.sync=true) forwards sync:true in the body to /learn', async () => {
+    // Capture the request body on the DO stub side so we can prove the
+    // sync flag rode through the MCP → handleMcpToolCall → /learn chain.
+    let capturedBody: any = null;
+    const fetch = jest.fn(async (request: Request) => {
+      if (request.url.endsWith('/learn') && request.method === 'POST') {
+        capturedBody = await request.json();
+        return new Response(
+          JSON.stringify({ id: 'mem-sync', learning: 'stored', synced: true }),
+          { headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response(JSON.stringify({ error: 'unhandled' }), { status: 404 });
+    });
+    const env = makeEnv(fetch);
+
+    const rpcResult = await rpc(env, '/mcp/lean', {
+      method: 'tools/call',
+      params: {
+        name: 'execute',
+        arguments: {
+          op: 'learn',
+          args: { trigger: 'flaky tests', learning: 'rerun twice', sync: true },
+        },
+      },
+    });
+
+    expect(capturedBody).toBeTruthy();
+    expect(capturedBody.sync).toBe(true);
+    const payload = JSON.parse(rpcResult.result.content[0].text);
+    expect(payload.synced).toBe(true);
+  });
+
   test('lean execute(op=inject) dispatches to /inject', async () => {
     const { fetch, calls } = makeStubResponder([
       {
