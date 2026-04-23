@@ -157,18 +157,38 @@ describe('DejaDO', () => {
     expect(mockState.storage.sql.exec).toHaveBeenCalled();
   });
 
-  test('filters scopes by priority', () => {
-    const sessionScopes = filterScopesByPriority(['shared', 'agent:123', 'session:456']);
-    expect(sessionScopes).toEqual(['session:456']);
+  test('filterScopesByPriority preserves explicitly-listed scopes (widens instead of dropping)', () => {
+    // Behavior change (see helpers.ts docstring): previously this function
+    // dropped lower-priority scopes when any higher-priority scope was
+    // present, creating a recall hole for main-state shared rows when
+    // ['session:x', 'shared'] was requested. The new contract is
+    // "widen to include everything the caller listed" with a single
+    // narrow collapse: if BOTH session AND agent are present, drop shared.
 
-    const agentScopes = filterScopesByPriority(['shared', 'agent:123']);
-    expect(agentScopes).toEqual(['agent:123']);
+    // Three-tier mix: the single collapse case — shared dropped because
+    // session+agent together already narrow aggressively.
+    expect(
+      filterScopesByPriority(['shared', 'agent:123', 'session:456']).sort(),
+    ).toEqual(['agent:123', 'session:456']);
 
-    const sharedScopes = filterScopesByPriority(['shared']);
-    expect(sharedScopes).toEqual(['shared']);
+    // Agent + shared: both preserved (was previously just agent).
+    expect(filterScopesByPriority(['shared', 'agent:123']).sort()).toEqual(
+      ['agent:123', 'shared'],
+    );
 
-    const emptyScopes = filterScopesByPriority([]);
-    expect(emptyScopes).toEqual([]);
+    // Session + shared: both preserved (the bug case this change fixes).
+    expect(filterScopesByPriority(['session:abc', 'shared']).sort()).toEqual(
+      ['session:abc', 'shared'],
+    );
+
+    // Session + agent (no shared): both preserved (previously only session).
+    expect(filterScopesByPriority(['session:abc', 'agent:x']).sort()).toEqual(
+      ['agent:x', 'session:abc'],
+    );
+
+    // Single scopes: unchanged.
+    expect(filterScopesByPriority(['shared'])).toEqual(['shared']);
+    expect(filterScopesByPriority([])).toEqual([]);
   });
 
   test('normalizes shared run identity payloads from snake and camel keys', () => {

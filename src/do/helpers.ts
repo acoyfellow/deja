@@ -162,19 +162,48 @@ export function initializeStorage(state: DurableObjectState) {
   });
 }
 
+/**
+ * Normalize a caller-supplied scope list into the set actually used for
+ * recall.
+ *
+ * Rule, in one sentence: widen to include everything the caller explicitly
+ * listed; only collapse when a narrower scope already implies the wider
+ * one AND the caller mixed all three tiers.
+ *
+ * Concretely:
+ *   - ['session:x', 'shared']          → both (session AND shared kept)
+ *   - ['session:x', 'agent:y']         → both
+ *   - ['session:x', 'agent:y', 'shared'] → session + agent (shared
+ *       dropped: with session already narrowing to one run AND agent
+ *       narrowing to one identity, shared is redundant noise)
+ *   - ['agent:y', 'shared']            → both
+ *   - ['shared']                        → ['shared']
+ *   - []                                → []
+ *
+ * Why this matters: the previous impl dropped lower-priority scopes
+ * greedily, so ['session:x', 'shared'] silently lost 'shared' and the
+ * caller never saw main-state shared rows. Blessed rows were unaffected
+ * (they bypass scope in buildBranchVisibilityPredicate), but main-state
+ * shared rows DID get dropped — a silent recall hole.
+ *
+ * Custom scopes (anything not starting with 'session:'/'agent:'/'shared')
+ * always pass through untouched.
+ */
 export function filterScopesByPriority(scopes: string[]): string[] {
   if (scopes.length === 0) return [];
 
-  const priority = ['session:', 'agent:', 'shared'];
+  const hasSession = scopes.some((scope) => scope.startsWith('session:'));
+  const hasAgent = scopes.some((scope) => scope.startsWith('agent:'));
 
-  for (const prefix of priority) {
-    const matches = scopes.filter((scope) => scope.startsWith(prefix));
-    if (matches.length > 0) {
-      return matches;
-    }
+  // The only collapse case: session AND agent both explicitly requested.
+  // A caller asking for both is narrowing to a very specific slice; the
+  // accompanying 'shared' is almost always a copy-paste default, not a
+  // real request for the full shared corpus. Drop it.
+  if (hasSession && hasAgent) {
+    return scopes.filter((scope) => scope !== 'shared');
   }
 
-  // Pass through custom scopes (e.g. workspace-specific scopes from filepath)
+  // Everything else: honor the caller's explicit list.
   return scopes;
 }
 
