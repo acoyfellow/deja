@@ -10,6 +10,12 @@ export const learnings = sqliteTable('learnings', {
   scope: text('scope').notNull(), // Added for scope support
   supersedes: text('supersedes'),
   type: text('type').notNull().default('memory'),
+  // Branch lifecycle. 'main' = normal learning visible everywhere scope allows.
+  // 'session' = scratchpad write tied to a single session:<id> scope, invisible
+  // to other sessions, auto-GC'd after the branch TTL expires unless blessed.
+  // 'blessed' = was 'session', explicitly promoted via bless(). Opts out of the
+  // session-TTL sweep but keeps its session:<id> scope as provenance.
+  branchState: text('branch_state').notNull().default('main'),
   embedding: text('embedding'), // Vector embedding as JSON string
   createdAt: text('created_at').notNull(),
   lastRecalledAt: text('last_recalled_at'),
@@ -20,6 +26,18 @@ export const learnings = sqliteTable('learnings', {
   runId: text('run_id'),
   proofRunId: text('proof_run_id'),
   proofIterationId: text('proof_iteration_id'),
+});
+
+// Session-branch metadata. One row per session that has at least one write.
+// Tracks TTL (auto-GC boundary), bless/discard lifecycle, and created_at for
+// ordering. Rows outlive their learnings intentionally — a discarded branch's
+// row persists as audit evidence that the branch existed and was thrown away.
+export const sessionBranches = sqliteTable('session_branches', {
+  sessionId: text('session_id').primaryKey(), // matches the 'session:<id>' scope suffix
+  createdAt: text('created_at').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  blessedAt: text('blessed_at'), // null = still open or discarded
+  discardedAt: text('discarded_at'), // null = still open or blessed
 });
 
 export const secrets = sqliteTable('secrets', {

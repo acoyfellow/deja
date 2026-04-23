@@ -1,7 +1,8 @@
-import { and, desc, eq, inArray, like, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
 
 import * as schema from '../schema';
 import { createLearningId } from './helpers';
+import { ensureSessionBranch, gcExpiredSessionBranches } from './sessionBranch';
 import type {
   InjectResult,
   InjectTraceResult,
@@ -75,6 +76,39 @@ export function computeSuspectScore(learning: Learning, nowMs: number = Date.now
   }
 
   return Math.min(1, Math.round(score * 1000) / 1000);
+}
+
+// Given the already-priority-filtered scope list, build the SQL predicate
+// that enforces branch isolation on recall:
+//
+//   - 'main' and 'blessed' rows are always visible (subject to scope match)
+//   - 'session' rows are only visible if the query is EXPLICITLY asking
+//     for that exact session:<id> scope
+//
+// This is the load-bearing invariant of session-branch mode: one session
+// cannot see another session's unblessed scratchpad, but can see its own.
+// When no 'session:*' scope is in the filter list, no 'session' rows leak
+// at all.
+//
+// Returns a drizzle predicate suitable for use inside and(...).
+export function buildBranchVisibilityPredicate(filteredScopes: string[]) {
+  const sessionScopes = filteredScopes.filter((scope) => scope.startsWith('session:'));
+
+  // Case 1: no session scopes in the filter → hide all 'session' rows.
+  if (sessionScopes.length === 0) {
+    return inArray(schema.learnings.branchState, ['main', 'blessed']);
+  }
+
+  // Case 2: session scopes present → 'main'/'blessed' always OK, and
+  // 'session' rows OK only when their scope exactly matches one of the
+  // requested session scopes.
+  return or(
+    inArray(schema.learnings.branchState, ['main', 'blessed']),
+    and(
+      eq(schema.learnings.branchState, 'session'),
+      inArray(schema.learnings.scope, sessionScopes),
+    ),
+  );
 }
 
 function stripAntiPatternPrefix(text: string): string {
@@ -203,7 +237,26 @@ export async function cleanupLearnings(
   let deleted = 0;
 
   try {
+    // Sweep 0 (runs first): expired session branches. The per-branch TTL
+    // defaults to 24h in sessionBranch.ts; this is the tight window that
+    // auto-cleans forgotten scratchpads. Blessed and discarded branches
+    // are skipped inside gcExpiredSessionBranches().
+    const branchGc = await gcExpiredSessionBranches({ initDB: () => Promise.resolve(db) });
+    if (branchGc.deletedLearnings > 0) {
+      deleted += branchGc.deletedLearnings;
+      reasons.push(`${branchGc.deletedLearnings} expired session-branch entries from ${branchGc.expiredBranches} branches`);
+      await ctx.env.VECTORIZE.deleteByIds(branchGc.deletedIds);
+    }
+
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    // NOTE: branch_state != 'blessed' is critical here. A blessed row keeps
+    // its session:<id> scope (for provenance) but must survive the 7-day
+    // sweep. Session-branch mode relies on this carve-out. The new
+    // gcExpiredSessionBranches() sweep in session-branch.ts handles the
+    // stricter 24h TTL for unblessed 'session' rows; this sweep remains as
+    // a backstop for pre-branch-state session writes (branchState = 'main'
+    // from before the column existed) and for any 'session'-state rows that
+    // escaped the branch GC.
     const staleSessionEntries = await db
       .select()
       .from(schema.learnings)
@@ -211,6 +264,7 @@ export async function cleanupLearnings(
         and(
           like(schema.learnings.scope, 'session:%'),
           sql`${schema.learnings.createdAt} < ${weekAgo}`,
+          sql`${schema.learnings.branchState} != 'blessed'`,
         ),
       );
 
@@ -223,6 +277,7 @@ export async function cleanupLearnings(
           and(
             like(schema.learnings.scope, 'session:%'),
             sql`${schema.learnings.createdAt} < ${weekAgo}`,
+            sql`${schema.learnings.branchState} != 'blessed'`,
           ),
         );
       await ctx.env.VECTORIZE.deleteByIds(staleSessionEntries.map((entry: any) => entry.id));
@@ -305,6 +360,7 @@ export async function injectMemories(
         and(
           inArray(schema.learnings.id, ids),
           inArray(schema.learnings.scope, filteredScopes),
+          buildBranchVisibilityPredicate(filteredScopes),
         ),
       )
       .limit(limit);
@@ -407,6 +463,7 @@ export async function injectMemoriesWithTrace(
         and(
           inArray(schema.learnings.id, ids),
           inArray(schema.learnings.scope, filteredScopes),
+          buildBranchVisibilityPredicate(filteredScopes),
         ),
       );
 
@@ -431,6 +488,7 @@ export async function injectMemoriesWithTrace(
         anti_pattern: learning.type === 'anti-pattern',
         supersedes: learning.supersedes ?? null,
         suspect_score: computeSuspectScore(learning, nowMs),
+        branch_state: learning.branchState,
       };
     });
 
@@ -524,6 +582,11 @@ export async function learnMemory(
       .where(eq(schema.learnings.id, bestMatch.row.id));
   }
 
+  // A write to a 'session:<id>' scope is a scratchpad write — it goes to
+  // the session's branch. All other scopes ('shared', 'agent:*', custom)
+  // write directly to main. Blessing promotes 'session' → 'blessed' later.
+  const branchState: Learning['branchState'] = scope.startsWith('session:') ? 'session' : 'main';
+
   const id = createLearningId();
   const newLearning: Learning = {
     id,
@@ -535,11 +598,22 @@ export async function learnMemory(
     scope,
     supersedes,
     type: 'memory',
+    branchState,
     embedding,
     createdAt: new Date().toISOString(),
     recallCount: 0,
     identity,
   };
+
+  // Ensure the session_branches row exists before the learning lands, so
+  // the branch's expiresAt is defined by the time the first write is live.
+  // Non-session scopes skip this entirely.
+  if (branchState === 'session') {
+    const sessionId = scope.slice('session:'.length);
+    if (sessionId.length > 0) {
+      await ensureSessionBranch({ initDB: () => Promise.resolve(db) }, sessionId);
+    }
+  }
 
   await db.insert(schema.learnings).values({
     id: newLearning.id,
@@ -551,6 +625,7 @@ export async function learnMemory(
     scope: newLearning.scope,
     supersedes: newLearning.supersedes ?? null,
     type: newLearning.type,
+    branchState: newLearning.branchState,
     embedding: newLearning.embedding ? JSON.stringify(newLearning.embedding) : null,
     createdAt: newLearning.createdAt,
     ...learningIdentityFields(identity),
@@ -717,6 +792,7 @@ export async function queryLearnings(
         and(
           inArray(schema.learnings.id, ids),
           inArray(schema.learnings.scope, filteredScopes),
+          buildBranchVisibilityPredicate(filteredScopes),
         ),
       )
       .limit(limit);

@@ -13,6 +13,16 @@ export interface SharedRunIdentity {
   proofIterationId?: string | null;
 }
 
+// Branch lifecycle for a learning:
+//   'main'    — normal learning, visible wherever scope allows (default).
+//   'session' — scratchpad write tied to a session:<id> scope. Invisible
+//               to other sessions; auto-GC'd after the branch TTL expires
+//               unless blessed first.
+//   'blessed' — was 'session', explicitly promoted via bless(). Opts out
+//               of the session-TTL sweep. Scope stays session:<id> so the
+//               write's provenance (which session authored it) survives.
+export type LearningBranchState = 'main' | 'session' | 'blessed';
+
 export interface Learning {
   id: string;
   trigger: string;
@@ -23,12 +33,24 @@ export interface Learning {
   scope: string;
   supersedes?: string;
   type: 'memory' | 'anti-pattern';
+  branchState: LearningBranchState;
   embedding?: number[];
   createdAt: string;
   lastRecalledAt?: string;
   recallCount: number;
   identity?: SharedRunIdentity;
 }
+
+// Per-session branch metadata.
+export interface SessionBranch {
+  sessionId: string; // matches the session:<id> scope suffix
+  createdAt: string;
+  expiresAt: string;
+  blessedAt: string | null;
+  discardedAt: string | null;
+}
+
+export type SessionBranchStatus = 'open' | 'blessed' | 'discarded' | 'expired';
 
 export interface Secret {
   name: string;
@@ -72,6 +94,7 @@ export interface InjectTraceCandidate {
   anti_pattern: boolean;
   supersedes: string | null;
   suspect_score: number;
+  branch_state: LearningBranchState;
 }
 
 export interface InjectTraceResult {

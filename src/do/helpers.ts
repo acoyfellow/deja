@@ -65,6 +65,23 @@ export function initializeStorage(state: DurableObjectState) {
     try {
       state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN type TEXT NOT NULL DEFAULT 'memory'`);
     } catch (_) {}
+    try {
+      state.storage.sql.exec(`ALTER TABLE learnings ADD COLUMN branch_state TEXT NOT NULL DEFAULT 'main'`);
+    } catch (_) {}
+    try {
+      state.storage.sql.exec(`CREATE INDEX IF NOT EXISTS idx_learnings_branch_state ON learnings(branch_state)`);
+    } catch (_) {}
+
+    state.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS session_branches (
+        session_id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        blessed_at TEXT,
+        discarded_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_session_branches_expires_at ON session_branches(expires_at);
+    `);
 
     state.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS secrets (
@@ -172,6 +189,7 @@ export function convertDbLearning(dbLearning: any): Learning {
     scope: dbLearning.scope,
     supersedes: dbLearning.supersedes ?? undefined,
     type: (dbLearning.type as Learning['type'] | null) ?? 'memory',
+    branchState: (dbLearning.branchState as Learning['branchState'] | null) ?? 'main',
     embedding: dbLearning.embedding ? JSON.parse(dbLearning.embedding) : undefined,
     createdAt: dbLearning.createdAt,
     lastRecalledAt: dbLearning.lastRecalledAt ?? undefined,

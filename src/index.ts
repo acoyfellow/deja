@@ -241,6 +241,51 @@ const MCP_TOOLS = [
       },
     },
   },
+  {
+    name: 'bless_branch',
+    description:
+      'Promote session-branch learnings from "session" to "blessed". Blessed learnings become visible outside the session (subject to scope) and opt out of the session-branch TTL sweep. Pass learning_ids to bless a subset; omit to bless all session-state rows in the branch.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session_id: { type: 'string', description: 'Session id (bare, e.g. "abc") or full scope ("session:abc")' },
+        learning_ids: { type: 'array', items: { type: 'string' }, description: 'Optional subset of learning ids to bless' },
+      },
+      required: ['session_id'],
+    },
+  },
+  {
+    name: 'discard_branch',
+    description:
+      'Hard-delete all "session"-state learnings in a session branch. Already-blessed rows are preserved. The branch row itself is retained with discarded_at set as an audit trail.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session_id: { type: 'string', description: 'Session id (bare or scope form)' },
+      },
+      required: ['session_id'],
+    },
+  },
+  {
+    name: 'branch_status',
+    description:
+      'Return metadata for a single session branch: status (open | blessed | discarded | expired), createdAt, expiresAt, blessedAt, discardedAt, sessionCount, blessedCount.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session_id: { type: 'string', description: 'Session id (bare or scope form)' },
+      },
+      required: ['session_id'],
+    },
+  },
+  {
+    name: 'list_branches',
+    description: 'List all known session branches (open + blessed + discarded + expired) with their rollup counts, newest first.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -259,6 +304,7 @@ const LEAN_EXECUTE_OPS = [
   'neighbors', 'trace', 'list', 'stats',
   'state_get', 'state_put', 'state_patch', 'state_resolve',
   'record_run', 'get_runs',
+  'bless', 'discard', 'branch_status', 'list_branches',
 ] as const;
 type LeanExecuteOp = typeof LEAN_EXECUTE_OPS[number];
 
@@ -331,6 +377,14 @@ const LEAN_OP_TO_LEGACY: Record<LeanExecuteOp, string | null> = {
   state_resolve: 'state_resolve',
   record_run: 'record_run',
   get_runs: 'get_runs',
+  // Session-branch ops. These hit dedicated /session/:id/* endpoints on the
+  // DO so the executor dispatches them inline (below) rather than via a
+  // matching legacy MCP tool. Legacy tools exist too but the lean path
+  // bypasses them.
+  bless: 'bless_branch',
+  discard: 'discard_branch',
+  branch_status: 'branch_status',
+  list_branches: 'list_branches',
 };
 
 async function handleLeanToolCall(
@@ -360,6 +414,11 @@ async function handleLeanToolCall(
         anti_pattern: candidate.anti_pattern,
         supersedes: candidate.supersedes,
         suspect_score: candidate.suspect_score,
+        // branch_state lets agents triage session-branch hits from main/blessed
+        // without pulling bodies. 'session' hits come only from the caller's
+        // own session; 'blessed' hits are promoted scratchpads; 'main' is
+        // the unmarked default.
+        branch_state: candidate.branch_state,
       }));
       return {
         hits,
@@ -400,6 +459,10 @@ async function handleLeanToolCall(
       if (op === 'neighbors') {
         return handleMcpToolCall(stub, 'learning_neighbors', opArgs);
       }
+      if (op === 'bless') return handleMcpToolCall(stub, 'bless_branch', opArgs);
+      if (op === 'discard') return handleMcpToolCall(stub, 'discard_branch', opArgs);
+      if (op === 'branch_status') return handleMcpToolCall(stub, 'branch_status', opArgs);
+      if (op === 'list_branches') return handleMcpToolCall(stub, 'list_branches', opArgs);
       return handleMcpToolCall(stub, legacy, opArgs);
     }
     default:
@@ -577,9 +640,52 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
       const response = await stub.fetch(new Request(`http://internal/runs?${params}`));
       return response.json();
     }
+    case 'bless_branch': {
+      const sessionId = extractSessionIdArg(args);
+      if (!sessionId) throw new Error('bless_branch requires args.session_id');
+      const payload: Record<string, unknown> = {};
+      if (Array.isArray(args.learning_ids)) payload.learning_ids = args.learning_ids;
+      else if (Array.isArray(args.learningIds)) payload.learningIds = args.learningIds;
+      const response = await stub.fetch(new Request(`http://internal/session/${encodeURIComponent(sessionId)}/bless`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }));
+      return response.json();
+    }
+    case 'discard_branch': {
+      const sessionId = extractSessionIdArg(args);
+      if (!sessionId) throw new Error('discard_branch requires args.session_id');
+      const response = await stub.fetch(new Request(`http://internal/session/${encodeURIComponent(sessionId)}/discard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }));
+      return response.json();
+    }
+    case 'branch_status': {
+      const sessionId = extractSessionIdArg(args);
+      if (!sessionId) throw new Error('branch_status requires args.session_id');
+      const response = await stub.fetch(new Request(`http://internal/session/${encodeURIComponent(sessionId)}/status`));
+      return response.json();
+    }
+    case 'list_branches': {
+      const response = await stub.fetch(new Request('http://internal/sessions'));
+      return response.json();
+    }
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
+}
+
+// Normalize a session_id arg accepting either 'abc' or 'session:abc'. Empty
+// strings are treated as missing. Used by every bless/discard/status call.
+function extractSessionIdArg(args: any): string | null {
+  const raw = args?.session_id ?? args?.sessionId;
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith('session:') ? trimmed.slice('session:'.length) : trimmed;
 }
 
 // Handle MCP JSON-RPC requests. `variant` switches between the full 17-tool

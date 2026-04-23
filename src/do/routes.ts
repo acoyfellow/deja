@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 import { formatStatePrompt, resolveRunIdentityPayload } from './helpers';
+import type { BlessOptions, BlessResult, BranchStatus, DiscardResult } from './sessionBranch';
+import { normalizeSessionId } from './sessionBranch';
 import type {
   Env,
   InjectTraceResult,
@@ -82,6 +84,10 @@ interface RouteHandlers {
   listSecrets(scope?: string): Promise<Secret[]>;
   recordRun(payload: RecordRunPayload): Promise<LoopRun>;
   getRuns(scope?: string, limit?: number): Promise<RunsQueryResult>;
+  blessBranch(sessionId: string, opts?: BlessOptions): Promise<BlessResult>;
+  discardBranch(sessionId: string): Promise<DiscardResult>;
+  getBranchStatus(sessionId: string): Promise<BranchStatus | null>;
+  listBranches(): Promise<BranchStatus[]>;
 }
 
 export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> {
@@ -356,6 +362,47 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
     const limit = c.req.query('limit');
     return c.json(await handlers.getRuns(scope, limit ? parseInt(limit, 10) : undefined));
   });
+
+  // Session-branch routes. Session id in the URL is the bare id ('abc'),
+  // NOT the full 'session:abc' scope. normalizeSessionId accepts either form
+  // for robustness — if a caller passes 'session:abc' via body we unwrap it.
+  app.post('/session/:sessionId/bless', async (c) => {
+    const raw = c.req.param('sessionId');
+    const body: any = await c.req.json().catch(() => ({}));
+    const sessionId = normalizeSessionId(raw);
+    if (!sessionId) {
+      return c.json({ error: 'session_id required' }, 400);
+    }
+    const opts: BlessOptions = {};
+    if (Array.isArray(body.learning_ids)) {
+      opts.learningIds = body.learning_ids.filter((id: any) => typeof id === 'string' && id.length > 0);
+    } else if (Array.isArray(body.learningIds)) {
+      opts.learningIds = body.learningIds.filter((id: any) => typeof id === 'string' && id.length > 0);
+    }
+    return c.json(await handlers.blessBranch(sessionId, opts));
+  });
+
+  app.post('/session/:sessionId/discard', async (c) => {
+    const sessionId = normalizeSessionId(c.req.param('sessionId'));
+    if (!sessionId) {
+      return c.json({ error: 'session_id required' }, 400);
+    }
+    return c.json(await handlers.discardBranch(sessionId));
+  });
+
+  app.get('/session/:sessionId/status', async (c) => {
+    const sessionId = normalizeSessionId(c.req.param('sessionId'));
+    if (!sessionId) {
+      return c.json({ error: 'session_id required' }, 400);
+    }
+    const status = await handlers.getBranchStatus(sessionId);
+    if (!status) {
+      return c.json({ error: 'not found' }, 404);
+    }
+    return c.json(status);
+  });
+
+  app.get('/sessions', async (c) => c.json(await handlers.listBranches()));
 
   app.post('/cleanup', async (c) => c.json(await handlers.cleanup()));
 

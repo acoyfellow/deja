@@ -11,6 +11,8 @@ import { convertDbLearning, filterScopesByPriority, initializeStorage, normalize
 import { recordLoopRun, queryLoopRuns } from './loopRuns';
 import { createDejaApp } from './routes';
 import { deleteSecretValue, getSecretValue, listSecrets, setSecretValue } from './secrets';
+import type { BlessOptions, BlessResult, BranchStatus, DiscardResult } from './sessionBranch';
+import { blessSessionBranch, discardSessionBranch, getBranchStatus, listBranches } from './sessionBranch';
 import { getStatsSnapshot } from './stats';
 import type { Env, InjectResult, InjectTraceResult, Learning, LoopRun, QueryResult, RecordRunPayload, ResolveStateOptions, RunsQueryResult, Secret, SharedRunIdentity, Stats, WorkingStatePayload, WorkingStateResponse } from './types';
 import { addWorkingStateEvent, getStateByRunId, patchWorkingState, resolveWorkingState, upsertWorkingState } from './workingState';
@@ -91,6 +93,12 @@ export class DejaDO extends DurableObject<Env> {
       normalizeWorkingStatePayload,
       normalizeRunIdentityPayload,
       learn: this.learn.bind(this),
+    };
+  }
+
+  private getSessionBranchContext() {
+    return {
+      initDB: () => this.initDB(),
     };
   }
 
@@ -208,6 +216,23 @@ export class DejaDO extends DurableObject<Env> {
     return listSecrets(this.getSecretsContext(), scope);
   }
 
+  // Session-branch operations. See src/do/sessionBranch.ts for semantics.
+  async blessBranch(sessionId: string, opts: BlessOptions = {}): Promise<BlessResult> {
+    return blessSessionBranch(this.getSessionBranchContext(), sessionId, opts);
+  }
+
+  async discardBranch(sessionId: string): Promise<DiscardResult> {
+    return discardSessionBranch(this.getSessionBranchContext(), sessionId);
+  }
+
+  async getBranchStatus(sessionId: string): Promise<BranchStatus | null> {
+    return getBranchStatus(this.getSessionBranchContext(), sessionId);
+  }
+
+  async listBranches(): Promise<BranchStatus[]> {
+    return listBranches(this.getSessionBranchContext());
+  }
+
   private initApp(): Hono<{ Bindings: Env }> {
     if (this.app) return this.app;
     this.app = createDejaApp({
@@ -234,6 +259,10 @@ export class DejaDO extends DurableObject<Env> {
       listSecrets: this.listSecrets.bind(this),
       recordRun: this.recordRun.bind(this),
       getRuns: this.getRuns.bind(this),
+      blessBranch: this.blessBranch.bind(this),
+      discardBranch: this.discardBranch.bind(this),
+      getBranchStatus: this.getBranchStatus.bind(this),
+      listBranches: this.listBranches.bind(this),
     });
     return this.app;
   }

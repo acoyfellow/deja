@@ -9,6 +9,7 @@ function makeLearning(overrides: Partial<Learning> = {}): Learning {
     confidence: 0.8,
     scope: 'shared',
     type: 'memory',
+    branchState: 'main',
     createdAt: new Date('2026-04-22T00:00:00.000Z').toISOString(),
     recallCount: 2,
     ...overrides,
