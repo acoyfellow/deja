@@ -78,36 +78,49 @@ export function computeSuspectScore(learning: Learning, nowMs: number = Date.now
   return Math.min(1, Math.round(score * 1000) / 1000);
 }
 
-// Given the already-priority-filtered scope list, build the SQL predicate
-// that enforces branch isolation on recall:
+// Single source of truth for recall visibility. Owns BOTH the scope match
+// and the branch_state rule — callsites must not AND another scope filter
+// alongside this one. Three disjunct branches:
 //
-//   - 'main' and 'blessed' rows are always visible (subject to scope match)
-//   - 'session' rows are only visible if the query is EXPLICITLY asking
-//     for that exact session:<id> scope
+//   1. 'main'     — normal learning. Visible iff scope is in the requested
+//                   list. (Classic scope-isolation semantics; nothing new.)
 //
-// This is the load-bearing invariant of session-branch mode: one session
-// cannot see another session's unblessed scratchpad, but can see its own.
-// When no 'session:*' scope is in the filter list, no 'session' rows leak
-// at all.
+//   2. 'blessed'  — promoted scratchpad. Visible REGARDLESS of scope. The
+//                   stored scope ('session:<id>') is retained as authored-
+//                   by provenance, not used as a filter. This is the whole
+//                   point of bless: graduating a learning from throwaway
+//                   to cross-session institutional memory. Without this
+//                   branch, bless() would only make rows session-permanent
+//                   — not promoted — which is not what the word means.
 //
-// Returns a drizzle predicate suitable for use inside and(...).
+//   3. 'session'  — live scratchpad. Visible only if the caller explicitly
+//                   asked for that exact session:<id> scope. No session's
+//                   unblessed scratchpad ever leaks to other callers.
+//
+// If no session scopes are in the filter, branch (3) evaluates to false
+// (via the sql`0` fallback), so no session rows leak at all. This is the
+// load-bearing isolation invariant and it holds regardless of (1)/(2).
+//
+// Returns a drizzle predicate. REPLACES the prior inArray(scope, ...) SQL
+// clause at recall callsites — don't AND this with another scope filter.
 export function buildBranchVisibilityPredicate(filteredScopes: string[]) {
   const sessionScopes = filteredScopes.filter((scope) => scope.startsWith('session:'));
 
-  // Case 1: no session scopes in the filter → hide all 'session' rows.
-  if (sessionScopes.length === 0) {
-    return inArray(schema.learnings.branchState, ['main', 'blessed']);
-  }
-
-  // Case 2: session scopes present → 'main'/'blessed' always OK, and
-  // 'session' rows OK only when their scope exactly matches one of the
-  // requested session scopes.
   return or(
-    inArray(schema.learnings.branchState, ['main', 'blessed']),
+    // (1) main — classic scope match
     and(
-      eq(schema.learnings.branchState, 'session'),
-      inArray(schema.learnings.scope, sessionScopes),
+      eq(schema.learnings.branchState, 'main'),
+      inArray(schema.learnings.scope, filteredScopes),
     ),
+    // (2) blessed — always visible, scope is metadata not filter
+    eq(schema.learnings.branchState, 'blessed'),
+    // (3) session — own-session-only, or false if no session asked for
+    sessionScopes.length > 0
+      ? and(
+          eq(schema.learnings.branchState, 'session'),
+          inArray(schema.learnings.scope, sessionScopes),
+        )
+      : sql`0`,
   );
 }
 
@@ -353,13 +366,15 @@ export async function injectMemories(
       return { prompt: '', learnings: [] };
     }
 
+    // buildBranchVisibilityPredicate owns both the scope match and the
+    // branch_state rule. Do not AND a separate scope filter alongside it —
+    // the predicate's 'blessed' branch is intentionally scope-agnostic.
     const dbLearnings = await db
       .select()
       .from(schema.learnings)
       .where(
         and(
           inArray(schema.learnings.id, ids),
-          inArray(schema.learnings.scope, filteredScopes),
           buildBranchVisibilityPredicate(filteredScopes),
         ),
       )
@@ -456,13 +471,13 @@ export async function injectMemoriesWithTrace(
       };
     }
 
+    // buildBranchVisibilityPredicate owns scope + branch_state together.
     const dbLearnings = await db
       .select()
       .from(schema.learnings)
       .where(
         and(
           inArray(schema.learnings.id, ids),
-          inArray(schema.learnings.scope, filteredScopes),
           buildBranchVisibilityPredicate(filteredScopes),
         ),
       );
@@ -785,13 +800,13 @@ export async function queryLearnings(
       return { learnings: [], hits: {} };
     }
 
+    // buildBranchVisibilityPredicate owns scope + branch_state together.
     const dbLearnings = await db
       .select()
       .from(schema.learnings)
       .where(
         and(
           inArray(schema.learnings.id, ids),
-          inArray(schema.learnings.scope, filteredScopes),
           buildBranchVisibilityPredicate(filteredScopes),
         ),
       )
