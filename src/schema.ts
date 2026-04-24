@@ -40,6 +40,18 @@ export const sessionBranches = sqliteTable('session_branches', {
   discardedAt: text('discarded_at'), // null = still open or blessed
 });
 
+// Handoff packets. Typed structured summaries of a session's end-of-run state:
+// what shipped, what was blessed, what remains, what the next agent should
+// verify. One row per session_id — posting again overwrites. The whole packet
+// is serialized to JSON in packet_json rather than normalized into child
+// tables; a handoff is a single typed blob, not a relational tree.
+export const handoffPackets = sqliteTable('handoff_packets', {
+  sessionId: text('session_id').primaryKey(),
+  createdAt: text('created_at').notNull(),
+  authoredBy: text('authored_by'),
+  packetJson: text('packet_json').notNull(),
+});
+
 export const secrets = sqliteTable('secrets', {
   name: text('name').primaryKey(),
   value: text('value').notNull(),

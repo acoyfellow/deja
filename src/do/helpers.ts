@@ -83,6 +83,21 @@ export function initializeStorage(state: DurableObjectState) {
       CREATE INDEX IF NOT EXISTS idx_session_branches_expires_at ON session_branches(expires_at);
     `);
 
+    // Handoff packets. One row per session_id. packet_json is the whole typed
+    // HandoffPacket serialized — we deliberately don't explode whatShipped /
+    // whatBlessed / whatRemains into child tables. A handoff is a single
+    // typed blob with known shape, not a relational tree. The created_at
+    // index powers `GET /handoffs` newest-first listing.
+    state.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS handoff_packets (
+        session_id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        authored_by TEXT,
+        packet_json TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_handoff_packets_created_at ON handoff_packets(created_at);
+    `);
+
     state.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS secrets (
         name TEXT PRIMARY KEY,

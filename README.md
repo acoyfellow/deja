@@ -133,7 +133,33 @@ The hosted service adds features beyond basic memory:
 - **Secrets** — scoped key-value storage
 - **Loop runs** — track optimization loops with auto-learning from outcomes
 
-Core REST endpoints: `/learn`, `/learning/:id/confirm`, `/learning/:id/reject`, `/inject`, `/inject/trace`, `/query`, `/learnings`, `/learning/:id/neighbors`, `/cleanup`, `/stats`, `/state/:runId`, `/secret`, `/run`
+Core REST endpoints: `/learn`, `/learning/:id/confirm`, `/learning/:id/reject`, `/inject`, `/inject/trace`, `/query`, `/learnings`, `/learning/:id/neighbors`, `/cleanup`, `/stats`, `/state/:runId`, `/handoff`, `/secret`, `/run`
+
+### Handoff Packets
+
+Working state (`/state/:runId`) is a live scratchpad that one agent updates while it works. A **handoff packet** is the complementary durable artifact: a typed end-of-session summary that outlives the session that authored it, so the next agent starts with context instead of a cold open.
+
+```bash
+POST /handoff                # upsert (overwrites by sessionId)
+GET  /handoff/:sessionId     # fetch one packet (?format=markdown for rendered)
+GET  /handoffs?limit=20      # list recent, newest-first
+```
+
+Each packet is a typed struct:
+
+```ts
+{
+  sessionId, createdAt, authoredBy?,
+  summary,                // 1-2 sentence high-level
+  whatShipped: string[],
+  whatBlessed: { learningId, note? }[],  // cites bless()'d learning ids
+  whatRemains: string[],
+  nextVerify?: string[],
+  links?: { kind: 'commit'|'pr'|'url'|'wiki', value, label? }[],
+}
+```
+
+Over MCP: `handoff_create`, `handoff_get`, `handoff_list` in the full surface; `execute({op:'handoff_read', args:{sessionId}})` in the lean surface returns the packet pre-rendered as markdown. Handoffs are a separate axis from recall — `inject()` and `search()` don't auto-pull them.
 
 Full reference: https://deja.coey.dev/docs
 

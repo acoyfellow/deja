@@ -2,10 +2,12 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 import { formatStatePrompt, resolveRunIdentityPayload } from './helpers';
+import { renderHandoffMarkdown } from './handoff';
 import type { BlessOptions, BlessResult, BranchStatus, DiscardResult } from './sessionBranch';
 import { normalizeSessionId } from './sessionBranch';
 import type {
   Env,
+  HandoffPacket,
   InjectTraceResult,
   Learning,
   LoopRun,
@@ -89,6 +91,9 @@ interface RouteHandlers {
   discardBranch(sessionId: string): Promise<DiscardResult>;
   getBranchStatus(sessionId: string): Promise<BranchStatus | null>;
   listBranches(): Promise<BranchStatus[]>;
+  upsertHandoff(sessionId: string, packet: any): Promise<HandoffPacket>;
+  getHandoff(sessionId: string): Promise<HandoffPacket | null>;
+  listHandoffs(limit?: number): Promise<HandoffPacket[]>;
 }
 
 export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> {
@@ -409,6 +414,48 @@ export function createDejaApp(handlers: RouteHandlers): Hono<{ Bindings: Env }> 
   });
 
   app.get('/sessions', async (c) => c.json(await handlers.listBranches()));
+
+  // Handoff-packet routes. sessionId here is the bare id ('abc'); upstream
+  // callers should not pass the 'session:abc' scope form. Body validation
+  // lives in handoff.ts#normalizeHandoffPacket — this layer just wires
+  // transport. POST is upsert-by-sessionId; second POST with the same id
+  // overwrites the first.
+  app.post('/handoff', async (c) => {
+    const body: any = await c.req.json().catch(() => ({}));
+    const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
+    if (!sessionId) {
+      return c.json({ error: 'sessionId required' }, 400);
+    }
+    const packet = await handlers.upsertHandoff(sessionId, body);
+    return c.json(packet);
+  });
+
+  app.get('/handoff/:sessionId', async (c) => {
+    const sessionId = c.req.param('sessionId');
+    if (!sessionId) {
+      return c.json({ error: 'sessionId required' }, 400);
+    }
+    const packet = await handlers.getHandoff(sessionId);
+    if (!packet) {
+      return c.json({ error: 'not found' }, 404);
+    }
+    // ?format=markdown returns the rendered handoff directly; default is JSON.
+    // This collapses handoff_read into the same REST endpoint so the lean MCP
+    // dispatch doesn't need a second route.
+    if (c.req.query('format') === 'markdown') {
+      return new Response(renderHandoffMarkdown(packet), {
+        headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+      });
+    }
+    return c.json(packet);
+  });
+
+  app.get('/handoffs', async (c) => {
+    const limitParam = c.req.query('limit');
+    const parsed = limitParam != null ? parseInt(limitParam, 10) : NaN;
+    const limit = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+    return c.json(await handlers.listHandoffs(limit));
+  });
 
   app.post('/cleanup', async (c) => c.json(await handlers.cleanup()));
 
