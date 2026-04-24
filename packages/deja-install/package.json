@@ -1,0 +1,55 @@
+{
+  "name": "deja-install",
+  "version": "0.1.0",
+  "description": "One-command installer for deja's MCP surface. Collapses key-gen, config-merge, env-var wiring, and live verify into a single npx invocation.",
+  "type": "module",
+  "bin": {
+    "deja-install": "dist/cli.js"
+  },
+  "main": "dist/cli.js",
+  "exports": {
+    ".": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/cli.ts --format esm --target node18 --clean --no-dts",
+    "dev": "bun run src/cli.ts",
+    "test": "bun test",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "bun run lint && bun run test && bun run build"
+  },
+  "keywords": [
+    "deja",
+    "mcp",
+    "opencode",
+    "claude-code",
+    "cursor",
+    "installer",
+    "ai",
+    "agents",
+    "memory"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acoyfellow/deja",
+    "directory": "packages/deja-install"
+  },
+  "homepage": "https://deja.coey.dev",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.4.0"
+  }
+}

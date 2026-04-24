@@ -22,7 +22,9 @@
     "test": "bun run test:worker",
     "test:worker": "jest --runInBand",
     "test:client": "cd packages/deja-client && bun test",
+    "test:install": "cd packages/deja-install && bun test",
     "test:do": "jest test/deja-do.test.ts",
+    "deja-install": "cd packages/deja-install && bun run src/cli.ts --",
     "typecheck": "tsc --noEmit",
     "verify": "node tools/verify.mjs",
     "gates": "bun run prd.ts"
@@ -51,5 +53,8 @@
     "drizzle-orm": "^0.45.1",
     "hono": "^4.11.7",
     "zod": "^3.24.0"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }
