@@ -35,15 +35,19 @@ const SYNC_INITIAL_INTERVAL_MS = 500;
 const SYNC_MAX_INTERVAL_MS = 2_000;
 
 // suspect_score composition — higher = more suspicious, range [0, 1].
-// Weights are deliberately small and additive so that no single signal can
-// push a memory over 1.0 on its own; only compounding signals do.
-const SUSPECT_WEIGHT_AGE = 0.2;                    // age / 365 days, clamped
-const SUSPECT_WEIGHT_STALE_UNRECALLED = 0.2;       // unrecalled AND older than a week
-const SUSPECT_WEIGHT_ANTI_PATTERN = 0.3;           // type === 'anti-pattern'
-const SUSPECT_WEIGHT_LOW_CONFIDENCE = 0.3;         // confidence < 0.3
-const SUSPECT_WEIGHT_SUPERSEDES = 0.1;             // this memory replaced another (chain signal)
-const SUSPECT_STALE_AGE_DAYS = 7;
-const SUSPECT_LOW_CONFIDENCE_THRESHOLD = 0.3;
+// Weights are additive and clamped to [0, 1]; individual signals are bounded
+// so no one signal can push a memory over 1.0 on its own.
+//
+// "Effective age" is time since `lastRecalledAt ?? createdAt`. An ancient
+// memory that is actively recalled is load-bearing institutional knowledge,
+// not cold storage, and should not be penalised just for its birthday.
+const SUSPECT_WEIGHT_AGE = 0.2;                    // effective age / 365 days, clamped
+const SUSPECT_WEIGHT_STALE_COLD = 0.3;             // effective age + under-recalled
+const SUSPECT_WEIGHT_ANTI_PATTERN = 0.3;           // scaled by (1 - confidence): confirmed anti-patterns barely penalise
+const SUSPECT_WEIGHT_LOW_CONFIDENCE = 0.5;         // continuous ramp — no cliff at 0.3
+const SUSPECT_STALE_RAMP_START_DAYS = 7;
+const SUSPECT_STALE_RAMP_END_DAYS = 30;
+const SUSPECT_LOW_CONFIDENCE_FULL = 0.6;           // ramp engages below this; a 0.5 memory still takes a small hit
 const SUSPECT_MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 /**
@@ -54,37 +58,76 @@ const SUSPECT_MS_PER_DAY = 1000 * 60 * 60 * 24;
  * decisions about whether to trust a hit without pulling its full body.
  *
  * Signals, weighted additively and clamped to [0, 1]:
- *   - age (linear up to 365 days)
- *   - stale + never-recalled (older than SUSPECT_STALE_AGE_DAYS and recallCount === 0)
- *   - anti-pattern type
- *   - low confidence (< SUSPECT_LOW_CONFIDENCE_THRESHOLD)
- *   - is a superseding memory (chain depth > 0)
+ *   - effective age (time since lastRecalledAt, or createdAt if never
+ *     recalled); linear up to 365 days
+ *   - stale-cold — scales effective age (ramp 7d → 30d) by how
+ *     under-recalled the memory is. A never-recalled month-old memory fires
+ *     full; a heavily-recalled one doesn't fire at all.
+ *   - anti-pattern, scaled by (1 - confidence): a *confirmed* anti-pattern is
+ *     valuable negative knowledge and should barely register, a low-confidence
+ *     "ANTI: I think..." is the suspicious case
+ *   - low confidence as a continuous ramp up to 0.5 (no cliff at 0.3)
+ *
+ * `supersedes` is intentionally NOT a penalty: the superseding memory is the
+ * chain *winner* — the newer, corrected version — not the discredited one.
  */
 export function computeSuspectScore(learning: Learning, nowMs: number = Date.now()): number {
   let score = 0;
 
   const createdMs = Date.parse(learning.createdAt);
-  const ageDays = Number.isFinite(createdMs)
+  const createdAgeDays = Number.isFinite(createdMs)
     ? Math.max(0, (nowMs - createdMs) / SUSPECT_MS_PER_DAY)
     : 0;
 
-  score += Math.min(1, ageDays / 365) * SUSPECT_WEIGHT_AGE;
-
-  if (learning.recallCount === 0 && ageDays > SUSPECT_STALE_AGE_DAYS) {
-    score += SUSPECT_WEIGHT_STALE_UNRECALLED;
+  // Effective age: if the memory was recalled recently, treat it as young
+  // even if createdAt is ancient. Fall back to createdAgeDays when
+  // lastRecalledAt is missing or unparseable.
+  let effectiveAgeDays = createdAgeDays;
+  if (typeof learning.lastRecalledAt === 'string') {
+    const recalledMs = Date.parse(learning.lastRecalledAt);
+    if (Number.isFinite(recalledMs)) {
+      effectiveAgeDays = Math.max(0, (nowMs - recalledMs) / SUSPECT_MS_PER_DAY);
+    }
   }
 
+  score += Math.min(1, effectiveAgeDays / 365) * SUSPECT_WEIGHT_AGE;
+
+  // Stale-cold: ramps in by effective age (so a memory recalled yesterday
+  // doesn't look stale no matter how old its createdAt is) and scaled by
+  // how *under-recalled* the memory is. A never-recalled row that is 30+
+  // days past its last touch fires full; a heavily-recalled row never does.
+  if (effectiveAgeDays > SUSPECT_STALE_RAMP_START_DAYS) {
+    const ageRamp = Math.min(
+      1,
+      (effectiveAgeDays - SUSPECT_STALE_RAMP_START_DAYS) /
+        (SUSPECT_STALE_RAMP_END_DAYS - SUSPECT_STALE_RAMP_START_DAYS),
+    );
+    // coldness: recallCount=0 → 1, 1 → 0.5, 2 → 0.33, 10 → 0.09
+    const coldness = 1 / (1 + learning.recallCount);
+    score += ageRamp * coldness * SUSPECT_WEIGHT_STALE_COLD;
+  }
+
+  // Anti-pattern penalty is inversely proportional to confidence. A
+  // high-confidence anti-pattern is accurate negative knowledge; a
+  // low-confidence one is "I vaguely remember this was bad" — the actual
+  // suspect case. confidence=0.9 → +0.03, confidence=0.1 → +0.27.
   if (learning.type === 'anti-pattern') {
-    score += SUSPECT_WEIGHT_ANTI_PATTERN;
+    const uncertainty = Math.max(0, Math.min(1, 1 - learning.confidence));
+    score += uncertainty * SUSPECT_WEIGHT_ANTI_PATTERN;
   }
 
-  if (learning.confidence < SUSPECT_LOW_CONFIDENCE_THRESHOLD) {
-    score += SUSPECT_WEIGHT_LOW_CONFIDENCE;
+  // Continuous confidence ramp: max penalty at confidence=0, zero at or
+  // above confidence=0.5. Replaces the `< 0.3` cliff, which was both a
+  // hard threshold (0.3 slipped through, 0.29 fired full) and too narrow
+  // (plenty of mid-confidence memories are legitimately suspect).
+  if (learning.confidence < SUSPECT_LOW_CONFIDENCE_FULL) {
+    const confRamp = (SUSPECT_LOW_CONFIDENCE_FULL - learning.confidence) / SUSPECT_LOW_CONFIDENCE_FULL;
+    score += Math.max(0, Math.min(1, confRamp)) * SUSPECT_WEIGHT_LOW_CONFIDENCE;
   }
 
-  if (typeof learning.supersedes === 'string' && learning.supersedes.length > 0) {
-    score += SUSPECT_WEIGHT_SUPERSEDES;
-  }
+  // NOTE: supersedes is NOT scored. The superseding memory is the new,
+  // winning revision — treating it as suspect was a directional error in
+  // the original formulation.
 
   return Math.min(1, Math.round(score * 1000) / 1000);
 }
