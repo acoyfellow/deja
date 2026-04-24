@@ -286,6 +286,69 @@ const MCP_TOOLS = [
       properties: {},
     },
   },
+  {
+    name: 'handoff_create',
+    description:
+      'Create or overwrite a handoff packet — a typed end-of-session summary that outlives the session that authored it. Upsert by session_id: a second call with the same id replaces the first. Use at the end of a run so the next agent starts with context instead of a cold open.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Session id this packet belongs to (matches session:<id> scope suffix)' },
+        authoredBy: { type: 'string', description: 'Optional agent/user identifier' },
+        summary: { type: 'string', description: '1-2 sentence high-level summary' },
+        whatShipped: { type: 'array', items: { type: 'string' }, description: 'Completed work items' },
+        whatBlessed: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              learningId: { type: 'string' },
+              note: { type: 'string' },
+            },
+            required: ['learningId'],
+          },
+          description: 'Learnings explicitly preserved, each citing a learning id',
+        },
+        whatRemains: { type: 'array', items: { type: 'string' }, description: 'Open threads / deferred work' },
+        nextVerify: { type: 'array', items: { type: 'string' }, description: 'Things the next agent should verify before trusting state' },
+        links: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              kind: { type: 'string', enum: ['commit', 'pr', 'url', 'wiki'] },
+              value: { type: 'string' },
+              label: { type: 'string' },
+            },
+            required: ['kind', 'value'],
+          },
+          description: 'Optional commit SHAs, PR URLs, wiki pages',
+        },
+      },
+      required: ['sessionId', 'summary'],
+    },
+  },
+  {
+    name: 'handoff_get',
+    description: 'Fetch a handoff packet by session id. Returns the full typed struct as JSON, or 404 if none exists.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Session id the packet was written for' },
+      },
+      required: ['sessionId'],
+    },
+  },
+  {
+    name: 'handoff_list',
+    description: 'List recent handoff packets, newest-first by createdAt. Default limit 20.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'Max packets to return (default 20)', default: 20 },
+      },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -305,6 +368,10 @@ const LEAN_EXECUTE_OPS = [
   'state_get', 'state_put', 'state_patch', 'state_resolve',
   'record_run', 'get_runs',
   'bless', 'discard', 'branch_status', 'list_branches',
+  // Handoff packets. handoff_read is distinct from handoff_get because it
+  // returns the rendered markdown instead of the raw struct — useful for
+  // injecting into an agent's prompt without re-serializing.
+  'handoff_create', 'handoff_get', 'handoff_list', 'handoff_read',
 ] as const;
 type LeanExecuteOp = typeof LEAN_EXECUTE_OPS[number];
 
@@ -385,6 +452,13 @@ const LEAN_OP_TO_LEGACY: Record<LeanExecuteOp, string | null> = {
   discard: 'discard_branch',
   branch_status: 'branch_status',
   list_branches: 'list_branches',
+  // Handoff packets. handoff_read maps to handoff_get + render — handled
+  // inline in the executor since there's no matching legacy MCP tool for
+  // "get and markdown-render in one call".
+  handoff_create: 'handoff_create',
+  handoff_get: 'handoff_get',
+  handoff_list: 'handoff_list',
+  handoff_read: null,
 };
 
 async function handleLeanToolCall(
@@ -443,6 +517,21 @@ async function handleLeanToolCall(
         const hit = rows.find((row: any) => row?.id === opArgs.id);
         if (!hit) return { found: false, id: opArgs.id };
         return { found: true, learning: hit };
+      }
+      // handoff_read has no legacy MCP tool — it's get+render handled inline.
+      // Run this branch BEFORE the legacy-mapping fallthrough, otherwise the
+      // `!legacy` guard fires on a null entry and throws.
+      if (op === 'handoff_read') {
+        const sessionId = extractHandoffSessionIdArg(opArgs);
+        if (!sessionId) throw new Error('execute(handoff_read) requires args.sessionId');
+        const response = await stub.fetch(
+          new Request(`http://internal/handoff/${encodeURIComponent(sessionId)}?format=markdown`),
+        );
+        if (response.status === 404) {
+          return { found: false, sessionId };
+        }
+        const markdown = await response.text();
+        return { found: true, sessionId, markdown };
       }
       const legacy = LEAN_OP_TO_LEGACY[op];
       if (!legacy) throw new Error(`execute(${op}) has no legacy mapping — implementation bug`);
@@ -673,6 +762,36 @@ async function handleMcpToolCall(stub: DurableObjectStub, toolName: string, args
       const response = await stub.fetch(new Request('http://internal/sessions'));
       return response.json();
     }
+    case 'handoff_create': {
+      const sessionId = extractHandoffSessionIdArg(args);
+      if (!sessionId) throw new Error('handoff_create requires args.sessionId');
+      // Forward the whole args object as the packet body. The DO
+      // normalizer drops unknown fields, so extra metadata on args
+      // (e.g. `op`, `kind`) can't leak into storage.
+      const response = await stub.fetch(new Request('http://internal/handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...args, sessionId }),
+      }));
+      return response.json();
+    }
+    case 'handoff_get': {
+      const sessionId = extractHandoffSessionIdArg(args);
+      if (!sessionId) throw new Error('handoff_get requires args.sessionId');
+      const response = await stub.fetch(new Request(`http://internal/handoff/${encodeURIComponent(sessionId)}`));
+      if (response.status === 404) {
+        return { found: false, sessionId };
+      }
+      const packet = await response.json();
+      return { found: true, packet };
+    }
+    case 'handoff_list': {
+      const params = new URLSearchParams();
+      if (args?.limit != null) params.set('limit', String(args.limit));
+      const qs = params.toString();
+      const response = await stub.fetch(new Request(`http://internal/handoffs${qs ? `?${qs}` : ''}`));
+      return response.json();
+    }
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -686,6 +805,13 @@ function extractSessionIdArg(args: any): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   return trimmed.startsWith('session:') ? trimmed.slice('session:'.length) : trimmed;
+}
+
+// Same shape as extractSessionIdArg but named for the handoff call sites
+// so grep across the codebase finds both independently. Handoffs use the
+// bare session id in the URL path, never the 'session:<id>' scope form.
+function extractHandoffSessionIdArg(args: any): string | null {
+  return extractSessionIdArg(args);
 }
 
 // Handle MCP JSON-RPC requests. `variant` switches between the full 17-tool

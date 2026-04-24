@@ -8,13 +8,14 @@ import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { Hono } from 'hono';
 import { cleanupLearnings, confirmMemory, deleteLearningById, deleteLearningsByFilter, getLearningNeighbors, injectMemories, injectMemoriesWithTrace, learnMemory, listLearnings, queryLearnings, rejectMemory } from './memory';
 import { convertDbLearning, filterScopesByPriority, initializeStorage, normalizeRunIdentityPayload, normalizeWorkingStatePayload } from './helpers';
+import { getHandoffPacket, listHandoffPackets, upsertHandoffPacket } from './handoff';
 import { recordLoopRun, queryLoopRuns } from './loopRuns';
 import { createDejaApp } from './routes';
 import { deleteSecretValue, getSecretValue, listSecrets, setSecretValue } from './secrets';
 import type { BlessOptions, BlessResult, BranchStatus, DiscardResult } from './sessionBranch';
 import { blessSessionBranch, discardSessionBranch, getBranchStatus, listBranches } from './sessionBranch';
 import { getStatsSnapshot } from './stats';
-import type { Env, InjectResult, InjectTraceResult, Learning, LoopRun, QueryResult, RecordRunPayload, ResolveStateOptions, RunsQueryResult, Secret, SharedRunIdentity, Stats, WorkingStatePayload, WorkingStateResponse } from './types';
+import type { Env, HandoffPacket, InjectResult, InjectTraceResult, Learning, LoopRun, QueryResult, RecordRunPayload, ResolveStateOptions, RunsQueryResult, Secret, SharedRunIdentity, Stats, WorkingStatePayload, WorkingStateResponse } from './types';
 import { addWorkingStateEvent, getStateByRunId, patchWorkingState, resolveWorkingState, upsertWorkingState } from './workingState';
 
 export class DejaDO extends DurableObject<Env> {
@@ -97,6 +98,12 @@ export class DejaDO extends DurableObject<Env> {
   }
 
   private getSessionBranchContext() {
+    return {
+      initDB: () => this.initDB(),
+    };
+  }
+
+  private getHandoffContext() {
     return {
       initDB: () => this.initDB(),
     };
@@ -233,6 +240,19 @@ export class DejaDO extends DurableObject<Env> {
     return listBranches(this.getSessionBranchContext());
   }
 
+  // Handoff-packet operations. See src/do/handoff.ts for semantics.
+  async upsertHandoff(sessionId: string, packet: any): Promise<HandoffPacket> {
+    return upsertHandoffPacket(this.getHandoffContext(), sessionId, packet);
+  }
+
+  async getHandoff(sessionId: string): Promise<HandoffPacket | null> {
+    return getHandoffPacket(this.getHandoffContext(), sessionId);
+  }
+
+  async listHandoffs(limit?: number): Promise<HandoffPacket[]> {
+    return listHandoffPackets(this.getHandoffContext(), limit);
+  }
+
   private initApp(): Hono<{ Bindings: Env }> {
     if (this.app) return this.app;
     this.app = createDejaApp({
@@ -263,6 +283,9 @@ export class DejaDO extends DurableObject<Env> {
       discardBranch: this.discardBranch.bind(this),
       getBranchStatus: this.getBranchStatus.bind(this),
       listBranches: this.listBranches.bind(this),
+      upsertHandoff: this.upsertHandoff.bind(this),
+      getHandoff: this.getHandoff.bind(this),
+      listHandoffs: this.listHandoffs.bind(this),
     });
     return this.app;
   }

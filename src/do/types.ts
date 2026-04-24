@@ -52,6 +52,53 @@ export interface SessionBranch {
 
 export type SessionBranchStatus = 'open' | 'blessed' | 'discarded' | 'expired';
 
+// End-of-session structured summary. The outgoing agent writes one of these
+// when resolving its work; the incoming agent reads it as an onboarding
+// brief. Not a free-form memory — a typed struct with known sections so the
+// system can render it and future sessions can query by sessionId.
+//
+// Semantics:
+//   sessionId   — primary key. Posting a packet with the same sessionId
+//                 overwrites the previous packet (upsert-by-session).
+//   createdAt   — ISO timestamp, server-stamped if omitted on input.
+//   authoredBy  — free-text agent/user identifier ('claude-opus-4-7',
+//                 'alice@ex.com', 'ci-bot').
+//   summary     — 1-2 sentence high-level what-happened.
+//   whatShipped — completed work items. Plain strings.
+//   whatBlessed — learnings explicitly preserved. Each entry cites the
+//                 learning id so the incoming agent can pull the body.
+//   whatRemains — open threads / deferred work.
+//   nextVerify  — verifications the next agent should run before trusting
+//                 the state. Optional; skip if you're confident.
+//   links       — related commit SHAs, PR URLs, wiki pages. Typed so the
+//                 renderer can treat commits vs PRs vs raw URLs differently.
+export interface HandoffPacketLink {
+  kind: 'commit' | 'pr' | 'url' | 'wiki';
+  value: string;
+  label?: string;
+}
+
+export interface HandoffBlessedRef {
+  learningId: string;
+  note?: string;
+}
+
+export interface HandoffPacket {
+  sessionId: string;
+  createdAt: string;
+  authoredBy?: string;
+  summary: string;
+  whatShipped: string[];
+  whatBlessed: HandoffBlessedRef[];
+  whatRemains: string[];
+  nextVerify?: string[];
+  links?: HandoffPacketLink[];
+}
+
+export interface HandoffOperationsContext {
+  initDB(): Promise<any>;
+}
+
 export interface Secret {
   name: string;
   value: string;
