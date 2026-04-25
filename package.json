@@ -1,60 +1,59 @@
 {
   "name": "deja",
-  "version": "0.1.0",
-  "description": "Persistent memory for agents",
-  "main": "src/index.ts",
+  "version": "0.0.2",
+  "description": "Local-first agent memory. Agents jot for the next agent.",
+  "type": "module",
+  "license": "MIT",
+  "author": "coey",
+  "homepage": "https://deja.coey.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acoyfellow/deja"
+  },
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./packages/deja-client/src/index.ts"
+    "./mcp": "./src/mcp.ts",
+    "./storage": "./src/storage.ts",
+    "./lifecycle": "./src/lifecycle.ts"
+  },
+  "bin": {
+    "deja": "./src/cli.ts"
   },
   "files": [
-    "src"
+    "src",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
-    "dev": "wrangler dev",
-    "dev:marketing": "cd marketing && bun run dev",
-    "build": "cd marketing && bun run build",
-    "build:marketing": "cd marketing && bun run build",
-    "deploy": "bun run build && wrangler deploy",
-    "db:init": "wrangler d1 execute deja-db --file=schema.sql --remote",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate:state": "wrangler d1 execute deja-db --file=drizzle/0000_live_working_state.sql --remote",
-    "test": "bun run test:worker",
-    "test:worker": "jest --runInBand",
-    "test:client": "cd packages/deja-client && bun test",
-    "test:install": "cd packages/deja-install && bun test",
-    "test:do": "jest test/deja-do.test.ts",
-    "deja-install": "cd packages/deja-install && bun run src/cli.ts --",
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "verify": "node tools/verify.mjs",
-    "gates": "bun run prd.ts"
-  },
-  "keywords": [
-    "ai",
-    "agents",
-    "memory",
-    "cloudflare",
-    "workers"
-  ],
-  "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260131.0",
-    "@types/jest": "^30.0.0",
-    "@types/node": "^25.1.0",
-    "drizzle-kit": "^0.31.4",
-    "jest": "^30.2.0",
-    "ts-jest": "^29.4.6",
-    "typescript": "^5.4.0",
-    "gateproof": "^0.2.2",
-    "wrangler": "^4.61.1"
+    "cli": "bun run src/cli.ts",
+    "mcp": "bun run src/mcp.ts"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.1",
-    "hono": "^4.11.7",
-    "zod": "^3.24.0"
+    "@modelcontextprotocol/sdk": "^1.0.4"
   },
-  "workspaces": [
-    "packages/*"
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.6.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "keywords": [
+    "agent",
+    "memory",
+    "ai",
+    "llm",
+    "local-first",
+    "mcp",
+    "sqlite",
+    "zettelkasten"
   ]
 }

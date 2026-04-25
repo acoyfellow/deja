@@ -3,17 +3,13 @@ interface Props {
   title: string;
   description?: string;
   image?: string;
-  variant?: 'hero' | 'content';
 }
 
 const {
   title,
-  description = "deja is an open source Cloudflare Worker that gives agents durable recall. Store, query, and inject learnings with precision.",
+  description = "Cross-session memory for agents. Four verbs over SQLite + FTS5, exposed via a 3-tool MCP server.",
   image = "/meta.jpg",
-  variant = "hero"
 } = Astro.props;
-
-const isContent = variant === 'content';
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? "https://deja.coey.dev");
 const imageURL = new URL(image, canonicalURL);
@@ -27,14 +23,12 @@ const imageURL = new URL(image, canonicalURL);
     <title>{title}</title>
     <meta name="description" content={description} />
 
-    <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalURL} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={imageURL} />
 
-    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content={canonicalURL} />
     <meta name="twitter:title" content={title} />
@@ -42,44 +36,56 @@ const imageURL = new URL(image, canonicalURL);
     <meta name="twitter:image" content={imageURL} />
 
     <link rel="canonical" href={canonicalURL} />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Spectral+SC:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,200;1,300;1,400;1,500;1,600;1,700;1,800&family=Spectral:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,200;1,300;1,400;1,500;1,600;1,700;1,800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Spectral+SC:wght@300;400;600;700&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap"
+      rel="stylesheet"
+    />
 
-    <!-- Page-specific SEO -->
     <slot name="head" />
   </head>
   <body class="m-0 relative min-h-screen">
-    <!-- Header -->
-    <header class="sticky top-0 z-10 backdrop-blur-md backdrop-saturate-50 bg-void/95 border-b border-brass/10 shadow-[0_1px_0_rgba(201,169,97,0.1)]">
-      <div class="flex flex-wrap justify-between items-center gap-3 px-4 sm:px-6 py-3 sm:py-4 max-w-[1160px] mx-auto">
-        <a href="/" class="font-mono font-bold uppercase tracking-[0.32em] text-[11px] hover:text-brass transition-colors">deja</a>
-        <nav class="flex flex-wrap items-center gap-x-4 gap-y-1 sm:gap-[18px] text-[13px] text-chrome-dark">
-          <a href="/integrations" class="hover:text-brass transition-colors">Integrations</a>
-          <a href="/patterns" class="hover:text-brass transition-colors">Patterns</a>
-          <a href="/research" class="hover:text-brass transition-colors">Research</a>
-          <a href="/docs" class="hover:text-brass transition-colors">Docs</a>
-          <a href="/guides" class="hover:text-brass transition-colors hidden sm:inline">Guides</a>
-          <a href="https://github.com/acoyfellow/deja" target="_blank" rel="noreferrer" class="hover:text-brass transition-colors">GitHub</a>
+    <header class="sticky top-0 z-20 backdrop-blur-md backdrop-saturate-50 bg-void/95 border-b border-brass/10 shadow-[0_1px_0_rgba(201,169,97,0.1)]">
+      <div class="flex justify-between items-center gap-3 px-4 sm:px-6 py-3 sm:py-4 max-w-[1100px] mx-auto">
+        <a href="/" class="font-mono font-bold uppercase tracking-[0.32em] text-[11px] hover:text-brass transition-colors">
+          deja
+        </a>
+        <nav class="flex items-center gap-x-5 sm:gap-7 text-[12px] text-chrome-dark font-mono tracking-[0.1em] uppercase">
+          <a href="#verbs" class="hover:text-brass transition-colors">Verbs</a>
+          <a href="#chain" class="hover:text-brass transition-colors hidden sm:inline">Chain</a>
+          <a href="#install" class="hover:text-brass transition-colors">Install</a>
+          <a
+            href="https://github.com/acoyfellow/deja"
+            target="_blank"
+            rel="noreferrer"
+            class="hover:text-brass transition-colors"
+          >
+            GitHub
+          </a>
         </nav>
       </div>
     </header>
 
-    <main class="relative z-1 max-w-[1160px] mx-auto px-4 sm:px-6 pb-20">
+    <main class="relative z-10 max-w-[1100px] mx-auto px-4 sm:px-6 pb-24">
       <slot />
     </main>
 
-    {isContent ? (
-      <div class="absolute inset-0 bg-void -z-10 pointer-events-none"></div>
-    ) : (
-      <>
-        <div class="absolute top-0 left-0 right-0 h-[80vh] bg-cover bg-center bg-no-repeat -z-10 pointer-events-none" style="background-image: url('/orb.jpg');"></div>
-        <div class="absolute top-[80vh] left-0 right-0 h-[200px] bg-linear-to-t from-void to-transparent -z-10 pointer-events-none"></div>
+    <!-- Background imagery: orb on top, connected at bottom, both fading into the void -->
+    <div class="absolute top-0 left-0 right-0 h-[80vh] bg-cover bg-center bg-no-repeat opacity-60 -z-10 pointer-events-none" style="background-image: url('/orb.jpg');"></div>
+    <div class="absolute top-[60vh] left-0 right-0 h-[300px] bg-gradient-to-b from-transparent to-void -z-10 pointer-events-none"></div>
 
-        <div class="absolute bottom-0 left-0 right-0 h-[60vh] bg-cover bg-center bg-no-repeat -z-10 pointer-events-none" style="background-image: url('/connected.jpg');"></div>
-        <div class="absolute bottom-[40vh] left-0 right-0 h-[200px] bg-linear-to-b from-void to-transparent -z-10 pointer-events-none"></div>
-      </>
-    )}
+    <div class="absolute bottom-0 left-0 right-0 h-[60vh] bg-cover bg-center bg-no-repeat opacity-50 -z-10 pointer-events-none" style="background-image: url('/connected.jpg');"></div>
+    <div class="absolute bottom-[50vh] left-0 right-0 h-[200px] bg-gradient-to-t from-transparent to-void -z-10 pointer-events-none"></div>
+
+    <footer class="relative z-10 border-t border-brass/10 mt-16 py-8 px-6">
+      <div class="max-w-[1100px] mx-auto flex items-center justify-between gap-4 text-[11px] font-mono uppercase tracking-[0.2em] text-chrome-dark/60">
+        <span>v0.0.2 &middot; MIT</span>
+        <div class="flex items-center gap-5">
+          <a href="https://github.com/acoyfellow/deja" target="_blank" rel="noreferrer" class="hover:text-brass transition-colors">GitHub</a>
+        </div>
+      </div>
+    </footer>
   </body>
 </html>
 

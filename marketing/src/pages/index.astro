@@ -1,373 +1,486 @@
 ---
 import Base from "../layouts/Base.astro";
-import SEO from "../components/SEO.astro";
 ---
 
-<Base title="deja — persistent memory for agents">
-  <SEO
-    slot="head"
-    title="deja — persistent memory for agents"
-    description="Open-source memory layer for AI agents. Three runtimes: local vector search (Bun), edge full-text (Cloudflare DO), or hosted semantic search (Workers AI + Vectorize)."
-    keywords="ai agents, persistent memory, vector search, agent memory, cloudflare workers, durable objects, semantic search, mcp, bun"
-    path="/"
-  />
-
-  <!-- Hero -->
-  <section class="pt-24 pb-12">
+<Base
+  title="deja — local-first agent memory"
+  description="Cross-session memory for agents. Four verbs over SQLite + FTS5, exposed via a 3-tool MCP server. The next agent finds what the last one wrote."
+>
+  {/* ═══════════════════════════════════════════════════════════
+      Hero — brain.jpg backdrop, wordmark, the primitive truth.
+      ═══════════════════════════════════════════════════════════ */}
+  <section class="pt-16 sm:pt-24 pb-14">
     <div
-      class="border border-brass/20 rounded-sm p-12 overflow-hidden bg-cover bg-center bg-no-repeat shadow-hero relative z-10"
+      class="relative border border-brass/20 rounded-sm p-8 sm:p-14 overflow-hidden bg-cover bg-center bg-no-repeat shadow-hero"
     >
-      <div class="absolute inset-0 bg-linear-to-b from-void/70 via-void/85 to-void/95"></div>
       <div
-        class="absolute inset-0 bg-cover bg-center bg-no-repeat -z-10 bg-blend-multiply"
+        class="absolute inset-0 bg-cover bg-center bg-no-repeat -z-10 opacity-90"
         style="background-image: url('/brain.jpg');"
       ></div>
-      <div class="relative z-1">
-        <div class="font-mono text-[11px] font-bold tracking-[0.2em] uppercase text-brass mb-4">
-          Persistent memory for AI agents
+      <div class="absolute inset-0 bg-gradient-to-b from-void/70 via-void/85 to-void/95 -z-10"></div>
+
+      <div class="relative">
+        <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-5">
+          local-first agent memory
         </div>
-        <h1 class="font-serif-sc text-5xl md:text-7xl font-bold tracking-tight m-0 mb-4">
+        <h1 class="font-serif-sc text-[3.5rem] sm:text-[5.5rem] leading-none font-bold tracking-tight m-0 mb-6">
           deja
         </h1>
-        <p class="font-serif font-light text-xl text-chrome-dark max-w-[640px] mb-3">
-          Agents lose context between runs. deja gives them a durable place to store and retrieve what matters.
-        </p>
-        <p class="font-serif font-light text-base text-chrome-dark/70 max-w-[560px] mb-3">
-          A memory layer. Agents call <code class="font-mono text-[13px] text-brass">learn()</code> to store what they know
-          and <code class="font-mono text-[13px] text-brass">inject()</code> or <code class="font-mono text-[13px] text-brass">recall()</code> to get it back.
-        </p>
-        <p class="font-serif font-light text-sm text-chrome-dark/50 max-w-[560px] mb-8">
-          Three packages — local, edge, hosted — same idea, pick your runtime.
+        <p class="font-serif font-light text-lg sm:text-xl text-chrome-dark max-w-[640px] mb-10 leading-relaxed">
+          Cross-session memory for agents. Four verbs &mdash;
+          <code class="font-mono text-[14px] text-brass">recall</code>,
+          <code class="font-mono text-[14px] text-brass">remember</code>,
+          <code class="font-mono text-[14px] text-brass">keep</code>,
+          <code class="font-mono text-[14px] text-brass">handoff</code>
+          &mdash; over SQLite and FTS5. Exposed as a 3-tool MCP server.
         </p>
 
-        <div class="flex flex-wrap gap-4 items-center max-md:flex-col max-md:items-start">
+        <div class="flex flex-wrap gap-3 items-center">
           <a
-            href="#memory-systems"
-            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass-dark bg-linear-to-b from-steel-light to-steel shadow-btn hover:-translate-y-px active:translate-y-px transition-transform"
+            href="#install"
+            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-brass-dark bg-gradient-to-b from-steel-light to-steel text-chrome shadow-btn hover:-translate-y-px active:translate-y-px transition-transform"
           >
-            See the three systems
+            Install
           </a>
           <a
-            href="/guides/quickstart"
-            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+            href="#verbs"
+            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-brass/15 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
           >
-            Quickstart
+            See the verbs
           </a>
           <a
-            href="/docs"
-            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+            href="https://github.com/acoyfellow/deja"
+            target="_blank"
+            rel="noreferrer"
+            class="font-mono px-6 py-3.5 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-brass/15 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
           >
-            Docs
+            GitHub
           </a>
         </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- Three Memory Systems — Tabbed -->
-  <section id="memory-systems" class="mt-12 scroll-mt-8">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-3">
-      Three memory systems
-    </div>
-    <p class="font-serif font-light text-chrome-dark m-0 mb-6 max-w-2xl">
-      Same concepts, different runtimes. Pick the one that matches your stack.
-    </p>
-
-    <!-- Tabs -->
-    <div class="flex gap-0 border-b border-brass/10 mb-0">
-      <button
-        data-tab="local"
-        class="tab-btn active font-mono text-[11px] font-bold tracking-widest uppercase px-5 py-3 border-b-2 border-brass text-brass bg-transparent cursor-pointer transition-colors"
-      >
-        deja-local
-      </button>
-      <button
-        data-tab="edge"
-        class="tab-btn font-mono text-[11px] font-bold tracking-widest uppercase px-5 py-3 border-b-2 border-transparent text-chrome-dark/40 bg-transparent cursor-pointer hover:text-chrome-dark/70 transition-colors"
-      >
-        deja-edge
-      </button>
-      <button
-        data-tab="hosted"
-        class="tab-btn font-mono text-[11px] font-bold tracking-widest uppercase px-5 py-3 border-b-2 border-transparent text-chrome-dark/40 bg-transparent cursor-pointer hover:text-chrome-dark/70 transition-colors"
-      >
-        deja (hosted)
-      </button>
-    </div>
-
-    <!-- Tab panels -->
-    <div class="bg-steel border border-t-0 border-brass/10 rounded-b-sm relative shadow-card">
-      <!-- deja-local -->
-      <div data-panel="local" class="tab-panel p-8">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div class="space-y-4">
-            <div class="font-serif text-sm text-chrome-dark/60 mb-2">
-              In-process vector memory for Bun
-            </div>
-            <div class="space-y-3">
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">SEARCH</span>
-                <span class="font-serif text-sm text-chrome-dark">Vector similarity (all-MiniLM-L6-v2 via ONNX)</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">STORAGE</span>
-                <span class="font-serif text-sm text-chrome-dark">SQLite file on disk</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">LATENCY</span>
-                <span class="font-serif text-sm text-chrome-dark">Zero — runs in your process</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">DEPS</span>
-                <span class="font-serif text-sm text-chrome-dark">Bun runtime + HuggingFace transformers</span>
-              </div>
-            </div>
-            <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
-              Best for: CLI tools, local agents, scripts, development.
-            </p>
+        <div class="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-4 text-[11px] font-mono uppercase tracking-[0.16em] text-chrome-dark/70">
+          <div>
+            <div class="text-brass-light text-[10px] mb-1">Storage</div>
+            <div>SQLite + FTS5</div>
           </div>
           <div>
-            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaLocal</span> } <span class="flag">from</span> <span class="string">'deja-local'</span><br/><span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaLocal(<span class="string">'./memories.db'</span>)
-
-<span class="flag">await</span> mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbuild"</span>)
-<span class="flag">const</span> <span class="var">hits</span> = <span class="flag">await</span> mem.<span class="cmd">recall</span>(<span class="string">"deploying"</span>)</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- deja-edge -->
-      <div data-panel="edge" class="tab-panel hidden p-8">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div class="space-y-4">
-            <div class="font-serif text-sm text-chrome-dark/60 mb-2">
-              Edge memory for Cloudflare Durable Objects
-            </div>
-            <div class="space-y-3">
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">SEARCH</span>
-                <span class="font-serif text-sm text-chrome-dark">FTS5 full-text search (BM25 + Porter stemming)</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">STORAGE</span>
-                <span class="font-serif text-sm text-chrome-dark">Durable Object SQLite</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">LATENCY</span>
-                <span class="font-serif text-sm text-chrome-dark">Zero — runs inside the DO</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">DEPS</span>
-                <span class="font-serif text-sm text-chrome-dark">None — zero external dependencies</span>
-              </div>
-            </div>
-            <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
-              Best for: per-user memory in edge apps, Cloudflare Workers, chat apps.
-            </p>
+            <div class="text-brass-light text-[10px] mb-1">Surface</div>
+            <div>3-tool MCP</div>
           </div>
           <div>
-            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> { <span class="var">DejaEdge</span> } <span class="flag">from</span> <span class="string">'deja-edge'</span>
-<span class="comment">// Inside your Durable Object:</span><br/><span class="flag">const</span> <span class="var">mem</span> = <span class="flag">new</span> DejaEdge(<span class="var">this</span>.ctx.storage.sql)<br/>mem.<span class="cmd">remember</span>(<span class="string">"node 20 breaks esbuild"</span>)
-<span class="flag">const</span> <span class="var">hits</span> = mem.<span class="cmd">recall</span>(<span class="string">"deploying"</span>)</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- deja (hosted) -->
-      <div data-panel="hosted" class="tab-panel hidden p-8">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div class="space-y-4">
-            <div class="font-serif text-sm text-chrome-dark/60 mb-2">
-              Full-featured memory service on Cloudflare
-            </div>
-            <div class="space-y-3">
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">SEARCH</span>
-                <span class="font-serif text-sm text-chrome-dark">Semantic vector search (Vectorize + Workers AI)</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">STORAGE</span>
-                <span class="font-serif text-sm text-chrome-dark">DO SQLite + Vectorize index</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">LATENCY</span>
-                <span class="font-serif text-sm text-chrome-dark">Network hop — deployed to your CF account</span>
-              </div>
-              <div class="flex items-start gap-3">
-                <span class="font-mono text-[10px] text-brass mt-0.5 shrink-0 w-16">DEPS</span>
-                <span class="font-serif text-sm text-chrome-dark">Cloudflare Vectorize + Workers AI bindings</span>
-              </div>
-            </div>
-            <p class="font-serif text-xs text-chrome-dark/50 mt-4 mb-0">
-              Best for: multi-agent teams, shared memory, MCP, REST API access.
-            </p>
+            <div class="text-brass-light text-[10px] mb-1">Tests</div>
+            <div>28 / 28 green</div>
           </div>
           <div>
-            <div class="code-block bg-void-deep border border-brass/10 rounded-sm p-4 font-mono text-xs leading-relaxed text-chrome-dark overflow-x-auto whitespace-pre shadow-code"><span class="flag">import</span> <span class="var">deja</span> <span class="flag">from</span> <span class="string">'deja-client'</span><br/><span class="flag">const</span> <span class="var">mem</span> = deja(<span class="var">DEJA_URL</span>)<br/><span class="flag">await</span> mem.<span class="cmd">learn</span>(<span class="string">"deploy"</span>, <span class="string">"node 20 breaks esbuild"</span>)
-<span class="flag">await</span> mem.<span class="cmd">inject</span>(<span class="string">"deploying"</span>)</div>
+            <div class="text-brass-light text-[10px] mb-1">Recall@1</div>
+            <div>100%</div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Comparison -->
-  <section class="mt-8">
-    <div class="bg-steel border border-brass/10 rounded-sm relative shadow-card overflow-x-auto">
-      <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-      <table class="w-full font-mono text-xs text-chrome-dark">
-        <thead>
-          <tr class="border-b border-brass/10">
-            <th class="text-left p-4 text-brass font-bold tracking-widest uppercase text-[10px]"></th>
-            <th class="text-left p-4 text-brass font-bold tracking-widest uppercase text-[10px]">deja-local</th>
-            <th class="text-left p-4 text-brass font-bold tracking-widest uppercase text-[10px]">deja-edge</th>
-            <th class="text-left p-4 text-brass font-bold tracking-widest uppercase text-[10px]">deja (hosted)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr class="border-b border-brass/5">
-            <td class="p-4 text-chrome-dark/60">Runtime</td>
-            <td class="p-4">Bun</td>
-            <td class="p-4">Cloudflare DO</td>
-            <td class="p-4">Cloudflare Workers</td>
-          </tr>
-          <tr class="border-b border-brass/5">
-            <td class="p-4 text-chrome-dark/60">Search</td>
-            <td class="p-4">Cosine similarity</td>
-            <td class="p-4">FTS5 / BM25</td>
-            <td class="p-4">Vectorize semantic</td>
-          </tr>
-          <tr class="border-b border-brass/5">
-            <td class="p-4 text-chrome-dark/60">Embeddings</td>
-            <td class="p-4">all-MiniLM-L6-v2</td>
-            <td class="p-4">None (text-based)</td>
-            <td class="p-4">bge-small-en-v1.5</td>
-          </tr>
-          <tr class="border-b border-brass/5">
-            <td class="p-4 text-chrome-dark/60">Latency</td>
-            <td class="p-4">Zero (in-process)</td>
-            <td class="p-4">Zero (in-DO)</td>
-            <td class="p-4">Network hop</td>
-          </tr>
-          <tr class="border-b border-brass/5">
-            <td class="p-4 text-chrome-dark/60">Multi-agent</td>
-            <td class="p-4">Single process</td>
-            <td class="p-4">Per-DO isolation</td>
-            <td class="p-4">Scoped sharing</td>
-          </tr>
-          <tr class="border-b border-brass/5">
-            <td class="p-4 text-chrome-dark/60">MCP</td>
-            <td class="p-4">—</td>
-            <td class="p-4">—</td>
-            <td class="p-4">Built-in</td>
-          </tr>
-          <tr>
-            <td class="p-4 text-chrome-dark/60">Install</td>
-            <td class="p-4"><code>npm i deja-local</code></td>
-            <td class="p-4"><code>npm i deja-edge</code></td>
-            <td class="p-4"><code>npm i deja-client</code></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- How it works -->
-  <section class="mt-18">
-    <div class="font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-brass mb-6">
-      How it works
-    </div>
-    <div class="grid gap-6 grid-cols-1 md:grid-cols-3">
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="font-mono text-[28px] text-brass/30 mb-2">1</div>
-        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-2">Agent learns</div>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">
-          After a run, the agent stores what it discovered. deja embeds the text, checks for duplicates,
-          and assigns a confidence score.
-        </p>
+  {/* ═══════════════════════════════════════════════════════════
+      Four verbs — the centerpiece. Each verb gets a brass-bordered
+      card with a description and a code snippet showing real usage.
+      ═══════════════════════════════════════════════════════════ */}
+  <section id="verbs" class="py-14 scroll-mt-24">
+    <div class="mb-10">
+      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">
+        the api
       </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="font-mono text-[28px] text-brass/30 mb-2">2</div>
-        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-2">Next agent recalls</div>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">
-          Before acting, the next agent describes what it's about to do. deja returns the most relevant
-          memories — already formatted for injection into the prompt.
-        </p>
-      </div>
-      <div class="bg-steel border border-brass/10 rounded-sm p-6 relative shadow-card">
-        <div class="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-brass to-transparent opacity-30"></div>
-        <div class="font-mono text-[28px] text-brass/30 mb-2">3</div>
-        <div class="font-mono text-[10px] font-bold tracking-widest uppercase text-brass mb-2">Memory evolves</div>
-        <p class="font-serif font-light text-chrome-dark text-sm m-0">
-          Useful memories gain confidence. Contradicted ones get superseded. Stale ones decay.
-          Cleanup and feedback help keep the store usable over time.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- CTA -->
-  <div class="relative mt-20">
-    <div
-      class="absolute inset-0 bg-cover bg-center bg-no-repeat -z-10"
-      style="background-image: url('/orb.jpg');"
-    ></div>
-    <section class="text-center py-16 px-6 rounded-sm bg-linear-to-b from-steel-light to-steel border border-brass/20 relative z-10 shadow-cta">
-      <div class="absolute inset-0 bg-linear-to-r from-transparent via-brass/5 to-transparent pointer-events-none"></div>
-      <h2 class="font-serif-sc font-bold text-4xl md:text-5xl m-0 mb-3 relative text-balance">
-        Stop re-explaining. Start remembering.
+      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">
+        Four verbs.
       </h2>
-      <p class="font-serif font-light text-lg text-chrome-dark max-w-[640px] mx-auto mb-8 relative text-balance">
-        Pick a package, add two function calls, and your agents will never forget again.
+      <p class="font-serif font-light text-chrome-dark max-w-[680px] leading-relaxed">
+        <code class="font-mono text-[13px] text-brass">remember</code> drafts a slip.
+        <code class="font-mono text-[13px] text-brass">keep</code> promotes it.
+        <code class="font-mono text-[13px] text-brass">handoff</code> closes the session.
+        <code class="font-mono text-[13px] text-brass">recall</code> finds it from any process on the same DB.
       </p>
-      <div class="flex flex-wrap gap-4 justify-center relative">
-        <a
-          href="/guides/quickstart"
-          class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass-dark bg-linear-to-b from-steel-light to-steel shadow-btn hover:-translate-y-px active:translate-y-px transition-transform"
-        >
-          Get started
-        </a>
+    </div>
+      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">
+        Four verbs.
+      </h2>
+      <p class="font-serif font-light text-chrome-dark max-w-[680px] leading-relaxed">
+        That's the whole interface. <code class="font-mono text-[13px] text-brass">remember</code>
+        creates a draft. <code class="font-mono text-[13px] text-brass">keep</code> promotes it.
+        <code class="font-mono text-[13px] text-brass">handoff</code> closes the session for whoever
+        comes next. <code class="font-mono text-[13px] text-brass">recall</code> finds it later, even
+        from a different process.
+      </p>
+    </div>
+
+    {/* The flow diagram — animated mechanism */}
+    <div class="border border-brass/15 rounded-sm bg-void-deep/60 px-6 py-2 mb-10 shadow-card">
+      <div class="flow-container">
+        <div class="flow-wire"></div>
+        <div class="flow-node">
+          <div class="flow-node-ring"><span class="flow-node-icon">jot</span></div>
+          <div class="flow-node-label">remember</div>
+          <div class="flow-node-desc">Draft a slip. Auto-expires in 24h.</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-node-ring"><span class="flow-node-icon">lock</span></div>
+          <div class="flow-node-label">keep</div>
+          <div class="flow-node-desc">Promote to permanent. Survives GC.</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-node-ring"><span class="flow-node-icon">end</span></div>
+          <div class="flow-node-label">handoff</div>
+          <div class="flow-node-desc">Close the session for the next agent.</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-node-ring"><span class="flow-node-icon">find</span></div>
+          <div class="flow-node-label">recall</div>
+          <div class="flow-node-desc">Find slips + the most recent handoff.</div>
+        </div>
+      </div>
+    </div>
+
+    {/* Verb cards */}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* remember */}
+      <div class="border border-brass/15 rounded-sm bg-steel/40 shadow-card overflow-hidden">
+        <div class="border-b border-brass/10 px-5 py-3 flex items-center justify-between bg-void-deep/50">
+          <code class="font-mono text-[13px] text-brass-light">d.remember(text, opts?)</code>
+          <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/60">draft → kept</span>
+        </div>
+        <div class="px-5 py-4">
+          <p class="font-serif text-sm text-chrome-dark leading-relaxed mb-4">
+            Drafts auto-expire in 24h unless promoted via
+            <code class="font-mono text-[12px] text-brass">keep</code>.
+          </p>
+          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-brass-light">const</span> slip = d.<span class="text-brass">remember</span>(<span class="text-[#9ece6a]">"the user prefers vitest over jest"</span>);
+<span class="text-brass-light">const</span> wip   = d.<span class="text-brass">remember</span>(<span class="text-[#9ece6a]">"mid-refactor of auth.ts"</span>, &#123;
+  tags: [<span class="text-[#9ece6a]">"wip"</span>, <span class="text-[#9ece6a]">"refactor"</span>],
+&#125;);</pre>
+        </div>
+      </div>
+
+      {/* keep */}
+      <div class="border border-brass/15 rounded-sm bg-steel/40 shadow-card overflow-hidden">
+        <div class="border-b border-brass/10 px-5 py-3 flex items-center justify-between bg-void-deep/50">
+          <code class="font-mono text-[13px] text-brass-light">d.keep(ids)</code>
+          <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/60">auto-rolls handoffs</span>
+        </div>
+        <div class="px-5 py-4">
+          <p class="font-serif text-sm text-chrome-dark leading-relaxed mb-4">
+            Promote drafts. If the slip is chain-shaped &mdash; a decision, preference, wip
+            note &mdash; deja also writes a session handoff so the next agent finds it on
+            <em>any</em> recall.
+          </p>
+          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-brass-light">const</span> dec = d.<span class="text-brass">remember</span>(<span class="text-[#9ece6a]">"Decision: use bun:sqlite, not better-sqlite3."</span>);
+d.<span class="text-brass">keep</span>([dec.id]);
+<span class="text-chrome-dark/60">// also writes a session handoff that mentions the decision</span></pre>
+        </div>
+      </div>
+
+      {/* handoff */}
+      <div class="border border-brass/15 rounded-sm bg-steel/40 shadow-card overflow-hidden">
+        <div class="border-b border-brass/10 px-5 py-3 flex items-center justify-between bg-void-deep/50">
+          <code class="font-mono text-[13px] text-brass-light">d.handoff(&#123; summary, next? &#125;)</code>
+          <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/60">one per session</span>
+        </div>
+        <div class="px-5 py-4">
+          <p class="font-serif text-sm text-chrome-dark leading-relaxed mb-4">
+            End-of-session note in your own voice. Surfaced at the top of every recall on
+            this DB &mdash; the canonical &ldquo;pick up where we left off&rdquo; primitive.
+          </p>
+          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code">d.<span class="text-brass">handoff</span>(&#123;
+  summary: <span class="text-[#9ece6a]">"shipped the auth refactor"</span>,
+  next: [<span class="text-[#9ece6a]">"wire it into the gateway"</span>],
+&#125;);</pre>
+        </div>
+      </div>
+
+      {/* recall */}
+      <div class="border border-brass/15 rounded-sm bg-steel/40 shadow-card overflow-hidden">
+        <div class="border-b border-brass/10 px-5 py-3 flex items-center justify-between bg-void-deep/50">
+          <code class="font-mono text-[13px] text-brass-light">d.recall(query)</code>
+          <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/60">trust labels</span>
+        </div>
+        <div class="px-5 py-4">
+          <p class="font-serif text-sm text-chrome-dark leading-relaxed mb-4">
+            FTS5 over kept + draft slips, returned with trust labels
+            (<code class="font-mono text-[11px] text-brass">high</code> /
+            <code class="font-mono text-[11px] text-brass">medium</code> /
+            <code class="font-mono text-[11px] text-brass">low</code>). Falls back to the latest
+            cross-session handoff when the current session has none.
+          </p>
+          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-brass-light">const</span> r = d.<span class="text-brass">recall</span>(<span class="text-[#9ece6a]">"test runner"</span>);
+<span class="text-chrome-dark/60">// r.hits[0].slip.text === "the user prefers vitest over jest"</span>
+<span class="text-chrome-dark/60">// r.activeHandoff.summary === "shipped the auth refactor"</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {/* ═══════════════════════════════════════════════════════════
+      Chain section — the headline result of the cross-session test.
+      Two columns: writer code + reader code, side by side.
+      ═══════════════════════════════════════════════════════════ */}
+  <section id="chain" class="py-14 scroll-mt-24">
+    <div class="mb-10">
+      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">
+        the chain
+      </div>
+      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">
+        Writer hands off. Reader picks up.
+      </h2>
+      <p class="font-serif font-light text-chrome-dark max-w-[680px] leading-relaxed">
+        Two agents, same SQLite file, separate processes. The reader recalls the
+        previous handoff on its first turn.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* Writer */}
+      <div class="border border-brass/15 rounded-sm bg-steel/30 shadow-card overflow-hidden">
+        <div class="border-b border-brass/10 px-5 py-3 bg-void-deep/50 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-brass glow-brass"></span>
+            <span class="font-mono text-[10px] tracking-[0.22em] uppercase text-brass-light">session A · writer</span>
+          </div>
+          <span class="font-mono text-[10px] tracking-[0.18em] uppercase text-chrome-dark/60">monday 4pm</span>
+        </div>
+        <div class="px-5 py-4">
+          <p class="font-serif text-sm text-chrome-dark leading-relaxed mb-3">
+            Mid-refactor. Stops at line 142, hands off, ends the session.
+          </p>
+          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code">deja_handoff(&#123;
+  summary: <span class="text-[#9ece6a]">"mid-refactor of auth.ts. stopped at line</span>
+<span class="text-[#9ece6a]">  142 in parseToken(). next: migrate the JWT</span>
+<span class="text-[#9ece6a]">  helper to lib/jwt.ts. tests will fail until</span>
+<span class="text-[#9ece6a]">  the move is complete."</span>,
+  next: [
+    <span class="text-[#9ece6a]">"finish moving JWT helper from auth.ts:142"</span>,
+    <span class="text-[#9ece6a]">"update imports in auth.ts"</span>,
+    <span class="text-[#9ece6a]">"run test suite — should go from 4 failing to 0"</span>,
+  ],
+&#125;);</pre>
+        </div>
+      </div>
+
+      {/* Reader */}
+      <div class="border border-brass/15 rounded-sm bg-steel/30 shadow-card overflow-hidden">
+        <div class="border-b border-brass/10 px-5 py-3 bg-void-deep/50 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-brass glow-brass"></span>
+            <span class="font-mono text-[10px] tracking-[0.22em] uppercase text-brass-light">session B · reader</span>
+          </div>
+          <span class="font-mono text-[10px] tracking-[0.18em] uppercase text-chrome-dark/60">tuesday 9am</span>
+        </div>
+        <div class="px-5 py-4">
+          <p class="font-serif text-sm text-chrome-dark leading-relaxed mb-3">
+            Fresh process. User says &ldquo;pick up where we left off.&rdquo;
+          </p>
+          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code">deja_recall(<span class="text-[#9ece6a]">"current work"</span>);
+
+<span class="text-chrome-dark/60">// → # previous handoff</span>
+<span class="text-chrome-dark/60">// →   mid-refactor of auth.ts. stopped at</span>
+<span class="text-chrome-dark/60">// →   line 142 in parseToken()...</span>
+<span class="text-chrome-dark/60">// →</span>
+<span class="text-chrome-dark/60">// → next:</span>
+<span class="text-chrome-dark/60">// →   - finish moving JWT helper</span>
+<span class="text-chrome-dark/60">// →   - update imports</span>
+<span class="text-chrome-dark/60">// →   - run test suite</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <p class="font-serif font-light text-chrome-dark/80 text-sm mt-6 max-w-[680px] leading-relaxed">
+      Measured in benchmark loop 4 c3: the reader read the file, made the edit, ran
+      the test suite, and reported back &mdash; using only the handoff as input.
+    </p>
+  </section>
+
+  {/* ═══════════════════════════════════════════════════════════
+      Spec sheet — the honest "what's actually in the box".
+      ═══════════════════════════════════════════════════════════ */}
+  <section class="py-14">
+    <div class="mb-8">
+      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">
+        what's in the box
+      </div>
+      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">
+        ~600 lines of TypeScript.
+      </h2>
+      <p class="font-serif font-light text-chrome-dark max-w-[680px] leading-relaxed">
+        Open the SQLite file with any client. The MCP server is a stdio process. Tool
+        descriptions tell agents how to use them &mdash; no SKILL.md, no AGENTS.md.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="border border-brass/15 rounded-sm bg-steel/30 p-5 shadow-card">
+        <div class="font-mono text-[10px] tracking-[0.22em] uppercase text-brass-light mb-2">storage</div>
+        <div class="font-serif text-base text-chrome mb-1">~/.deja/deja.db</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/80 leading-relaxed">
+          SQLite with WAL. Three tables: <code class="font-mono text-[11px] text-brass">slips</code>,
+          <code class="font-mono text-[11px] text-brass">links</code>,
+          <code class="font-mono text-[11px] text-brass">handoffs</code>. FTS5 virtual table
+          with porter stemming over slip text and tags.
+        </p>
+      </div>
+      <div class="border border-brass/15 rounded-sm bg-steel/30 p-5 shadow-card">
+        <div class="font-mono text-[10px] tracking-[0.22em] uppercase text-brass-light mb-2">lifecycle</div>
+        <div class="font-serif text-base text-chrome mb-1">draft → kept → expired</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/80 leading-relaxed">
+          Append-only. State transitions update timestamps; text is never edited in place.
+          Drafts auto-GC at 24h. Contradictions become new slips that link to the old.
+        </p>
+      </div>
+      <div class="border border-brass/15 rounded-sm bg-steel/30 p-5 shadow-card">
+        <div class="font-mono text-[10px] tracking-[0.22em] uppercase text-brass-light mb-2">ids</div>
+        <div class="font-serif text-base text-chrome mb-1">ULID</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/80 leading-relaxed">
+          26-character Crockford base32. Sortable by creation time. No external dependency.
+        </p>
+      </div>
+      <div class="border border-brass/15 rounded-sm bg-steel/30 p-5 shadow-card">
+        <div class="font-mono text-[10px] tracking-[0.22em] uppercase text-brass-light mb-2">surface</div>
+        <div class="font-serif text-base text-chrome mb-1">3-tool MCP</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/80 leading-relaxed">
+          <code class="font-mono text-[11px] text-brass">deja_recall</code>,
+          <code class="font-mono text-[11px] text-brass">deja_remember</code>,
+          <code class="font-mono text-[11px] text-brass">deja_handoff</code>.
+          Tool descriptions and responses are the spec &mdash; no SKILL.md, no AGENTS.md.
+        </p>
+      </div>
+      <div class="border border-brass/15 rounded-sm bg-steel/30 p-5 shadow-card">
+        <div class="font-mono text-[10px] tracking-[0.22em] uppercase text-brass-light mb-2">trust labels</div>
+        <div class="font-serif text-base text-chrome mb-1">high · medium · low</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/80 leading-relaxed">
+          BM25 scores bucketed for the agent. Recall responses lead with
+          <code class="font-mono text-[11px] text-brass">[high — recorded]</code> for
+          decisive matches and tell the agent to verify
+          <code class="font-mono text-[11px] text-brass">[low]</code> ones.
+        </p>
+      </div>
+      <div class="border border-brass/15 rounded-sm bg-steel/30 p-5 shadow-card">
+        <div class="font-mono text-[10px] tracking-[0.22em] uppercase text-brass-light mb-2">runtime</div>
+        <div class="font-serif text-base text-chrome mb-1">stdio process</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/80 leading-relaxed">
+          No daemon, no network calls, no background service. The MCP server is launched
+          on demand by the agent's MCP client.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  {/* ═══════════════════════════════════════════════════════════
+      Install — copy/paste-ready snippets for the three clients.
+      ═══════════════════════════════════════════════════════════ */}
+  <section id="install" class="py-14 scroll-mt-24">
+    <div class="mb-8">
+      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">
+        install
+      </div>
+      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">
+        Clone, init, wire.
+      </h2>
+      <p class="font-serif font-light text-chrome-dark max-w-[680px] leading-relaxed">
+        Memory works on the next session.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* Step 1 — clone */}
+      <div class="border border-brass/15 rounded-sm bg-steel/30 shadow-card overflow-hidden">
+        <div class="border-b border-brass/10 px-5 py-3 bg-void-deep/50 flex items-center gap-3">
+          <span class="font-mono text-[11px] font-bold text-brass">01</span>
+          <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/70">clone &amp; init</span>
+        </div>
+        <div class="px-5 py-4">
+          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-chrome-dark/60"># clone the repo</span>
+git clone <span class="text-[#9ece6a]">https://github.com/acoyfellow/deja</span>
+<span class="text-[#8ab4f8]">cd</span> deja &amp;&amp; <span class="text-[#8ab4f8]">bun</span> install
+
+<span class="text-chrome-dark/60"># create the db, print MCP wiring snippets</span>
+<span class="text-[#8ab4f8]">bun</span> run src/cli.ts init</pre>
+          <p class="font-serif font-light text-[12px] text-chrome-dark/70 leading-relaxed mt-3">
+            The DB lives at <code class="font-mono text-[11px] text-brass">~/.deja/deja.db</code>.
+            Override with <code class="font-mono text-[11px] text-brass">$DEJA_DB</code>.
+          </p>
+        </div>
+      </div>
+
+      {/* Step 2 — wire MCP */}
+      <div class="border border-brass/15 rounded-sm bg-steel/30 shadow-card overflow-hidden">
+        <div class="border-b border-brass/10 px-5 py-3 bg-void-deep/50 flex items-center gap-3">
+          <span class="font-mono text-[11px] font-bold text-brass">02</span>
+          <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/70">wire the mcp server</span>
+        </div>
+        <div class="px-5 py-4">
+          <p class="font-serif font-light text-[12px] text-chrome-dark/80 mb-3">Claude Code &mdash; <code class="font-mono text-[11px] text-brass">~/.config/claude-code/mcp.json</code></p>
+          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code">&#123;
+  <span class="text-[#9ece6a]">"mcpServers"</span>: &#123;
+    <span class="text-[#9ece6a]">"deja"</span>: &#123;
+      <span class="text-[#9ece6a]">"command"</span>: <span class="text-[#9ece6a]">"bun"</span>,
+      <span class="text-[#9ece6a]">"args"</span>: [<span class="text-[#9ece6a]">"run"</span>, <span class="text-[#9ece6a]">"&lt;path&gt;/deja/src/mcp.ts"</span>]
+    &#125;
+  &#125;
+&#125;</pre>
+          <p class="font-serif font-light text-[12px] text-chrome-dark/70 leading-relaxed mt-3">
+            Same shape works for OpenCode (<code class="font-mono text-[11px] text-brass">~/.config/opencode/opencode.jsonc</code>)
+            and pi (<code class="font-mono text-[11px] text-brass">~/.pi/agent/mcp.json</code>).
+            <code class="font-mono text-[11px] text-brass">deja init</code> prints all three.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* Library use */}
+    <div class="border border-brass/10 rounded-sm bg-steel/20 mt-5 px-5 py-4">
+      <p class="font-serif font-light text-[13px] text-chrome-dark mb-3">
+        Or use the library directly &mdash; same DB, no MCP indirection:
+      </p>
+      <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-[#c678dd]">import</span> &#123; Deja &#125; <span class="text-[#c678dd]">from</span> <span class="text-[#9ece6a]">"deja"</span>;
+<span class="text-brass-light">const</span> d = <span class="text-[#c678dd]">new</span> <span class="text-brass">Deja</span>();
+d.<span class="text-brass">remember</span>(<span class="text-[#9ece6a]">"the user prefers vitest over jest"</span>);</pre>
+    </div>
+  </section>
+
+  {/* ═══════════════════════════════════════════════════════════
+      Closer — receipts. No slogan.
+      ═══════════════════════════════════════════════════════════ */}
+  <section class="pt-14 pb-6">
+    <div class="border border-brass/20 rounded-sm bg-gradient-to-br from-steel/60 via-void/50 to-void-deep/80 px-8 py-10 shadow-cta">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-5 mb-8">
+        <div>
+          <div class="font-mono text-[10px] tracking-[0.2em] uppercase text-brass-light mb-1">tests</div>
+          <div class="font-serif text-2xl text-chrome">28 / 28</div>
+        </div>
+        <div>
+          <div class="font-mono text-[10px] tracking-[0.2em] uppercase text-brass-light mb-1">recall@1</div>
+          <div class="font-serif text-2xl text-chrome">100%</div>
+        </div>
+        <div>
+          <div class="font-mono text-[10px] tracking-[0.2em] uppercase text-brass-light mb-1">source</div>
+          <div class="font-serif text-2xl text-chrome">~600 LOC</div>
+        </div>
+        <div>
+          <div class="font-mono text-[10px] tracking-[0.2em] uppercase text-brass-light mb-1">license</div>
+          <div class="font-serif text-2xl text-chrome">MIT</div>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-3 items-center">
         <a
           href="https://github.com/acoyfellow/deja"
           target="_blank"
           rel="noreferrer"
-          class="font-mono px-6 py-3.5 rounded-sm font-semibold text-xs tracking-[0.1em] uppercase border border-brass/10 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+          class="font-mono px-6 py-3 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-brass-dark bg-gradient-to-b from-steel-light to-steel text-chrome shadow-btn hover:-translate-y-px active:translate-y-px transition-transform"
         >
-          View on GitHub
+          GitHub
+        </a>
+        <a
+          href="#install"
+          class="font-mono px-6 py-3 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-brass/15 bg-transparent text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors"
+        >
+          Install
         </a>
       </div>
-      <p class="mt-6 font-mono text-[11px] text-chrome-dark/70">
-        <a href="/docs" class="hover:text-brass transition-colors">Docs</a>
-        · <a href="/integrations" class="hover:text-brass transition-colors">Integrations</a>
-        · <a href="/patterns" class="hover:text-brass transition-colors">Patterns</a>
-        · <a href="/research" class="hover:text-brass transition-colors">Research</a>
-      </p>
-      <footer class="mt-8 pt-8 border-t border-brass/10 text-chrome-dark font-mono text-[11px] font-medium tracking-[0.05em]">
-        Open source. MIT licensed. Three runtimes — local, edge, hosted.
-      </footer>
-    </section>
-  </div>
+    </div>
+  </section>
 </Base>
-
-<script>
-  document.querySelectorAll<HTMLButtonElement>('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.tab!;
-
-      // Update buttons
-      document.querySelectorAll<HTMLButtonElement>('.tab-btn').forEach(b => {
-        b.classList.remove('border-brass', 'text-brass');
-        b.classList.add('border-transparent', 'text-chrome-dark/40');
-      });
-      btn.classList.remove('border-transparent', 'text-chrome-dark/40');
-      btn.classList.add('border-brass', 'text-brass');
-
-      // Update panels
-      document.querySelectorAll<HTMLElement>('.tab-panel').forEach(p => {
-        p.classList.add('hidden');
-      });
-      document.querySelector<HTMLElement>(`[data-panel="${tab}"]`)!.classList.remove('hidden');
-    });
-  });
-</script>

@@ -1,174 +1,94 @@
 # deja
 
-Persistent memory for AI agents. Agents learn from runs — deja remembers across them.
-
-## Three ways to use deja
-
-| | **deja-local** | **deja-edge** | **deja (hosted)** |
-|---|---|---|---|
-| **What it is** | In-process SQLite memory | Cloudflare Durable Object memory | Hosted Cloudflare Worker service |
-| **Search** | Vector embeddings (all-MiniLM-L6-v2) | FTS5 full-text search | Vectorize + Workers AI embeddings |
-| **Runtime** | Bun | Cloudflare Workers | Cloudflare Workers |
-| **Dependencies** | None (runs locally) | None (runs in your DO) | Vectorize index + Workers AI |
-| **Latency** | Zero (in-process) | Zero (in-DO) | Network round-trip |
-| **Install** | `npm install deja-local` | `npm install deja-edge` | Clone + `wrangler deploy` |
-| **Best for** | Local agents, scripts, CLI tools | Edge agents running in Workers | Multi-tenant, team-shared memory |
-
-### deja-local
-
-Memory lives in a local SQLite file. Vector search via ONNX embeddings on CPU. No network, no API keys. Requires Bun.
+Cross-session memory for agents. Four verbs over SQLite + FTS5, exposed via a 3-tool MCP server.
 
 ```ts
-import { createMemory } from 'deja-local'
+import { Deja } from "deja";
+const d = new Deja();
 
-const mem = createMemory({ path: './agent.db' })
-await mem.remember('always run migrations before deploying')
-const results = await mem.recall('deploying to staging')
+d.remember("the user prefers vitest over jest");
+d.handoff({ summary: "shipped the auth refactor", next: ["wire it into the gateway"] });
+
+// later, in a fresh process:
+const r = d.recall("test runner");
+// r.hits[0].slip.text === "the user prefers vitest over jest"
+// r.activeHandoff.summary === "shipped the auth refactor"
 ```
 
-[Full docs →](./packages/deja-local/)
+Three things to know:
 
-### deja-edge
+1. **It's just SQLite.** Stored at `~/.deja/deja.db` by default, FTS5-indexed. No network, no auth, no Worker, no daemon. Open the file with any SQLite client to inspect.
+2. **It's append-only.** Slips don't get edited. Contradictions become new slips that link to the old.
+3. **It's MCP-shaped.** Designed to be used by agents through an MCP server (`bun run node_modules/deja/src/mcp.ts`). The library is also fine for direct use.
 
-Memory lives in a Cloudflare Durable Object's SQLite. FTS5 full-text search with BM25 ranking. No Vectorize, no Workers AI — just text matching. Zero external dependencies.
+## Four verbs
 
 ```ts
-import { createEdgeMemory } from 'deja-edge'
-
-export class MyDO extends DurableObject {
-  private memory = createEdgeMemory(this.ctx)
-
-  async onRemember(text: string) {
-    return this.memory.remember(text)
-  }
-  async onRecall(context: string) {
-    return this.memory.recall(context)
-  }
-}
+d.remember(text, opts?)         // jot a draft. drafts auto-expire in 24h
+d.keep(ids)                     // promote drafts to permanent
+d.handoff({ summary, next? })   // close the session for whoever comes next. one per session.
+d.recall(query)                 // find slips, plus the most recent handoff
 ```
 
-Or use the drop-in DO class with HTTP routes:
+Plus three signals that don't change the lifecycle:
 
 ```ts
-export { DejaEdgeDO } from 'deja-edge/do'
+d.forget(id)   // expire a slip (kept or otherwise). no undo
+d.used(id)     // record that a recalled slip was helpful
+d.wrong(id)    // record that a recalled slip was misleading
 ```
 
-[Full docs →](./packages/deja-edge/)
+## Auto-rollup
 
-### deja (hosted)
+When you `keep()` a slip whose text or tags look "chain-shaped" — a decision, preference, work-in-progress note — and the current session has no handoff yet, deja writes one for you. The rollup makes the slip discoverable on **every** recall, not just queries that lexically match it.
 
-Hosted service with Vectorize semantic search, scoped memory, working state, secrets, and MCP support. Deploy your own instance or use as part of [filepath](https://github.com/acoyfellow/filepath).
+```ts
+const slip = d.remember("Decision: use Bun for new TS libs");
+d.keep([slip.id]);  // also writes a session handoff that mentions the decision
+
+const r = d.recall("anything at all");
+// r.activeHandoff.summary contains the decision, even though "anything at all"
+// doesn't lexically match the slip
+```
+
+Disable per-call (`d.keep(ids, { noChainRollup: true })`) or globally (`new Deja({ noChainRollup: true })`).
+
+## CLI
 
 ```bash
-git clone https://github.com/acoyfellow/deja && cd deja
-bun install && wrangler login
-wrangler vectorize create deja-embeddings --dimensions 384 --metric cosine
-wrangler secret put API_KEY
-bun run deploy
+deja init                  # create the db, print mcp wiring snippet
+deja recall <query>        # search slips
+deja ls [--session]        # list kept slips (or current session's slips)
+deja show <id>             # show a slip + its links
+deja stats                 # counts and db path
+deja handoffs              # list recent handoffs
 ```
 
-Connect via REST, the [client package](./packages/deja-client/), or MCP:
+The CLI is for humans poking at the DB. Agents use the library or MCP.
 
-```json
+## MCP
+
+Three tools: `recall`, `remember`, `handoff`. Tool descriptions and responses tell the agent how to use them — no SKILL.md, no AGENTS.md, no system-prompt ceremony.
+
+```jsonc
+// ~/.config/claude-code/mcp.json
 {
   "mcpServers": {
-    "deja": {
-      "type": "http",
-      "url": "https://your-deja-instance.workers.dev/mcp",
-      "headers": { "Authorization": "Bearer ${DEJA_API_KEY}" }
-    }
+    "deja": { "command": "bun", "args": ["run", "<path-to-deja>/src/mcp.ts"] }
   }
 }
 ```
 
-## Core concepts
+Run `deja init` for the wiring snippets for OpenCode and pi.
 
-All three systems share the same mental model:
+## Storage layout
 
-- **Remember** — store a memory (text, optionally with trigger/context/confidence)
-- **Recall** — search for relevant memories given a context
-- **Confirm / Reject** — feedback loop. Confirmed memories rise, rejected ones fade
-- **Forget** — permanently delete a memory
+Three tables: `slips`, `links`, `handoffs`. Plus a virtual FTS5 table over slip text. See `src/storage.ts:32` for the schema. ULID primary keys (sortable by creation time). Atomic-immutable: state transitions update the row's `state` and timestamps, never the text.
 
-Memories are deduplicated at write time. Conflicting memories (same topic, different content) are automatically resolved — the newer one supersedes the older one.
+## Env
 
-### Time-based confidence decay
+- `DEJA_DB` — override DB path (default `~/.deja/deja.db`).
+- `DEJA_AUTHOR` — identity recorded with new slips (default `unknown-agent`).
+- `DEJA_SESSION` — override session id (default: derived per-process).
 
-Stale memories don't sit at 0.5 forever. At recall time, confidence decays exponentially based on how recently the memory was created or last recalled:
 
-```
-decayedConfidence = storedConfidence × 0.5^(daysSince / 90)
-```
-
-A memory untouched for 90 days has its effective confidence halved. Recalling a memory resets its decay clock — actively used knowledge stays fresh. Stored confidence is never mutated by decay; only `confirm()` and `reject()` change the stored value.
-
-### Agent attribution
-
-Track which agent stored a memory with the optional `source` parameter:
-
-```ts
-await mem.remember('always use pnpm', { source: 'deploy-agent' })
-```
-
-### Anti-patterns
-
-When a memory is rejected enough that its confidence drops below 0.15, it auto-inverts into an **anti-pattern** — a warning that actively surfaces during recall:
-
-```
-Before: "use eval for JSON parsing"  (confidence: 0.05, type: "memory")
-After:  "KNOWN PITFALL: use eval for JSON parsing"  (confidence: 0.5, type: "anti-pattern")
-```
-
-Negative knowledge is as valuable as positive knowledge. Anti-patterns participate in recall normally and warn agents away from known mistakes.
-
-## Hosted service API
-
-The hosted service adds features beyond basic memory:
-
-- **Scoped memory** — `shared`, `agent:<id>`, `session:<id>`, or custom scopes
-- **Confidence feedback** — `confirm` boosts confidence, `reject` lowers it
-- **Conflict tracking** — hosted learnings carry `type` and optional `supersedes`
-- **Proof citations** — `proof_run_id` and `proof_iteration_id` can be attached as evidence and are returned on recall
-- **Working state** — live snapshots + event streams for in-progress work
-- **Secrets** — scoped key-value storage
-- **Loop runs** — track optimization loops with auto-learning from outcomes
-
-Core REST endpoints: `/learn`, `/learning/:id/confirm`, `/learning/:id/reject`, `/inject`, `/inject/trace`, `/query`, `/learnings`, `/learning/:id/neighbors`, `/cleanup`, `/stats`, `/state/:runId`, `/handoff`, `/secret`, `/run`
-
-### Handoff Packets
-
-Working state (`/state/:runId`) is a live scratchpad that one agent updates while it works. A **handoff packet** is the complementary durable artifact: a typed end-of-session summary that outlives the session that authored it, so the next agent starts with context instead of a cold open.
-
-```bash
-POST /handoff                # upsert (overwrites by sessionId)
-GET  /handoff/:sessionId     # fetch one packet (?format=markdown for rendered)
-GET  /handoffs?limit=20      # list recent, newest-first
-```
-
-Each packet is a typed struct:
-
-```ts
-{
-  sessionId, createdAt, authoredBy?,
-  summary,                // 1-2 sentence high-level
-  whatShipped: string[],
-  whatBlessed: { learningId, note? }[],  // cites bless()'d learning ids
-  whatRemains: string[],
-  nextVerify?: string[],
-  links?: { kind: 'commit'|'pr'|'url'|'wiki', value, label? }[],
-}
-```
-
-Over MCP: `handoff_create`, `handoff_get`, `handoff_list` in the full surface; `execute({op:'handoff_read', args:{sessionId}})` in the lean surface returns the packet pre-rendered as markdown. Handoffs are a separate axis from recall — `inject()` and `search()` don't auto-pull them.
-
-Full reference: https://deja.coey.dev/docs
-
-## Architecture
-
-- **deja-local**: Bun SQLite + ONNX embeddings (all-MiniLM-L6-v2). In-memory vector index loaded at startup.
-- **deja-edge**: Cloudflare DO SQLite + FTS5. Porter stemming tokenizer. BM25 ranking blended with confidence.
-- **deja (hosted)**: Cloudflare Worker + Durable Object + Vectorize + Workers AI. Per-user isolation via API key.
-
-## License
-
-MIT
