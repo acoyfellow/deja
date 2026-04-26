@@ -137,6 +137,11 @@ describe("Storage", () => {
     expect(links.length).toBe(1);
     expect(links[0]!.kind).toBe("supersedes");
     expect(links[0]!.toId).toBe(a.id);
+
+    const incoming = s.linksTo(a.id);
+    expect(incoming.length).toBe(1);
+    expect(incoming[0]!.kind).toBe("supersedes");
+    expect(incoming[0]!.fromId).toBe(b.id);
     s.close();
   });
 });

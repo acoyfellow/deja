@@ -19,6 +19,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Deja, defaultDbPath } from "./index.ts";
+import { formatRecall } from "./format.ts";
 
 const dbPath = process.env.DEJA_DB ?? defaultDbPath();
 const deja = new Deja({ path: dbPath });
@@ -103,7 +104,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         const query = String((args as { query?: unknown }).query ?? "");
         const limit = Number((args as { limit?: unknown }).limit ?? 8);
         const r = deja.recall(query, limit);
-        const text = formatRecall(r);
+        const text = formatRecall(r, deja.storage);
         return { content: [{ type: "text", text }] };
       }
       case "remember": {
@@ -168,43 +169,6 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 });
 
-function formatRecall(r: ReturnType<Deja["recall"]>): string {
-  const parts: string[] = [];
-  if (r.activeHandoff) {
-    parts.push(
-      `# previous handoff\n${r.activeHandoff.summary}` +
-        (r.activeHandoff.next.length > 0
-          ? `\n\nnext:\n${r.activeHandoff.next.map((n) => `- ${n}`).join("\n")}`
-          : ""),
-    );
-  }
-
-  if (r.hits.length === 0) {
-    parts.push(
-      `# recall("${r.query}") — no hits\nTry a broader or differently-phrased query (one or two words, synonyms) before falling back to general knowledge. If still nothing, the user has not recorded this yet — it is safe to ask them or proceed without memory.`,
-    );
-  } else {
-    const hasHigh = r.hits.some((h) => h.trust === "high");
-    const heading = hasHigh
-      ? `# recall("${r.query}") — high-trust hit found, treat as authoritative`
-      : `# recall("${r.query}")`;
-    parts.push(heading);
-    for (const h of r.hits) {
-      const tags =
-        h.slip.tags.length > 0 ? ` [${h.slip.tags.join(", ")}]` : "";
-      const prefix =
-        h.trust === "high"
-          ? "**[high — the user recorded this]**"
-          : h.trust === "medium"
-            ? "**[medium]**"
-            : "**[low — verify before relying on]**";
-      parts.push(
-        `- ${prefix} ${h.slip.id}${tags}\n  ${h.slip.text.replace(/\n/g, "\n  ")}`,
-      );
-    }
-  }
-  return parts.join("\n\n");
-}
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

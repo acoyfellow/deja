@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 /**
- * deja CLI — local introspection.
+ * deja CLI — local introspection + MCP launcher.
  *
  * Subcommands:
  *   deja init              Create the DB + print MCP wiring snippet
+ *   deja mcp               Run the MCP server (stdio)
  *   deja verify            Check DB exists and is readable
  *   deja recall <query>    Search slips
  *   deja ls [--session]    List kept slips (or current session)
@@ -11,7 +12,7 @@
  *   deja stats             Counts and DB path
  *   deja handoffs          List recent handoffs
  *
- * The CLI is for humans poking at the DB. Agents use the MCP server.
+ * The CLI is for humans poking at the DB. Agents use `deja mcp`.
  *
  * deja deliberately does NOT write a SKILL.md. The MCP tool descriptions
  * are the spec the agent works from. Bullets in a markdown file are
@@ -28,6 +29,7 @@ function usage(): never {
 
 Usage:
   deja init                  Create the DB + print MCP wiring snippet
+  deja mcp                   Run the MCP server (stdio — for agent clients)
   deja verify                Check DB
   deja recall <query>        Search slips (FTS5)
   deja ls [--session]        List kept slips (or current session's slips)
@@ -63,13 +65,16 @@ async function cmdInit(): Promise<void> {
   console.log(`
 Wire deja into your MCP client. Tool descriptions are the spec — no SKILL.md, no AGENTS.md.
 
+If you ran this via 'bunx github:acoyfellow/deja init', the MCP server is reachable
+the same way: 'bunx github:acoyfellow/deja mcp'. If you cloned, use the local path.
+
 Claude Code (~/.config/claude-code/mcp.json):
 
   {
     "mcpServers": {
       "deja": {
-        "command": "bun",
-        "args": ["run", "${import.meta.dir}/mcp.ts"]
+        "command": "bunx",
+        "args": ["github:acoyfellow/deja", "mcp"]
       }
     }
   }
@@ -79,7 +84,7 @@ OpenCode (~/.config/opencode/opencode.jsonc):
   "mcp": {
     "deja": {
       "type": "local",
-      "command": ["bun", "run", "${import.meta.dir}/mcp.ts"]
+      "command": ["bunx", "github:acoyfellow/deja", "mcp"]
     }
   }
 
@@ -88,11 +93,14 @@ pi (~/.pi/agent/mcp.json):
   {
     "mcpServers": {
       "deja": {
-        "command": "bun",
-        "args": ["run", "${import.meta.dir}/mcp.ts"]
+        "command": "bunx",
+        "args": ["github:acoyfellow/deja", "mcp"]
       }
     }
   }
+
+(Cloned the repo instead? Replace 'bunx github:acoyfellow/deja' with
+ 'bun run ${import.meta.dir}/cli.ts' in any of the above.)
 `);
 }
 
@@ -212,6 +220,13 @@ const [, , cmd, ...rest] = process.argv;
 switch (cmd) {
   case "init":
     await cmdInit();
+    break;
+  case "mcp":
+    // Boot the MCP stdio server in this process. Importing for side
+    // effects: mcp.ts attaches to stdin/stdout and connects the
+    // transport at module load. Agent clients launch us with
+    // `deja mcp` and start sending JSON-RPC.
+    await import("./mcp.ts");
     break;
   case "verify":
     cmdVerify();

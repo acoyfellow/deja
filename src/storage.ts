@@ -313,6 +313,23 @@ export class Storage {
     }));
   }
 
+  linksTo(id: string): Link[] {
+    const rows = this.db
+      .prepare(`SELECT from_id, to_id, kind, created_at FROM links WHERE to_id = ?`)
+      .all(id) as Array<{
+      from_id: string;
+      to_id: string;
+      kind: LinkKind;
+      created_at: number;
+    }>;
+    return rows.map((r) => ({
+      fromId: r.from_id,
+      toId: r.to_id,
+      kind: r.kind,
+      createdAt: r.created_at,
+    }));
+  }
+
   // ----- handoffs -----
 
   insertHandoff(h: Handoff): void {

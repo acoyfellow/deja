@@ -26,13 +26,16 @@ import Base from "../layouts/Base.astro";
         <h1 class="font-serif-sc text-[3.5rem] sm:text-[5.5rem] leading-none font-bold tracking-tight m-0 mb-6">
           deja
         </h1>
-        <p class="font-serif font-light text-lg sm:text-xl text-chrome-dark max-w-[640px] mb-10 leading-relaxed">
+        <p class="font-serif font-light text-lg sm:text-xl text-chrome-dark max-w-[640px] mb-3 leading-relaxed">
           Cross-session memory for agents. Four verbs &mdash;
           <code class="font-mono text-[14px] text-brass">recall</code>,
           <code class="font-mono text-[14px] text-brass">remember</code>,
           <code class="font-mono text-[14px] text-brass">keep</code>,
           <code class="font-mono text-[14px] text-brass">handoff</code>
           &mdash; over SQLite and FTS5. Exposed as a 3-tool MCP server.
+        </p>
+        <p class="font-serif italic font-light text-[15px] text-brass-light/85 max-w-[640px] mb-10 leading-relaxed">
+          deja gives agents memory. It doesn&rsquo;t force them to use it.
         </p>
 
         <div class="flex flex-wrap gap-3 items-center">
@@ -72,7 +75,7 @@ import Base from "../layouts/Base.astro";
             <div>28 / 28 green</div>
           </div>
           <div>
-            <div class="text-brass-light text-[10px] mb-1">Recall@1</div>
+            <div class="text-brass-light text-[10px] mb-1">Recall@1 (fixture)</div>
             <div>100%</div>
           </div>
         </div>
@@ -90,7 +93,7 @@ import Base from "../layouts/Base.astro";
         the api
       </div>
       <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">
-        Four verbs.
+        Four verbs in the library, three on MCP.
       </h2>
       <p class="font-serif font-light text-chrome-dark max-w-[680px] leading-relaxed">
         <code class="font-mono text-[13px] text-brass">remember</code> drafts a slip.
@@ -98,16 +101,8 @@ import Base from "../layouts/Base.astro";
         <code class="font-mono text-[13px] text-brass">handoff</code> closes the session.
         <code class="font-mono text-[13px] text-brass">recall</code> finds it from any process on the same DB.
       </p>
-    </div>
-      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">
-        Four verbs.
-      </h2>
-      <p class="font-serif font-light text-chrome-dark max-w-[680px] leading-relaxed">
-        That's the whole interface. <code class="font-mono text-[13px] text-brass">remember</code>
-        creates a draft. <code class="font-mono text-[13px] text-brass">keep</code> promotes it.
-        <code class="font-mono text-[13px] text-brass">handoff</code> closes the session for whoever
-        comes next. <code class="font-mono text-[13px] text-brass">recall</code> finds it later, even
-        from a different process.
+      <p class="font-serif font-light text-[13px] text-chrome-dark/70 max-w-[680px] leading-relaxed mt-3">
+        On MCP, <code class="font-mono text-[12px] text-brass">keep</code> is folded into <code class="font-mono text-[12px] text-brass">deja_remember</code> via the <code class="font-mono text-[12px] text-brass">keep:&nbsp;true</code> flag &mdash; one tool call, not two. Chain-shaped slips also auto-roll into the session handoff (see verbs below).
       </p>
     </div>
 
@@ -458,62 +453,66 @@ d.<span class="text-brass">keep</span>([dec.id]);
       </p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-      {/* Step 1 — clone */}
-      <div class="border border-brass/15 rounded-sm bg-steel/30 shadow-card overflow-hidden">
-        <div class="border-b border-brass/10 px-5 py-3 bg-void-deep/50 flex items-center gap-3">
-          <span class="font-mono text-[11px] font-bold text-brass">01</span>
-          <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/70">clone &amp; init</span>
-        </div>
-        <div class="px-5 py-4">
-          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-chrome-dark/60"># clone the repo</span>
-git clone <span class="text-[#9ece6a]">https://github.com/acoyfellow/deja</span>
-<span class="text-[#8ab4f8]">cd</span> deja &amp;&amp; <span class="text-[#8ab4f8]">bun</span> install
-
-<span class="text-chrome-dark/60"># create the db, print MCP wiring snippets</span>
-<span class="text-[#8ab4f8]">bun</span> run src/cli.ts init</pre>
-          <p class="font-serif font-light text-[12px] text-chrome-dark/70 leading-relaxed mt-3">
-            The DB lives at <code class="font-mono text-[11px] text-brass">~/.deja/deja.db</code>.
-            Override with <code class="font-mono text-[11px] text-brass">$DEJA_DB</code>.
-          </p>
-        </div>
+    {/* The one-liner — bunx straight from GitHub. */}
+    <div class="border border-brass/20 rounded-sm bg-gradient-to-b from-steel/40 to-void-deep/60 shadow-cta overflow-hidden mb-5">
+      <div class="border-b border-brass/15 px-5 py-3 bg-void-deep/50 flex items-center gap-3">
+        <span class="font-mono text-[11px] font-bold text-brass">01</span>
+        <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/70">one-liner</span>
       </div>
-
-      {/* Step 2 — wire MCP */}
-      <div class="border border-brass/15 rounded-sm bg-steel/30 shadow-card overflow-hidden">
-        <div class="border-b border-brass/10 px-5 py-3 bg-void-deep/50 flex items-center gap-3">
-          <span class="font-mono text-[11px] font-bold text-brass">02</span>
-          <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/70">wire the mcp server</span>
-        </div>
-        <div class="px-5 py-4">
-          <p class="font-serif font-light text-[12px] text-chrome-dark/80 mb-3">Claude Code &mdash; <code class="font-mono text-[11px] text-brass">~/.config/claude-code/mcp.json</code></p>
-          <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code">&#123;
-  <span class="text-[#9ece6a]">"mcpServers"</span>: &#123;
-    <span class="text-[#9ece6a]">"deja"</span>: &#123;
-      <span class="text-[#9ece6a]">"command"</span>: <span class="text-[#9ece6a]">"bun"</span>,
-      <span class="text-[#9ece6a]">"args"</span>: [<span class="text-[#9ece6a]">"run"</span>, <span class="text-[#9ece6a]">"&lt;path&gt;/deja/src/mcp.ts"</span>]
-    &#125;
-  &#125;
-&#125;</pre>
-          <p class="font-serif font-light text-[12px] text-chrome-dark/70 leading-relaxed mt-3">
-            Same shape works for OpenCode (<code class="font-mono text-[11px] text-brass">~/.config/opencode/opencode.jsonc</code>)
-            and pi (<code class="font-mono text-[11px] text-brass">~/.pi/agent/mcp.json</code>).
-            <code class="font-mono text-[11px] text-brass">deja init</code> prints all three.
-          </p>
-        </div>
+      <div class="px-5 py-4">
+        <pre class="font-mono text-[14px] leading-relaxed text-chrome bg-void-deep/80 border border-brass/15 rounded-sm p-4 overflow-x-auto shadow-code"><span class="text-[#8ab4f8]">bunx</span> github:acoyfellow/deja init</pre>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/80 leading-relaxed mt-3">
+          Creates <code class="font-mono text-[11px] text-brass">~/.deja/deja.db</code> and prints the MCP wiring snippet for Claude Code, OpenCode, and pi. No clone, no npm, no daemon. Bun required.
+        </p>
       </div>
     </div>
 
-    {/* Library use — Bun + git URL, npm comes later */}
-    <div class="border border-brass/10 rounded-sm bg-steel/20 mt-5 px-5 py-4">
-      <p class="font-serif font-light text-[13px] text-chrome-dark mb-3">
-        Library use (Bun-only for now &mdash; not on npm yet):
-      </p>
-      <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-[#8ab4f8]">bun</span> add github:acoyfellow/deja
-<span class="text-chrome-dark/60"># then in your code:</span>
-<span class="text-[#c678dd]">import</span> &#123; Deja &#125; <span class="text-[#c678dd]">from</span> <span class="text-[#9ece6a]">"deja"</span>;
+    {/* MCP wiring — uses bunx so users don't have to know the path. */}
+    <div class="border border-brass/15 rounded-sm bg-steel/30 shadow-card overflow-hidden mb-5">
+      <div class="border-b border-brass/10 px-5 py-3 bg-void-deep/50 flex items-center gap-3">
+        <span class="font-mono text-[11px] font-bold text-brass">02</span>
+        <span class="font-mono text-[10px] tracking-[0.2em] uppercase text-chrome-dark/70">wire the mcp server</span>
+      </div>
+      <div class="px-5 py-4">
+        <p class="font-serif font-light text-[12px] text-chrome-dark/80 mb-3">Claude Code &mdash; <code class="font-mono text-[11px] text-brass">~/.config/claude-code/mcp.json</code></p>
+        <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code">&#123;
+  <span class="text-[#9ece6a]">"mcpServers"</span>: &#123;
+    <span class="text-[#9ece6a]">"deja"</span>: &#123;
+      <span class="text-[#9ece6a]">"command"</span>: <span class="text-[#9ece6a]">"bunx"</span>,
+      <span class="text-[#9ece6a]">"args"</span>: [<span class="text-[#9ece6a]">"github:acoyfellow/deja"</span>, <span class="text-[#9ece6a]">"mcp"</span>]
+    &#125;
+  &#125;
+&#125;</pre>
+        <p class="font-serif font-light text-[12px] text-chrome-dark/70 leading-relaxed mt-3">
+          Same shape for OpenCode (<code class="font-mono text-[11px] text-brass">~/.config/opencode/opencode.jsonc</code>)
+          and pi (<code class="font-mono text-[11px] text-brass">~/.pi/agent/mcp.json</code>).
+          <code class="font-mono text-[11px] text-brass">deja init</code> prints all three.
+        </p>
+      </div>
+    </div>
+
+    {/* Library use + clone fallback */}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div class="border border-brass/10 rounded-sm bg-steel/20 px-5 py-4">
+        <div class="font-mono text-[10px] tracking-[0.2em] uppercase text-brass-light mb-2">library use</div>
+        <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-[#8ab4f8]">bun</span> add github:acoyfellow/deja</pre>
+        <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code mt-2"><span class="text-[#c678dd]">import</span> &#123; Deja &#125; <span class="text-[#c678dd]">from</span> <span class="text-[#9ece6a]">"deja"</span>;
 <span class="text-brass-light">const</span> d = <span class="text-[#c678dd]">new</span> <span class="text-brass">Deja</span>();
-d.<span class="text-brass">remember</span>(<span class="text-[#9ece6a]">"the user prefers vitest over jest"</span>);</pre>
+d.<span class="text-brass">remember</span>(<span class="text-[#9ece6a]">"prefers vitest"</span>);</pre>
+        <p class="font-serif font-light text-[11px] text-chrome-dark/60 leading-relaxed mt-2">
+          Bun runtime only. Not on npm yet.
+        </p>
+      </div>
+      <div class="border border-brass/10 rounded-sm bg-steel/20 px-5 py-4">
+        <div class="font-mono text-[10px] tracking-[0.2em] uppercase text-brass-light mb-2">clone for hacking</div>
+        <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-chrome-dark/60"># source + tests + bench + loop docs</span>
+git clone <span class="text-[#9ece6a]">https://github.com/acoyfellow/deja</span>
+<span class="text-[#8ab4f8]">cd</span> deja &amp;&amp; <span class="text-[#8ab4f8]">bun</span> install
+<span class="text-[#8ab4f8]">bun</span> test &amp;&amp; <span class="text-[#8ab4f8]">bun</span> run bench/recall.ts</pre>
+        <p class="font-serif font-light text-[11px] text-chrome-dark/60 leading-relaxed mt-2">
+          Read the loops in <code class="font-mono text-[10px] text-brass">docs/loops/</code>.
+        </p>
+      </div>
     </div>
   </section>
 
@@ -529,7 +528,7 @@ d.<span class="text-brass">remember</span>(<span class="text-[#9ece6a]">"the use
         </div>
         <div>
           <div class="font-mono text-[10px] tracking-[0.2em] uppercase text-brass-light mb-1">
-            <a href="https://github.com/acoyfellow/deja/blob/main/docs/bench/latest.txt" target="_blank" rel="noreferrer" class="hover:text-brass transition-colors underline decoration-brass/30 hover:decoration-brass">recall@1</a>
+            <a href="https://github.com/acoyfellow/deja/blob/main/docs/bench/latest.txt" target="_blank" rel="noreferrer" class="hover:text-brass transition-colors underline decoration-brass/30 hover:decoration-brass">recall@1 (fixture)</a>
           </div>
           <div class="font-serif text-2xl text-chrome">100%</div>
         </div>
