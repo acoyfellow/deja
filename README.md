@@ -1,5 +1,7 @@
 # deja
 
+[![ci](https://github.com/acoyfellow/deja/actions/workflows/ci.yml/badge.svg)](https://github.com/acoyfellow/deja/actions/workflows/ci.yml)
+
 Cross-session memory for agents. Four verbs over SQLite + FTS5, exposed via a 3-tool MCP server.
 
 ```ts
@@ -90,5 +92,27 @@ Three tables: `slips`, `links`, `handoffs`. Plus a virtual FTS5 table over slip 
 - `DEJA_DB` — override DB path (default `~/.deja/deja.db`).
 - `DEJA_AUTHOR` — identity recorded with new slips (default `unknown-agent`).
 - `DEJA_SESSION` — override session id (default: derived per-process).
+
+## Limits
+
+What deja deliberately doesn't do:
+
+- **Not a vector store.** Lexical FTS5 only. Bring your own embeddings if you need semantic search.
+- **Not multi-user.** One DB, one user. No accounts, no sharing, no permissions.
+- **Not synced.** Local file. Use Syncthing/rsync if you want it on another machine.
+- **Not encrypted at rest.** Plain SQLite — don't put secrets in it.
+- **Not a platform.** No metrics, no audit log, no rate limits.
+- **Not magic.** Agents reach for memory when the question shape suggests it. Some questions ("world-knowledge" ones) never trigger recall; we measured this in [loop 3 s8](docs/loops/2026-04-25-loop-3-three-meta-tools.md) and [loop 4 c1](docs/loops/2026-04-25-loop-4-cross-session-chain.md). It's a model-prior boundary.
+
+## How we know it works
+
+Run the bench:
+
+```bash
+bun run bench/recall.ts
+# recall@1: 8/8 (100%)   recall@3: 8/8 (100%)
+```
+
+The full evidence base lives in [`docs/loops/`](docs/loops/) — four research loops, each with hypothesis, battery, results, and what we changed because of them.
 
 

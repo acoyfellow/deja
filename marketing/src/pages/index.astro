@@ -292,7 +292,22 @@ d.<span class="text-brass">keep</span>([dec.id]);
     <p class="font-serif font-light text-chrome-dark/80 text-sm mt-6 max-w-[680px] leading-relaxed">
       Measured in benchmark loop 4 c3: the reader read the file, made the edit, ran
       the test suite, and reported back &mdash; using only the handoff as input.
+      <a href="https://github.com/acoyfellow/deja/blob/main/docs/loops/2026-04-25-loop-4-cross-session-chain.md" class="text-brass hover:underline" target="_blank" rel="noreferrer">Full transcript &rarr;</a>
     </p>
+
+    {/* Where this fails — the boundary, named honestly. */}
+    <div class="mt-10 border border-brass/10 rounded-sm bg-void-deep/40 px-5 py-4">
+      <div class="font-mono text-[10px] tracking-[0.22em] uppercase text-brass-light mb-2">where this fails</div>
+      <p class="font-serif font-light text-[13px] text-chrome-dark/85 leading-relaxed">
+        If the question reads as world knowledge to the agent (&ldquo;how do you pronounce X?&rdquo;,
+        &ldquo;what is pi to 10 digits?&rdquo;), the agent answers from training data and never queries
+        memory &mdash; even when memory has the user&rsquo;s actual answer recorded. We measured this:
+        <a href="https://github.com/acoyfellow/deja/blob/main/docs/loops/2026-04-25-loop-3-three-meta-tools.md" class="text-brass hover:underline" target="_blank" rel="noreferrer">loop 3 s8</a>
+        and
+        <a href="https://github.com/acoyfellow/deja/blob/main/docs/loops/2026-04-25-loop-4-cross-session-chain.md" class="text-brass hover:underline" target="_blank" rel="noreferrer">loop 4 c1</a>.
+        It&rsquo;s a model-prior boundary, not a deja fix.
+      </p>
+    </div>
   </section>
 
   {/* ═══════════════════════════════════════════════════════════
@@ -364,6 +379,64 @@ d.<span class="text-brass">keep</span>([dec.id]);
         <p class="font-serif font-light text-[13px] text-chrome-dark/80 leading-relaxed">
           No daemon, no network calls, no background service. The MCP server is launched
           on demand by the agent's MCP client.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  {/* ═══════════════════════════════════════════════════════════
+      Limits — what deja isn't. Stated up front so people stop
+      asking. Honest negative space is more credible than puffery.
+      ═══════════════════════════════════════════════════════════ */}
+  <section class="py-14">
+    <div class="mb-8">
+      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">
+        limits
+      </div>
+      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">
+        What deja isn't.
+      </h2>
+      <p class="font-serif font-light text-chrome-dark max-w-[680px] leading-relaxed">
+        A focused tool that does one thing. Things it deliberately doesn't do:
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="border border-brass/10 rounded-sm bg-steel/20 px-4 py-3">
+        <div class="font-mono text-[11px] text-brass-light tracking-[0.16em] uppercase mb-1">not a vector store</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/85 leading-relaxed">
+          Lexical FTS5 only. Bring your own embeddings if you need semantic search.
+        </p>
+      </div>
+      <div class="border border-brass/10 rounded-sm bg-steel/20 px-4 py-3">
+        <div class="font-mono text-[11px] text-brass-light tracking-[0.16em] uppercase mb-1">not multi-user</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/85 leading-relaxed">
+          One DB, one user. No accounts, no sharing, no permissions.
+        </p>
+      </div>
+      <div class="border border-brass/10 rounded-sm bg-steel/20 px-4 py-3">
+        <div class="font-mono text-[11px] text-brass-light tracking-[0.16em] uppercase mb-1">not synced</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/85 leading-relaxed">
+          The DB is local. Want it on another machine? Use Syncthing or rsync.
+        </p>
+      </div>
+      <div class="border border-brass/10 rounded-sm bg-steel/20 px-4 py-3">
+        <div class="font-mono text-[11px] text-brass-light tracking-[0.16em] uppercase mb-1">not encrypted at rest</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/85 leading-relaxed">
+          Plain SQLite. Don&rsquo;t put secrets in it.
+        </p>
+      </div>
+      <div class="border border-brass/10 rounded-sm bg-steel/20 px-4 py-3">
+        <div class="font-mono text-[11px] text-brass-light tracking-[0.16em] uppercase mb-1">not a platform</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/85 leading-relaxed">
+          No metrics, no audit log, no rate limits, no quotas. Local tooling, not infra.
+        </p>
+      </div>
+      <div class="border border-brass/10 rounded-sm bg-steel/20 px-4 py-3">
+        <div class="font-mono text-[11px] text-brass-light tracking-[0.16em] uppercase mb-1">not magic</div>
+        <p class="font-serif font-light text-[13px] text-chrome-dark/85 leading-relaxed">
+          Agents reach for memory when the question shape suggests it. Some questions
+          (&ldquo;world knowledge&rdquo; ones) never trigger recall. See &ldquo;where this fails.&rdquo;
         </p>
       </div>
     </div>
@@ -465,6 +538,16 @@ d.<span class="text-brass">remember</span>(<span class="text-[#9ece6a]">"the use
           <div class="font-serif text-2xl text-chrome">MIT</div>
         </div>
       </div>
+
+      <div class="mb-6 flex items-center gap-3 flex-wrap">
+        <a href="https://github.com/acoyfellow/deja/actions/workflows/ci.yml" target="_blank" rel="noreferrer" class="hover:opacity-80 transition-opacity">
+          <img src="https://github.com/acoyfellow/deja/actions/workflows/ci.yml/badge.svg" alt="CI status" class="h-5" />
+        </a>
+        <a href="https://github.com/acoyfellow/deja/blob/main/docs/loops/" target="_blank" rel="noreferrer" class="font-mono text-[11px] tracking-[0.16em] uppercase text-chrome-dark/70 hover:text-brass transition-colors">
+          how we know &rarr; research loops
+        </a>
+      </div>
+
       <div class="flex flex-wrap gap-3 items-center">
         <a
           href="https://github.com/acoyfellow/deja"
