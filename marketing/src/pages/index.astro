@@ -504,12 +504,14 @@ git clone <span class="text-[#9ece6a]">https://github.com/acoyfellow/deja</span>
       </div>
     </div>
 
-    {/* Library use */}
+    {/* Library use — Bun + git URL, npm comes later */}
     <div class="border border-brass/10 rounded-sm bg-steel/20 mt-5 px-5 py-4">
       <p class="font-serif font-light text-[13px] text-chrome-dark mb-3">
-        Or use the library directly &mdash; same DB, no MCP indirection:
+        Library use (Bun-only for now &mdash; not on npm yet):
       </p>
-      <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-[#c678dd]">import</span> &#123; Deja &#125; <span class="text-[#c678dd]">from</span> <span class="text-[#9ece6a]">"deja"</span>;
+      <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark bg-void-deep/80 border border-brass/10 rounded-sm p-3 overflow-x-auto shadow-code"><span class="text-[#8ab4f8]">bun</span> add github:acoyfellow/deja
+<span class="text-chrome-dark/60"># then in your code:</span>
+<span class="text-[#c678dd]">import</span> &#123; Deja &#125; <span class="text-[#c678dd]">from</span> <span class="text-[#9ece6a]">"deja"</span>;
 <span class="text-brass-light">const</span> d = <span class="text-[#c678dd]">new</span> <span class="text-brass">Deja</span>();
 d.<span class="text-brass">remember</span>(<span class="text-[#9ece6a]">"the user prefers vitest over jest"</span>);</pre>
     </div>

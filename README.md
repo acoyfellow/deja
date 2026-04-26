@@ -4,6 +4,20 @@
 
 Cross-session memory for agents. Four verbs over SQLite + FTS5, exposed via a 3-tool MCP server.
 
+## Install
+
+```bash
+git clone https://github.com/acoyfellow/deja
+cd deja && bun install
+bun run src/cli.ts init   # creates ~/.deja/deja.db, prints MCP wiring
+```
+
+Library users (Bun-only for now — not yet on npm):
+
+```bash
+bun add github:acoyfellow/deja
+```
+
 ```ts
 import { Deja } from "deja";
 const d = new Deja();
@@ -21,7 +35,7 @@ Three things to know:
 
 1. **It's just SQLite.** Stored at `~/.deja/deja.db` by default, FTS5-indexed. No network, no auth, no Worker, no daemon. Open the file with any SQLite client to inspect.
 2. **It's append-only.** Slips don't get edited. Contradictions become new slips that link to the old.
-3. **It's MCP-shaped.** Designed to be used by agents through an MCP server (`bun run node_modules/deja/src/mcp.ts`). The library is also fine for direct use.
+3. **It's MCP-shaped.** Designed to be used by agents through an MCP server. The library is also fine for direct use, in Bun.
 
 ## Four verbs
 
