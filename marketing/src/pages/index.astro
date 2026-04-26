@@ -27,12 +27,7 @@ import Base from "../layouts/Base.astro";
           deja
         </h1>
         <p class="font-serif font-light text-lg sm:text-xl text-chrome-dark max-w-[640px] mb-3 leading-relaxed">
-          Cross-session memory for agents. Four verbs &mdash;
-          <code class="font-mono text-[14px] text-brass">recall</code>,
-          <code class="font-mono text-[14px] text-brass">remember</code>,
-          <code class="font-mono text-[14px] text-brass">keep</code>,
-          <code class="font-mono text-[14px] text-brass">handoff</code>
-          &mdash; over SQLite and FTS5. Exposed as a 3-tool MCP server.
+          Cross-session memory for agents, backed by SQLite and FTS5. The next agent finds what the last one wrote, through a tiny 3-tool MCP server.
         </p>
         <p class="font-serif italic font-light text-[15px] text-brass-light/85 max-w-[640px] mb-10 leading-relaxed">
           deja gives agents memory. It doesn&rsquo;t force them to use it.
