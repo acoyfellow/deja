@@ -1,6 +1,6 @@
 {
   "name": "deja",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Local-first agent memory. Agents jot for the next agent.",
   "type": "module",
   "license": "MIT",

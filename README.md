@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/acoyfellow/deja/actions/workflows/ci.yml/badge.svg)](https://github.com/acoyfellow/deja/actions/workflows/ci.yml)
 
-Cross-session memory for agents. Four verbs over SQLite + FTS5, exposed via a 3-tool MCP server.
+Cross-session memory for agents. Four verbs over SQLite + FTS5, exposed via a 4-tool MCP server.
 
 ## Install
 
@@ -84,7 +84,12 @@ The CLI is for humans poking at the DB. Agents use the library or MCP.
 
 ## MCP
 
-Three tools: `recall`, `remember`, `handoff`. Tool descriptions and responses tell the agent how to use them — no SKILL.md, no AGENTS.md, no system-prompt ceremony.
+Four tools: `recall`, `remember`, `handoff`, `signal`. Tool descriptions and responses tell the agent how to use them — no SKILL.md, no AGENTS.md, no system-prompt ceremony.
+
+- `recall(query)` — search. Empty/blank query returns "what's recent" (active handoff + most recent kept slips) instead of running FTS. Use it at session start when you don't have a query yet.
+- `remember(text, keep?)` — jot. Until you call `recall` at least once this session, `remember` and `handoff` responses include a one-paragraph "fyi" pointing at the most recent prior handoff. Structural nudge: forgetful agents still see context.
+- `handoff({summary, next?})` — close the session.
+- `signal(id, action)` — close the loop on a recalled slip. `action`: `"used"` (helpful), `"wrong"` (misleading), `"forget"` (expire, no undo).
 
 ```jsonc
 // ~/.config/claude-code/mcp.json
