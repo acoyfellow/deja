@@ -31,6 +31,8 @@ import type {
   RecallResult,
   RememberOpts,
   Trust,
+  AgentMessage,
+  SendInput,
 } from "./types.ts";
 
 export type {
@@ -40,6 +42,9 @@ export type {
   RecallResult,
   RememberOpts,
   Trust,
+  AgentMessage,
+  SendInput,
+  MessageState,
 } from "./types.ts";
 
 export { defaultDbPath } from "./storage.ts";
@@ -271,6 +276,54 @@ export class Deja {
   /** Record that a recalled slip was misleading. */
   wrong(id: string): void {
     this.storage.bumpWrong(id);
+  }
+
+  // ---------- mailbox ----------
+
+  send(input: SendInput): AgentMessage {
+    const to = input.to.trim();
+    const body = input.body.trim();
+    if (!to) throw new Error("deja.send: to is empty");
+    if (!body) throw new Error("deja.send: body is empty");
+    const now = Date.now();
+    const id = ulid(now);
+    const msg: AgentMessage = {
+      id,
+      threadId: input.threadId ?? id,
+      from: input.from ?? currentAuthor(),
+      to,
+      body,
+      state: "pending",
+      createdAt: now,
+      readAt: null,
+    };
+    this.storage.insertMessage(msg);
+    return msg;
+  }
+
+  inbox(to: string = currentAuthor(), opts: { limit?: number; includeRead?: boolean } = {}): AgentMessage[] {
+    return this.storage.inbox(to, opts.limit ?? 20, opts.includeRead ?? false);
+  }
+
+  read(id: string): boolean {
+    return this.storage.markMessage(id, "read", Date.now());
+  }
+
+  archive(id: string): boolean {
+    return this.storage.markMessage(id, "archived", Date.now());
+  }
+
+  reply(id: string, body: string, from: string = currentAuthor()): AgentMessage {
+    const row = this.storage.db
+      .prepare(`SELECT thread_id, from_author FROM messages WHERE id = ?`)
+      .get(id) as { thread_id: string; from_author: string } | null;
+    if (!row) throw new Error(`deja.reply: message ${id} not found`);
+    this.read(id);
+    return this.send({ to: row.from_author, body, threadId: row.thread_id, from });
+  }
+
+  thread(threadId: string): AgentMessage[] {
+    return this.storage.thread(threadId);
   }
 
   // ---------- introspection ----------

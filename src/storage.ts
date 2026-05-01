@@ -18,6 +18,8 @@ import type {
   Link,
   LinkKind,
   Handoff,
+  AgentMessage,
+  MessageState,
 } from "./types.ts";
 
 export interface StorageOptions {
@@ -69,6 +71,20 @@ CREATE TABLE IF NOT EXISTS handoffs (
   next        TEXT NOT NULL DEFAULT '[]',  -- JSON array of strings
   created_at  INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS messages (
+  id          TEXT PRIMARY KEY,
+  thread_id   TEXT NOT NULL,
+  from_author TEXT NOT NULL,
+  to_author   TEXT NOT NULL,
+  body        TEXT NOT NULL,
+  state       TEXT NOT NULL CHECK (state IN ('pending','read','archived')),
+  created_at  INTEGER NOT NULL,
+  read_at     INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_to_state ON messages(to_author, state, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id, created_at);
 
 -- Porter stemming layered on top of unicode61. Catches morphological
 -- variants ("prefers" matches "preferred", "deploy" matches "deployment").
@@ -147,6 +163,30 @@ function rowToHandoff(r: HandoffRow): Handoff {
     kept: JSON.parse(r.kept) as string[],
     next: JSON.parse(r.next) as string[],
     createdAt: r.created_at,
+  };
+}
+
+interface MessageRow {
+  id: string;
+  thread_id: string;
+  from_author: string;
+  to_author: string;
+  body: string;
+  state: MessageState;
+  created_at: number;
+  read_at: number | null;
+}
+
+function rowToMessage(r: MessageRow): AgentMessage {
+  return {
+    id: r.id,
+    threadId: r.thread_id,
+    from: r.from_author,
+    to: r.to_author,
+    body: r.body,
+    state: r.state,
+    createdAt: r.created_at,
+    readAt: r.read_at,
   };
 }
 
@@ -363,9 +403,47 @@ export class Storage {
     return rows.map(rowToHandoff);
   }
 
+  // ----- messages -----
+
+  insertMessage(m: AgentMessage): void {
+    this.db
+      .prepare(
+        `INSERT INTO messages
+         (id, thread_id, from_author, to_author, body, state, created_at, read_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(m.id, m.threadId, m.from, m.to, m.body, m.state, m.createdAt, m.readAt);
+  }
+
+  inbox(to: string, limit = 20, includeRead = false): AgentMessage[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM messages
+         WHERE to_author = ? AND (? OR state = 'pending')
+         ORDER BY created_at ASC LIMIT ?`,
+      )
+      .all(to, includeRead ? 1 : 0, limit) as MessageRow[];
+    return rows.map(rowToMessage);
+  }
+
+  thread(threadId: string): AgentMessage[] {
+    const rows = this.db
+      .prepare(`SELECT * FROM messages WHERE thread_id = ? ORDER BY created_at ASC`)
+      .all(threadId) as MessageRow[];
+    return rows.map(rowToMessage);
+  }
+
+  markMessage(id: string, state: MessageState, now: number): boolean {
+    const readAt = state === "read" ? now : null;
+    const res = this.db
+      .prepare(`UPDATE messages SET state = ?, read_at = COALESCE(read_at, ?) WHERE id = ?`)
+      .run(state, readAt, id);
+    return res.changes > 0;
+  }
+
   // ----- diagnostics -----
 
-  counts(): { slips: number; kept: number; drafts: number; handoffs: number } {
+  counts(): { slips: number; kept: number; drafts: number; handoffs: number; messages: number; pending: number } {
     const total = (
       this.db.prepare(`SELECT COUNT(*) AS n FROM slips`).get() as { n: number }
     ).n;
@@ -382,6 +460,14 @@ export class Storage {
     const handoffs = (
       this.db.prepare(`SELECT COUNT(*) AS n FROM handoffs`).get() as { n: number }
     ).n;
-    return { slips: total, kept, drafts, handoffs };
+    const messages = (
+      this.db.prepare(`SELECT COUNT(*) AS n FROM messages`).get() as { n: number }
+    ).n;
+    const pending = (
+      this.db
+        .prepare(`SELECT COUNT(*) AS n FROM messages WHERE state = 'pending'`)
+        .get() as { n: number }
+    ).n;
+    return { slips: total, kept, drafts, handoffs, messages, pending };
   }
 }

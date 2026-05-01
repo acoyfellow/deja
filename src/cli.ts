@@ -28,6 +28,7 @@ function usage(): never {
   console.log(`deja — local-first agent memory
 
 Usage:
+  deja as <author> <command...>  Run a command as an agent identity
   deja init                  Create the DB + print MCP wiring snippet
   deja mcp                   Run the MCP server (stdio — for agent clients)
   deja verify                Check DB
@@ -36,6 +37,10 @@ Usage:
   deja show <id>             Show a slip + its links
   deja stats                 Print counts and DB path
   deja handoffs              List recent handoffs
+  deja send <to> <message>   Send async mailbox message
+  deja inbox [to]            Read unread mailbox messages
+  deja read <id>             Mark message read
+  deja reply <id> <message>  Reply to a message
 
 Env:
   DEJA_AUTHOR    Identity recorded with new slips (default: unknown-agent)
@@ -47,6 +52,10 @@ Env:
 
 function dbPath(): string {
   return process.env.DEJA_DB ?? defaultDbPath();
+}
+
+function author(): string {
+  return process.env.DEJA_AUTHOR ?? "unknown-agent";
 }
 
 function fmtSlip(s: ReturnType<Deja["get"]> & object): string {
@@ -114,6 +123,7 @@ function cmdVerify(): void {
   const c = d.counts();
   console.log(`slips: ${c.slips} (${c.kept} kept, ${c.drafts} draft)`);
   console.log(`handoffs: ${c.handoffs}`);
+  console.log(`messages: ${c.messages} (${c.pending} pending)`);
   d.close();
   console.log(`session: ${currentSessionId()}`);
 }
@@ -192,6 +202,59 @@ function cmdStats(): void {
   console.log(`  drafts: ${c.drafts}`);
   console.log(`  expired:${c.slips - c.kept - c.drafts}`);
   console.log(`handoffs: ${c.handoffs}`);
+  console.log(`messages: ${c.messages}`);
+  console.log(`  pending:${c.pending}`);
+  d.close();
+}
+
+function fmtMsg(m: ReturnType<Deja["inbox"]>[number]): string {
+  const date = new Date(m.createdAt).toISOString().slice(0, 19);
+  return `${m.id}  ${m.state}  ${date}  ${m.from} -> ${m.to}  thread ${m.threadId}\n  ${m.body.replace(/\n/g, "\n  ")}`;
+}
+
+function cmdSend(args: string[]): void {
+  const to = args[0];
+  const body = args.slice(1).join(" ").trim();
+  if (!to || !body) {
+    console.error("usage: deja send <to> <message>");
+    process.exit(1);
+  }
+  const d = new Deja({ path: dbPath(), skipGc: true });
+  const m = d.send({ to, body });
+  console.log(fmtMsg(m));
+  d.close();
+}
+
+function cmdInbox(args: string[]): void {
+  const to = args.find((a) => a !== "--all") ?? author();
+  const d = new Deja({ path: dbPath(), skipGc: true });
+  const msgs = d.inbox(to, { includeRead: args.includes("--all") });
+  if (msgs.length === 0) console.log(`(no unread messages for ${to})`);
+  for (const m of msgs) console.log(fmtMsg(m) + "\n");
+  d.close();
+}
+
+function cmdRead(args: string[]): void {
+  const id = args[0];
+  if (!id) {
+    console.error("usage: deja read <id>");
+    process.exit(1);
+  }
+  const d = new Deja({ path: dbPath(), skipGc: true });
+  console.log(d.read(id) ? `read ${id}` : `message ${id} not found`);
+  d.close();
+}
+
+function cmdReply(args: string[]): void {
+  const id = args[0];
+  const body = args.slice(1).join(" ").trim();
+  if (!id || !body) {
+    console.error("usage: deja reply <id> <message>");
+    process.exit(1);
+  }
+  const d = new Deja({ path: dbPath(), skipGc: true });
+  const m = d.reply(id, body);
+  console.log(fmtMsg(m));
   d.close();
 }
 
@@ -216,7 +279,16 @@ function cmdHandoffs(): void {
   d.close();
 }
 
-const [, , cmd, ...rest] = process.argv;
+let [, , cmd, ...rest] = process.argv;
+if (cmd === "as") {
+  const who = rest.shift();
+  if (!who || rest.length === 0) {
+    console.error("usage: deja as <author> <command...>");
+    process.exit(1);
+  }
+  process.env.DEJA_AUTHOR = who;
+  cmd = rest.shift();
+}
 switch (cmd) {
   case "init":
     await cmdInit();
@@ -245,6 +317,18 @@ switch (cmd) {
     break;
   case "handoffs":
     cmdHandoffs();
+    break;
+  case "send":
+    cmdSend(rest);
+    break;
+  case "inbox":
+    cmdInbox(rest);
+    break;
+  case "read":
+    cmdRead(rest);
+    break;
+  case "reply":
+    cmdReply(rest);
     break;
   default:
     usage();

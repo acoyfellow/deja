@@ -154,6 +154,33 @@ export function dispatch(
             };
         }
       }
+      case "send": {
+        const to = String(args.to ?? "");
+        const body = String(args.body ?? "");
+        const threadId = args.threadId ? String(args.threadId) : undefined;
+        const msg = deja.send({ to, body, threadId });
+        return { text: `sent ${msg.id} to ${msg.to} (thread ${msg.threadId})` };
+      }
+      case "inbox": {
+        const to = String(args.to ?? process.env.DEJA_AUTHOR ?? "unknown-agent");
+        const limit = Number(args.limit ?? 20);
+        const includeRead = Boolean(args.includeRead ?? false);
+        const msgs = deja.inbox(to, { limit, includeRead });
+        if (msgs.length === 0) return { text: `(no ${includeRead ? "" : "unread "}messages for ${to})` };
+        return { text: msgs.map((m) => `${m.id}  ${m.state}  ${new Date(m.createdAt).toISOString()}  from ${m.from}  thread ${m.threadId}\n${m.body}`).join("\n\n") };
+      }
+      case "read": {
+        const id = String(args.id ?? "");
+        if (!id) return { text: "error: id is required", isError: true };
+        const ok = deja.read(id);
+        return { text: ok ? `read ${id}` : `message ${id} not found`, ...(ok ? {} : { isError: true }) };
+      }
+      case "reply": {
+        const id = String(args.id ?? "");
+        const body = String(args.body ?? "");
+        const msg = deja.reply(id, body);
+        return { text: `replied ${msg.id} to ${msg.to} (thread ${msg.threadId})` };
+      }
       default:
         return { text: `unknown tool: ${name}`, isError: true };
     }
@@ -262,6 +289,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
         required: ["id", "action"],
       },
+    },
+    {
+      name: "send",
+      description: "Send a short async message to another local agent identity. This is mailbox-only: the recipient must call inbox. Use to coordinate with Pi/OpenCode/Claude/etc. Set to the recipient's DEJA_AUTHOR.",
+      inputSchema: { type: "object", properties: { to: { type: "string" }, body: { type: "string" }, threadId: { type: "string" } }, required: ["to", "body"] },
+    },
+    {
+      name: "inbox",
+      description: "Read messages addressed to an agent identity (default: this process's DEJA_AUTHOR). Call this when starting, when asked to check for work, or after sending a message and waiting for a reply.",
+      inputSchema: { type: "object", properties: { to: { type: "string" }, limit: { type: "number", default: 20 }, includeRead: { type: "boolean", default: false } } },
+    },
+    {
+      name: "read",
+      description: "Mark a mailbox message read by id.",
+      inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+    },
+    {
+      name: "reply",
+      description: "Reply to a mailbox message by id. The reply goes to the original sender and stays in the same thread.",
+      inputSchema: { type: "object", properties: { id: { type: "string" }, body: { type: "string" } }, required: ["id", "body"] },
     },
   ],
 }));

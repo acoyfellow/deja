@@ -46,6 +46,17 @@ d.handoff({ summary, next? })   // close the session for whoever comes next. one
 d.recall(query)                 // find slips, plus the most recent handoff
 ```
 
+## Tiny mailbox
+
+Minimum viable dogfood for two local agents. Address messages to the other agent's `DEJA_AUTHOR`; delivery is async/pull-only. No daemon, no live TUI injection.
+
+```ts
+d.send({ to: "opencode-reviewer", body: "review the diff" })
+d.inbox("opencode-reviewer")
+d.reply(messageId, "found one blocker")
+d.read(messageId)
+```
+
 Plus three signals that don't change the lifecycle:
 
 ```ts

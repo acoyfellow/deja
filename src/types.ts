@@ -95,3 +95,23 @@ export interface HandoffInput {
   sessionId?: string;
   authoredBy?: string;
 }
+
+export type MessageState = "pending" | "read" | "archived";
+
+export interface AgentMessage {
+  id: string;
+  threadId: string;
+  from: string;
+  to: string;
+  body: string;
+  state: MessageState;
+  createdAt: number;
+  readAt: number | null;
+}
+
+export interface SendInput {
+  to: string;
+  body: string;
+  threadId?: string;
+  from?: string;
+}
