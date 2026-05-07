@@ -337,25 +337,21 @@ export class Storage {
   }
 
   linksFrom(id: string): Link[] {
-    const rows = this.db
-      .prepare(`SELECT from_id, to_id, kind, created_at FROM links WHERE from_id = ?`)
-      .all(id) as Array<{
-      from_id: string;
-      to_id: string;
-      kind: LinkKind;
-      created_at: number;
-    }>;
-    return rows.map((r) => ({
-      fromId: r.from_id,
-      toId: r.to_id,
-      kind: r.kind,
-      createdAt: r.created_at,
-    }));
+    return this.linksByColumn("from_id", id);
   }
 
   linksTo(id: string): Link[] {
+    return this.linksByColumn("to_id", id);
+  }
+
+  /**
+   * Shared body for `linksFrom` / `linksTo`. The two methods differ only in
+   * which column they filter on; everything else (selection, row-to-Link
+   * mapping) is identical.
+   */
+  private linksByColumn(column: "from_id" | "to_id", id: string): Link[] {
     const rows = this.db
-      .prepare(`SELECT from_id, to_id, kind, created_at FROM links WHERE to_id = ?`)
+      .prepare(`SELECT from_id, to_id, kind, created_at FROM links WHERE ${column} = ?`)
       .all(id) as Array<{
       from_id: string;
       to_id: string;
