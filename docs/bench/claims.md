@@ -1,13 +1,19 @@
-# Claim -> evidence map
+# Claim → evidence map
 
-Every strong product claim should point at a runnable experiment, loop transcript,
-or explicit known failure. Claims without evidence should be phrased as hypotheses.
+Strong claims require runnable evidence. Unit tests establish implementation behavior; they do not by themselves prove that agents perform better.
 
-| Claim | Status | Evidence | Next proof needed |
+| Claim | Status | Evidence | Next proof required |
 |---|---|---|---|
-| deja can retrieve recorded lexical memories. | Supported | `bench/recall.ts`, `docs/bench/latest.txt` | Keep fixture bench in CI. |
-| Specific recall-trigger wording should improve when agents use memory. | Proxy-supported | `bench/behavior/run.ts`, `docs/bench/behavior-latest.md#recall-trigger-policy-pass` | Replace proxy with real agent transcripts over the same prompt battery. |
-| Structured handoff packets may improve cross-session continuation. | Proxy-supported hypothesis | `bench/behavior/run.ts`, `docs/bench/behavior-latest.md#handoff-structure-pass` | Run LLM-in-the-loop freeform vs structured handoff A/B. |
-| Supersedes/contradicts links reduce stale-memory harm. | Proxy-supported hypothesis | `bench/behavior/run.ts`, `docs/bench/behavior-latest.md#stale-preference-pass`; storage + MCP link surfacing tests | Add agent behavior fixture: old jest vs new vitest. |
-| deja improves parallel agent coordination. | Hypothesis | `docs/agents/parallel-dogfood.md` | Run baseline vs deja-assisted parallel worker loop. |
-| deja does not force agents to use memory. | Known limit | `docs/loops/2026-04-25-loop-3-three-meta-tools.md`, `docs/loops/2026-04-25-loop-4-cross-session-chain.md` | Continue recall-trigger experiments. |
+| Local Deja isolates ordinary memory and handoffs by repository. | Supported | `test/context.test.ts`, scoped storage/API tests in `test/storage.test.ts` and `test/deja.test.ts` | Sample wrong-project rate from assessed real recalls. |
+| Recall is local and token-bounded. | Supported | SQLite/FTS implementation; budget fixture in `test/deja.test.ts` | Measure p95 packet tokens and latency on real databases. |
+| Supersession prevents an old lexical match from overriding current memory. | Supported | supersession recall fixture in `test/deja.test.ts`; link formatting tests | Multi-session agent behavior fixture. |
+| Completed handoffs stop directing future agents. | Supported | handoff lifecycle API and MCP tests | Real continuation sessions with resolved work. |
+| Trust does not conflate BM25 relevance with truth. | Supported | `trustForSlip` lifecycle fixtures; formatted-output tests | Calibrate useful/wrong thresholds from real outcomes. |
+| Deja records retrieval evidence without copying memory text into traces. | Supported | recall trace schema and content-free test in `test/deja.test.ts` | Accumulate and publish an assessed sample. |
+| Deja retrieves the eight lexical smoke memories. | Supported, narrow | `bench/recall.ts`, `docs/bench/latest.txt` | Expand to 100+ real and paraphrased cases. |
+| Specific tool wording should improve appropriate recall. | Proxy-supported | `bench/behavior/run.ts`, `docs/bench/behavior-latest.md` | Baseline-vs-Deja agent transcripts. |
+| Structured handoffs may improve continuation. | Proxy-supported hypothesis | behavioral bench plus loop 4 c3 | Controlled multi-model A/B. |
+| Deja reduces repeated work or total tokens. | Hypothesis | loop 4 estimates and instrumentation | Fixed-task baseline-vs-Deja runs with token accounting. |
+| Shared writes are committed before receipts and mirrors expose stale gaps. | Supported in local/deployed experiments | shared tests; experiments 05–10; implementation contract | Personal production dogfood after security review. |
+| Shared Deja is safe to deploy publicly or for employees. | **Not supported / blocked** | `docs/shared-security-review.md` | Identity, revocation, retention, content policy, audit, and encryption decisions. |
+| Semantic/vector recall is necessary. | Unproven | no current qualifying eval | Real lexical misses and paraphrase corpus first. |

@@ -7,6 +7,8 @@ function slip(id: string, text: string): Slip {
     id,
     sessionId: "s",
     authoredBy: "test",
+    scope: "repo:test",
+    kind: "note",
     text,
     tags: [],
     state: "kept",
@@ -21,12 +23,40 @@ function slip(id: string, text: string): Slip {
 function result(id: string, text: string): RecallResult {
   return {
     query: "test runner",
+    traceId: "trace-1",
     activeHandoff: null,
-    hits: [{ slip: slip(id, text), score: -1, trust: "high" }],
+    hits: [{ slip: slip(id, text), score: -1, trust: "high", nextAgent: { read: "skip", score: 0, reasons: [], penalties: [] } }],
+    readFirst: [],
   };
 }
 
 describe("formatRecall", () => {
+  test("explains evidence trust and emits compact provenance", () => {
+    const text = formatRecall(result("memory", "use vitest"));
+    expect(text).toContain("high — repeatedly useful");
+    expect(text).not.toContain("the user recorded this");
+    expect(text).toContain("source: test · scope: repo:test · session: s");
+    expect(text).toContain("used/wrong: 0/0");
+  });
+
+  test("old active handoffs are advisory, not silent directives", () => {
+    const r = result("memory", "use vitest");
+    r.activeHandoff = {
+      id: "handoff",
+      sessionId: "old",
+      authoredBy: "test",
+      scope: "repo:test",
+      summary: "deploy immediately",
+      kept: [],
+      next: [],
+      status: "active",
+      automatic: false,
+      createdAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
+      resolvedAt: null,
+    };
+    expect(formatRecall(r)).toContain("stale handoff · 4d old · verify before acting");
+  });
+
   test("surfaces outgoing supersedes and contradicts links", () => {
     const linksFrom: Link[] = [
       { fromId: "new", toId: "old", kind: "supersedes", createdAt: 3 },

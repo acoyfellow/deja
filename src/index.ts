@@ -21,9 +21,13 @@ import {
   currentSessionId,
   draftCutoff,
   isChainShaped,
-  trustFromScore,
+  trustForSlip,
+  inferMemoryKind,
 } from "./lifecycle.ts";
 import { ulid } from "./ulid.ts";
+import { deliverPiTurn } from "./pi-turn.ts";
+import { rankForNextAgent } from "./next-agent.ts";
+import { currentMemoryContext, type MemoryContext } from "./context.ts";
 import type {
   Slip,
   Handoff,
@@ -33,6 +37,10 @@ import type {
   Trust,
   AgentMessage,
   SendInput,
+  RecallOptions,
+  RecallAssessment,
+  HandoffStatus,
+  LinkKind,
 } from "./types.ts";
 
 export type {
@@ -45,11 +53,40 @@ export type {
   AgentMessage,
   SendInput,
   MessageState,
+  RecallTrace,
+  RecallOptions,
+  RecallAssessment,
+  HandoffStatus,
+  LinkKind,
+  MemoryKind,
 } from "./types.ts";
 
 export { defaultDbPath } from "./storage.ts";
+export { VERSION } from "./version.ts";
+export { SharedDeja } from "./shared-client/index.ts";
+export type { SharedDejaOptions, SharedRememberOptions, SharedHandoffOptions } from "./shared-client/index.ts";
+export type {
+  SharedMemoryEvent,
+  SharedDeletePayload,
+  SharedHandoffPayload,
+  SharedPurgedRememberPayload,
+  SharedRememberPayload,
+  SharedSignalAction,
+  SharedSignalPayload,
+  SharedWriteReceipt,
+  SharedAuthorityStatus,
+  SharedEventsResponse,
+} from "./shared-contract.ts";
 
 export interface DejaOptions extends StorageOptions {
+  /** Override automatic repository scope. Defaults to DEJA_SCOPE or current git repository. */
+  scope?: string;
+  /** Include pre-scope rows imported as legacy:global. Default: false. */
+  includeLegacy?: boolean;
+  /** Experimental reasons/penalties ranker. Off until real-session evals pass. */
+  experimentalNextAgentRanking?: boolean;
+  /** Record query + returned ids (never memory text) for real recall evals. Default: true. */
+  recordRecallTraces?: boolean;
   /** Skip auto-GC of expired drafts on init. Default: false. */
   skipGc?: boolean;
   /**
@@ -76,10 +113,18 @@ export interface KeepOptions {
 export class Deja {
   readonly storage: Storage;
   readonly options: DejaOptions;
+  readonly context: MemoryContext;
+  readonly scope: string;
 
   constructor(opts: DejaOptions = {}) {
     this.storage = new Storage(opts);
-    this.options = opts;
+    this.options = {
+      ...opts,
+      includeLegacy: opts.includeLegacy ?? process.env.DEJA_INCLUDE_LEGACY === "1",
+    };
+    const derived = currentMemoryContext();
+    this.context = opts.scope ? { ...derived, scope: opts.scope, source: "env" } : derived;
+    this.scope = this.context.scope;
     if (!opts.skipGc) this.gc();
   }
 
@@ -98,23 +143,57 @@ export class Deja {
    * Recall slips relevant to `query`. Returns ranked hits + the active
    * handoff for the current session (if any).
    */
-  recall(query: string, limit: number = 8): RecallResult {
+  recall(query: string, limitOrOptions: number | RecallOptions = 8): RecallResult {
+    const options: RecallOptions = typeof limitOrOptions === "number"
+      ? { limit: limitOrOptions }
+      : limitOrOptions;
+    const limit = options.limit ?? 8;
     const sessionId = currentSessionId();
-    const raw = this.storage.searchFts(query, limit);
-    const hits = raw.map((r) => ({
-      slip: r.slip,
-      score: r.score,
-      trust: trustFromScore(r.score),
-    }));
-    // Surface this session's handoff if it exists, otherwise fall back to
-    // the most recent handoff from any prior session. Most prompts that
-    // ask "what were we working on" come from a fresh session and want
-    // the previous agent's signoff.
+    const raw = query.trim()
+      ? this.storage.searchFts(
+          query,
+          Math.max(limit, limit * 2),
+          this.scope,
+          this.options.includeLegacy,
+          options.kinds,
+        )
+      : this.storage
+          .listKept(Math.max(limit, limit * 2), this.scope, this.options.includeLegacy, options.kinds)
+          .map((slip) => ({ slip, score: 0 }));
+    const seen = new Set<string>();
+    const hits = raw.flatMap((candidate) => {
+      const slip = this.storage.activeSuperseder(candidate.slip.id, this.scope) ?? candidate.slip;
+      if (seen.has(slip.id)) return [];
+      seen.add(slip.id);
+      return [{ slip, score: candidate.score, trust: trustForSlip(slip) }];
+    });
+    // Surface this session's active handoff if it exists, otherwise fall
+    // back to the most recent active handoff in this repository scope.
     const activeHandoff =
-      this.storage.getHandoffBySession(sessionId) ??
-      this.storage.latestHandoffs(1)[0] ??
+      this.storage.getActiveHandoffBySession(sessionId, this.scope) ??
+      this.storage.latestHandoffs(1, this.scope, this.options.includeLegacy)[0] ??
       null;
-    return { query, hits, activeHandoff };
+    let result: RecallResult;
+    if (this.options.experimentalNextAgentRanking) {
+      const ranked = rankForNextAgent(query, hits);
+      result = { query, traceId: "", hits: ranked.hits, readFirst: ranked.readFirst, activeHandoff };
+    } else {
+      const unranked = hits.map((hit) => ({
+        ...hit,
+        nextAgent: { read: "skip" as const, score: 0, reasons: [], penalties: [] },
+      }));
+      result = { query, traceId: "", hits: unranked, readFirst: [], activeHandoff };
+    }
+    result.hits = fitRecallBudget(result.hits, options.maxTokens ?? 1200).slice(0, limit);
+    result.readFirst = result.readFirst.filter((hit) =>
+      result.hits.some((candidate) => candidate.slip.id === hit.slip.id)
+    );
+    result.traceId = this.recordRecallTrace(
+      result.query,
+      result.hits.map((hit) => hit.slip.id),
+      result.activeHandoff?.id ?? null,
+    );
+    return result;
   }
 
   /**
@@ -130,6 +209,8 @@ export class Deja {
       id: ulid(now),
       sessionId: opts.sessionId ?? currentSessionId(),
       authoredBy: opts.authoredBy ?? currentAuthor(),
+      scope: opts.scope ?? this.scope,
+      kind: opts.kind ?? inferMemoryKind(trimmed, opts.tags),
       text: trimmed,
       tags: opts.tags ?? [],
       state: "draft",
@@ -194,10 +275,10 @@ export class Deja {
     // Only roll up for slips authored in the current session — don't
     // hijack another session's handoff slot.
     const sessionId = currentSessionId();
-    const ours = chainSlips.filter((s) => s.sessionId === sessionId);
+    const ours = chainSlips.filter((s) => s.sessionId === sessionId && s.scope === this.scope);
     if (ours.length === 0) return;
 
-    if (this.storage.getHandoffBySession(sessionId)) return;
+    if (this.storage.getHandoffBySession(sessionId, this.scope)) return;
 
     // Synthesize a summary from the chain-shaped slips. Keep it short;
     // the full text is in the kept slips themselves.
@@ -207,7 +288,7 @@ export class Deja {
       .slice(0, 1200);
 
     try {
-      this.handoff({ summary });
+      this.handoff({ summary, automatic: true });
     } catch {
       // Race or other handoff conflict — drop the rollup. Slips are
       // still kept, so no data loss.
@@ -225,8 +306,8 @@ export class Deja {
     const sessionId = input.sessionId ?? currentSessionId();
     const authoredBy = input.authoredBy ?? currentAuthor();
 
-    const existing = this.storage.getHandoffBySession(sessionId);
-    if (existing) {
+    const existing = this.storage.getHandoffBySession(sessionId, input.scope ?? this.scope);
+    if (existing && (input.automatic || !existing.automatic)) {
       throw new Error(
         `deja.handoff: session ${sessionId} already has a handoff (${existing.id}). One handoff per session.`,
       );
@@ -234,7 +315,8 @@ export class Deja {
 
     // Promote everything kept-eligible in this session to kept,
     // collect the ids for the handoff packet.
-    const sessionSlips = this.storage.listBySession(sessionId);
+    const scope = input.scope ?? this.scope;
+    const sessionSlips = this.storage.listBySession(sessionId, scope);
     const now = Date.now();
     const keptIds: string[] = [];
     for (const s of sessionSlips) {
@@ -250,13 +332,71 @@ export class Deja {
       id: ulid(now),
       sessionId,
       authoredBy,
+      scope,
       summary,
       kept: keptIds,
       next: input.next ?? [],
+      status: input.status ?? "active",
+      automatic: input.automatic ?? false,
       createdAt: now,
+      resolvedAt: null,
     };
-    this.storage.insertHandoff(h);
+    if (existing?.automatic && !input.automatic) {
+      this.storage.replaceAutomaticHandoff(existing.id, h);
+    } else {
+      this.storage.insertHandoff(h);
+    }
     return h;
+  }
+
+  /** Record query + ids, without duplicating memory text, for later evaluation. */
+  recordRecallTrace(query: string, hitIds: string[], handoffId: string | null): string | null {
+    if (this.options.recordRecallTraces === false) return null;
+    const now = Date.now();
+    const id = ulid(now);
+    this.storage.recordRecall({
+      id,
+      sessionId: currentSessionId(),
+      authoredBy: currentAuthor(),
+      scope: this.scope,
+      query,
+      hitIds,
+      handoffId,
+      createdAt: now,
+      assessment: null,
+      assessedAt: null,
+      note: null,
+    });
+    return id;
+  }
+
+  assessRecall(traceId: string, assessment: RecallAssessment, note?: string): boolean {
+    return this.storage.assessRecall(traceId, assessment, note?.trim() || null, Date.now());
+  }
+
+  recallReport() {
+    return this.storage.recallReport(this.scope);
+  }
+
+  resolveHandoff(id: string, status: Exclude<HandoffStatus, "active"> = "completed"): boolean {
+    return this.storage.resolveHandoff(id, status, Date.now());
+  }
+
+  link(fromId: string, toId: string, kind: LinkKind): boolean {
+    const from = this.get(fromId);
+    const to = this.get(toId);
+    if (!from || !to) return false;
+    if (from.scope !== this.scope || to.scope !== this.scope) return false;
+    this.storage.insertLink({ fromId, toId, kind, createdAt: Date.now() });
+    return true;
+  }
+
+  forgetSession(sessionId: string = currentSessionId()): number {
+    let count = 0;
+    for (const slip of this.storage.listBySession(sessionId, this.scope)) {
+      if (this.forget(slip.id)) count += 1;
+    }
+    return count;
   }
 
   // ---------- signals ----------
@@ -298,6 +438,10 @@ export class Deja {
       readAt: null,
     };
     this.storage.insertMessage(msg);
+    const delivery = deliverPiTurn(to, body);
+    if (delivery.reason !== "not-pi-target") {
+      msg.delivery = { transport: "pi-turn-trigger", ...delivery };
+    }
     return msg;
   }
 
@@ -333,20 +477,35 @@ export class Deja {
   }
 
   listSession(sessionId?: string): Slip[] {
-    return this.storage.listBySession(sessionId ?? currentSessionId());
+    return this.storage.listBySession(sessionId ?? currentSessionId(), this.scope);
   }
 
   listKept(limit: number = 50): Slip[] {
-    return this.storage.listKept(limit);
+    return this.storage.listKept(limit, this.scope, this.options.includeLegacy);
   }
 
   latestHandoffs(limit: number = 5): Handoff[] {
-    return this.storage.latestHandoffs(limit);
+    return this.storage.latestHandoffs(limit, this.scope, this.options.includeLegacy);
   }
 
   counts() {
     return this.storage.counts();
   }
+}
+
+function fitRecallBudget<T extends { slip: Slip }>(hits: T[], maxTokens: number): T[] {
+  if (!Number.isFinite(maxTokens) || maxTokens <= 0) return [];
+  const selected: T[] = [];
+  let used = 0;
+  for (const hit of hits) {
+    // Deliberately cheap and deterministic. English/code averages near four
+    // characters per token; provenance/formatting receives a fixed allowance.
+    const estimate = Math.ceil(hit.slip.text.length / 4) + 42;
+    if (selected.length > 0 && used + estimate > maxTokens) break;
+    selected.push(hit);
+    used += estimate;
+  }
+  return selected;
 }
 
 /** Open a deja instance at the default path (~/.deja/deja.db). */

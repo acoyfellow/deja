@@ -10,7 +10,7 @@
  */
 
 import { ulid } from "./ulid.ts";
-import type { Trust } from "./types.ts";
+import type { MemoryKind, Slip, Trust } from "./types.ts";
 
 export const DRAFT_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
@@ -42,20 +42,16 @@ export function currentAuthor(): string {
 }
 
 /**
- * Bucket a raw FTS5 BM25 score into a coarse trust label.
- * BM25 is "lower is better" — we invert the intuition for the agent.
+ * Trust describes memory evidence, not lexical relevance.
  *
- * These thresholds are calibrated for the unicode61 tokenizer with
- * default k1/b. They're approximate; the goal is "obviously good /
- * obviously bad / it depends" not numerical precision.
+ * BM25 answers "does this text match the query?"; it cannot establish that
+ * the claim is true. A kept memory starts at medium, repeated successful use
+ * can promote it to high, and any unresolved wrong signal makes it low.
  */
-export function trustFromScore(score: number): Trust {
-  // Note: bun:sqlite returns NEGATIVE bm25 scores by convention
-  // (FTS5 negates so ORDER BY ASC = best first). So a "lower" score
-  // is a more negative number = better match.
-  if (score <= -2.5) return "high";
-  if (score <= -1.0) return "medium";
-  return "low";
+export function trustForSlip(slip: Slip): Trust {
+  if (slip.state !== "kept" || slip.wrongCount > 0) return "low";
+  if (slip.usedCount >= 2) return "high";
+  return "medium";
 }
 
 /** ms cutoff for "drafts older than this should be expired". */
@@ -86,4 +82,16 @@ export function isChainShaped(text: string, tags: string[]): boolean {
   if (CHAIN_TEXT_PATTERN.test(text)) return true;
   if (CHAIN_TAG_PATTERN.test(tags.join(" "))) return true;
   return false;
+}
+
+/** Conservative, deterministic fallback. Agents can always provide `kind`. */
+export function inferMemoryKind(text: string, tags: string[] = []): MemoryKind {
+  const value = `${tags.join(" ")} ${text}`.toLowerCase();
+  if (/\b(pitfall|gotcha|sharp edge|do not|don't|never|failed|failure|broke|wrong)\b/.test(value)) return "pitfall";
+  if (/\b(procedure|steps?|runbook|how to|workflow|recipe)\b/.test(value)) return "procedure";
+  if (/\b(preference|prefers?|always wants?|likes?)\b/.test(value)) return "preference";
+  if (/\b(decision|decided|chose|we picked|will use)\b/.test(value)) return "decision";
+  if (/\b(wip|in progress|blocked|todo|next step|currently)\b/.test(value)) return "wip";
+  if (/\b(fact|confirmed|verified|finding|observation)\b/.test(value)) return "fact";
+  return "note";
 }

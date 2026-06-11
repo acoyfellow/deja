@@ -1,7 +1,7 @@
 {
   "name": "deja",
-  "version": "0.0.3",
-  "description": "Local-first agent memory. Agents jot for the next agent.",
+  "version": "0.1.0",
+  "description": "Repository-scoped memory and handoffs for coding agents.",
   "type": "module",
   "license": "MIT",
   "author": "coey",
@@ -16,8 +16,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./mcp": "./src/mcp.ts",
+    "./shared-mcp": "./src/shared-mcp.ts",
     "./storage": "./src/storage.ts",
-    "./lifecycle": "./src/lifecycle.ts"
+    "./lifecycle": "./src/lifecycle.ts",
+    "./context": "./src/context.ts"
   },
   "bin": {
     "deja": "./src/cli.ts"
@@ -25,13 +27,21 @@
   "files": [
     "src",
     "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "docs/ROADMAP.md",
+    "docs/shared-memory.md",
+    "docs/shared-memory-implementation-contract.md",
+    "docs/shared-security-review.md",
     "LICENSE"
   ],
   "scripts": {
-    "test": "bun test",
+    "test": "bun test ./test",
     "typecheck": "tsc --noEmit",
     "cli": "bun run src/cli.ts",
     "mcp": "bun run src/mcp.ts",
+    "mcp:shared": "bun run src/shared-mcp.ts",
+    "check": "bun test ./test && bun run typecheck && bun run bench/recall.ts && bun run bench:behavior",
     "bench:behavior": "bun run bench/behavior/run.ts"
   },
   "dependencies": {

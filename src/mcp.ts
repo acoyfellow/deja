@@ -2,16 +2,12 @@
 /**
  * deja MCP server — local stdio.
  *
- * Four tools, matching the four-verb library plus a feedback channel:
- *   recall    — search; returns hits + active handoff. Empty/blank query
- *               returns "what's recent": active handoff + N most recent
- *               kept slips (no FTS).
- *   remember  — jot a slip (draft by default; pass keep=true to skip the draft step)
- *   handoff   — close the session with a summary
- *   signal    — close the loop on a recalled slip:
- *                 action="used"    -> bump usedCount (slip was helpful)
- *                 action="wrong"   -> bump wrongCount (slip was misleading)
- *                 action="forget"  -> expire the slip (no undo)
+ * Agent tools:
+ *   recall / remember / handoff / resolve_handoff
+ *   signal / link / assess
+ *
+ * Optional local coordination tools:
+ *   send / inbox / read / reply
  *
  * `keep` is folded into `remember(keep: true)` because MCP clients tend
  * to treat tools as one-shot — promoting separately is friction. The
@@ -33,6 +29,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { Deja, defaultDbPath } from "./index.ts";
 import { formatRecall, formatRecents } from "./format.ts";
+import { VERSION } from "./version.ts";
 
 /**
  * Dispatch state. Exposed only for tests / harnesses that want to
@@ -78,32 +75,37 @@ export function dispatch(
       case "recall": {
         const query = String(args.query ?? "");
         const limit = Number(args.limit ?? 8);
+        const maxTokens = Number(args.maxTokens ?? 900);
+        const kinds = Array.isArray(args.kinds) ? args.kinds as import("./types.ts").MemoryKind[] : undefined;
         state.recallSeen = true;
 
         if (query.trim().length === 0) {
-          const activeHandoff =
-            deja.storage.getHandoffBySession(
-              process.env.DEJA_SESSION ?? "",
-            ) ?? deja.latestHandoffs(1)[0] ?? null;
-          const recent = deja.listKept(limit);
-          return { text: formatRecents(activeHandoff, recent) };
+          const recent = deja.recall("", { limit, maxTokens, kinds });
+          return { text: formatRecents(recent.activeHandoff, recent.hits.map((hit) => hit.slip), recent.traceId) };
         }
 
-        const r = deja.recall(query, limit);
+        const r = deja.recall(query, { limit, maxTokens, kinds });
         return { text: formatRecall(r, deja.storage) };
       }
       case "remember": {
         const text = String(args.text ?? "");
         const tags = args.tags as string[] | undefined;
+        const kind = args.kind as import("./types.ts").MemoryKind | undefined;
         const keep = Boolean(args.keep ?? false);
-        const slip = deja.remember(text, { tags });
+        const supersedes = Array.isArray(args.supersedes) ? args.supersedes.map(String) : [];
+        const contradicts = Array.isArray(args.contradicts) ? args.contradicts.map(String) : [];
+        const links = [
+          ...supersedes.map((toId) => ({ toId, kind: "supersedes" as const })),
+          ...contradicts.map((toId) => ({ toId, kind: "contradicts" as const })),
+        ];
+        const slip = deja.remember(text, { tags, kind, links });
 
         let rolledUpHandoff: string | null = null;
         if (keep) {
           deja.keep([slip.id]);
           const sessionSlips = deja.listSession();
           if (sessionSlips.length > 0 && sessionSlips[0]) {
-            const h = deja.storage.getHandoffBySession(sessionSlips[0].sessionId);
+            const h = deja.storage.getHandoffBySession(sessionSlips[0].sessionId, deja.scope);
             if (h && Math.abs(h.createdAt - Date.now()) < 5000) {
               rolledUpHandoff = h.id;
             }
@@ -127,6 +129,41 @@ export function dispatch(
             `handoff ${h.id} written (${h.kept.length} slip(s) kept)` +
             priorHandoffNudge(deja, state),
         };
+      }
+      case "assess": {
+        const traceId = String(args.traceId ?? "");
+        const assessment = String(args.assessment ?? "") as import("./types.ts").RecallAssessment;
+        const note = args.note ? String(args.note) : undefined;
+        if (!traceId || !["useful", "wrong", "missed", "no_memory_needed"].includes(assessment)) {
+          return { text: "error: traceId and valid assessment are required", isError: true };
+        }
+        const ok = deja.assessRecall(traceId, assessment, note);
+        return ok
+          ? { text: `recall ${traceId} assessed ${assessment}` }
+          : { text: `error: recall trace ${traceId} not found`, isError: true };
+      }
+      case "link": {
+        const fromId = String(args.fromId ?? "");
+        const toId = String(args.toId ?? "");
+        const kind = String(args.kind ?? "") as import("./types.ts").LinkKind;
+        if (!fromId || !toId || !["supersedes", "contradicts", "related"].includes(kind)) {
+          return { text: "error: fromId, toId and valid kind are required", isError: true };
+        }
+        const ok = deja.link(fromId, toId, kind);
+        return ok
+          ? { text: `linked ${fromId} ${kind} ${toId}` }
+          : { text: "error: both slips must exist in the current repository scope", isError: true };
+      }
+      case "resolve_handoff": {
+        const id = String(args.id ?? "");
+        const status = String(args.status ?? "completed") as "completed" | "abandoned";
+        if (!id || !["completed", "abandoned"].includes(status)) {
+          return { text: "error: id and valid status are required", isError: true };
+        }
+        const ok = deja.resolveHandoff(id, status);
+        return ok
+          ? { text: `handoff ${id} resolved ${status}` }
+          : { text: `error: active handoff ${id} not found`, isError: true };
       }
       case "signal": {
         const id = String(args.id ?? "");
@@ -159,7 +196,12 @@ export function dispatch(
         const body = String(args.body ?? "");
         const threadId = args.threadId ? String(args.threadId) : undefined;
         const msg = deja.send({ to, body, threadId });
-        return { text: `sent ${msg.id} to ${msg.to} (thread ${msg.threadId})` };
+        const delivery = msg.delivery
+          ? msg.delivery.ok
+            ? ` — delivered via ${msg.delivery.transport}: ${msg.delivery.path}`
+            : ` — mailbox-only (${msg.delivery.reason})`
+          : "";
+        return { text: `sent ${msg.id} to ${msg.to} (thread ${msg.threadId})${delivery}` };
       }
       case "inbox": {
         const to = String(args.to ?? process.env.DEJA_AUTHOR ?? "unknown-agent");
@@ -202,7 +244,7 @@ if (import.meta.main) {
 
 async function runServer(deja: Deja, dispatchState: DispatchState): Promise<void> {
   const server = new Server(
-    { name: "deja", version: "0.0.3" },
+    { name: "deja", version: VERSION },
     { capabilities: { tools: {} } },
   );
 
@@ -211,7 +253,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "recall",
       description:
-        "Search agent memory for facts, decisions, preferences, and project-specific conventions the user (or a previous agent) wrote down. Use this BEFORE answering questions about: 'this project', 'this codebase', 'this repo', the user's preferences/setup/tools, decisions made in past sessions, work-in-progress, or anything where the answer could differ from generic best practice. Returns ranked hits with trust labels (high/medium/low) and the most recent handoff. Treat high-trust hits as authoritative — they are what the user actually decided. Empty or whitespace-only query returns 'what's recent' instead of searching: active handoff + the N most recent kept slips. Cheap call — use it at session start when you don't know what to ask.",
+        "Search agent memory for facts, decisions, preferences, and project-specific conventions the user (or a previous agent) wrote down. Use this BEFORE answering questions about: 'this project', 'this codebase', 'this repo', the user's preferences/setup/tools, decisions made in past sessions, work-in-progress, or anything where the answer could differ from generic best practice. Returns repository-scoped hits with evidence trust (high = repeatedly useful, medium = kept but unconfirmed, low = draft or disputed), provenance, and the most recent handoff from this repository. Trust is not truth: verify mutable facts against live state. Empty or whitespace-only query returns 'what's recent' instead of searching: active handoff + the N most recent kept slips. Cheap call — use it at session start when you don't know what to ask.",
       inputSchema: {
         type: "object",
         properties: {
@@ -220,6 +262,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             type: "number",
             description: "Max hits (default 8).",
             default: 8,
+          },
+          maxTokens: {
+            type: "number",
+            description: "Approximate context budget. Default 900 tokens.",
+            default: 900,
+          },
+          kinds: {
+            type: "array",
+            items: { type: "string", enum: ["decision", "preference", "procedure", "pitfall", "fact", "wip", "note"] },
+            description: "Optional memory-kind filter.",
           },
         },
         required: ["query"],
@@ -237,6 +289,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             type: "array",
             items: { type: "string" },
             description: "Optional free-form tags.",
+          },
+          kind: {
+            type: "string",
+            enum: ["decision", "preference", "procedure", "pitfall", "fact", "wip", "note"],
+            description: "Memory class. Deja infers conservatively when omitted.",
+          },
+          supersedes: {
+            type: "array",
+            items: { type: "string" },
+            description: "Older slip ids this memory replaces.",
+          },
+          contradicts: {
+            type: "array",
+            items: { type: "string" },
+            description: "Slip ids this memory explicitly disputes.",
           },
           keep: {
             type: "boolean",
@@ -270,9 +337,47 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "assess",
+      description: "Evaluate a recall receipt after acting. This measures retrieval quality separately from whether one slip was useful.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          traceId: { type: "string", description: "Recall receipt id shown at the top of recall output." },
+          assessment: { type: "string", enum: ["useful", "wrong", "missed", "no_memory_needed"] },
+          note: { type: "string", description: "Optional short evidence note; do not paste transcripts." },
+        },
+        required: ["traceId", "assessment"],
+      },
+    },
+    {
+      name: "link",
+      description: "Relate two memories in the current repository. Use supersedes when a newer memory replaces an older one; contradictions remain visible for auditability.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          fromId: { type: "string" },
+          toId: { type: "string" },
+          kind: { type: "string", enum: ["supersedes", "contradicts", "related"] },
+        },
+        required: ["fromId", "toId", "kind"],
+      },
+    },
+    {
+      name: "resolve_handoff",
+      description: "Mark an active handoff completed or abandoned so it stops directing future agents.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          status: { type: "string", enum: ["completed", "abandoned"], default: "completed" },
+        },
+        required: ["id"],
+      },
+    },
+    {
       name: "signal",
       description:
-        "Close the feedback loop on a recalled slip. Three actions: 'used' bumps usedCount (the slip was helpful — confirms the trust label), 'wrong' bumps wrongCount (the slip was misleading or stale — warns future recalls), 'forget' expires the slip permanently (no undo; use when something was written incorrectly with keep=true). Use 'used' liberally; use 'forget' only when you're sure the slip is wrong, not just outdated (prefer writing a new slip that supersedes via remember).",
+        "Close the feedback loop on a recalled slip. Three actions: 'used' bumps usedCount (the slip was helpful — confirms the trust label), 'wrong' bumps wrongCount (the slip was misleading or stale — warns future recalls), 'forget' expires the slip permanently (no undo; use when something was written incorrectly with keep=true). Use 'used' when a memory materially helped; two successful uses promote a kept memory to high trust. Use 'wrong' when misleading. Use 'forget' only when you're sure the slip is wrong, not merely outdated.",
       inputSchema: {
         type: "object",
         properties: {

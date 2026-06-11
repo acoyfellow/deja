@@ -17,6 +17,7 @@ describe("Deja API", () => {
     expect(s.text).toBe("the user uses pnpm");
     expect(s.authoredBy).toBe("test-agent");
     expect(s.sessionId).toBe("test-session-1");
+    expect(s.scope).toBe(d.scope);
     d.close();
   });
 
@@ -27,14 +28,144 @@ describe("Deja API", () => {
     d.close();
   });
 
-  test("recall returns FTS hits with trust labels", () => {
+  test("recall trust reflects evidence rather than BM25 score", () => {
     const d = memory();
-    d.remember("the user prefers TypeScript strict mode");
-    d.remember("totally unrelated garbage");
-    const r = d.recall("TypeScript strict");
-    expect(r.hits.length).toBeGreaterThan(0);
-    expect(r.hits[0]!.slip.text).toContain("TypeScript");
-    expect(["high", "medium", "low"]).toContain(r.hits[0]!.trust);
+    const slip = d.remember("the user prefers TypeScript strict mode");
+    expect(d.recall("TypeScript strict").hits[0]!.trust).toBe("low");
+
+    d.keep([slip.id], { noChainRollup: true });
+    expect(d.recall("TypeScript strict").hits[0]!.trust).toBe("medium");
+
+    d.used(slip.id);
+    d.used(slip.id);
+    expect(d.recall("TypeScript strict").hits[0]!.trust).toBe("high");
+
+    d.wrong(slip.id);
+    expect(d.recall("TypeScript strict").hits[0]!.trust).toBe("low");
+    d.close();
+  });
+
+  test("recall excludes slips and handoffs from another repository scope", () => {
+    const d = new Deja({ path: ":memory:", skipGc: true, scope: "repo:alpha" });
+    const ours = d.remember("shared marker belongs to alpha");
+    d.keep([ours.id], { noChainRollup: true });
+    const theirs = d.remember("shared marker belongs to beta", { scope: "repo:beta" });
+    d.keep([theirs.id], { noChainRollup: true });
+    d.handoff({ sessionId: "beta-session", scope: "repo:beta", summary: "beta-only handoff" });
+
+    const recalled = d.recall("shared marker");
+    expect(recalled.hits.map((hit) => hit.slip.text)).toEqual(["shared marker belongs to alpha"]);
+    expect(recalled.activeHandoff).toBeNull();
+    d.close();
+  });
+
+  test("empty library recall returns budgeted scoped recents", () => {
+    const d = memory();
+    const recent = d.remember("recent scoped memory");
+    d.keep([recent.id], { noChainRollup: true });
+    const result = d.recall("", { limit: 5, maxTokens: 200 });
+    expect(result.hits.map((hit) => hit.slip.id)).toEqual([recent.id]);
+    expect(result.traceId).toBeTruthy();
+    d.close();
+  });
+
+  test("recall trace storage can be disabled without returning a phantom id", () => {
+    const d = new Deja({ path: ":memory:", skipGc: true, recordRecallTraces: false });
+    expect(d.recall("anything").traceId).toBeNull();
+    expect(d.storage.recentRecallTraces()).toEqual([]);
+    d.close();
+  });
+
+  test("recall records a content-free scoped trace", () => {
+    const d = new Deja({ path: ":memory:", skipGc: true, scope: "repo:trace" });
+    const memory = d.remember("traceable decision");
+    d.keep([memory.id], { noChainRollup: true });
+    d.recall("traceable");
+    const traces = d.storage.recentRecallTraces(10, "repo:trace");
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toMatchObject({
+      query: "traceable",
+      scope: "repo:trace",
+      hitIds: [memory.id],
+    });
+    const raw = d.storage.db.prepare(`SELECT * FROM recall_traces`).get() as Record<string, unknown>;
+    expect(JSON.stringify(raw)).not.toContain("traceable decision");
+    d.close();
+  });
+
+  test("next-agent ranker stays off unless explicitly enabled", () => {
+    const stable = new Deja({ path: ":memory:", skipGc: true, scope: "repo:test" });
+    const decision = stable.remember("Decision: use Bun for this project");
+    stable.keep([decision.id], { noChainRollup: true });
+    expect(stable.recall("project runtime").readFirst).toEqual([]);
+    stable.close();
+
+    const experimental = new Deja({
+      path: ":memory:",
+      skipGc: true,
+      scope: "repo:test",
+      experimentalNextAgentRanking: true,
+    });
+    const candidate = experimental.remember("Decision: use Bun for this project");
+    experimental.keep([candidate.id], { noChainRollup: true });
+    expect(experimental.recall("project runtime").readFirst.length).toBeGreaterThan(0);
+    experimental.close();
+  });
+
+  test("memory kinds infer conservatively and filter recall", () => {
+    const d = memory();
+    const decision = d.remember("Decision: use SQLite for local truth");
+    const pitfall = d.remember("Sharp edge: never treat BM25 as confidence");
+    d.keep([decision.id, pitfall.id], { noChainRollup: true });
+    expect(decision.kind).toBe("decision");
+    expect(pitfall.kind).toBe("pitfall");
+    expect(d.recall("SQLite BM25", { kinds: ["pitfall"] }).hits.map((hit) => hit.slip.id)).toEqual([pitfall.id]);
+    d.close();
+  });
+
+  test("recall respects an approximate token budget", () => {
+    const d = memory();
+    for (let i = 0; i < 5; i += 1) {
+      const slip = d.remember(`budget marker ${i} ${"context ".repeat(80)}`);
+      d.keep([slip.id], { noChainRollup: true });
+    }
+    const broad = d.recall("budget marker", { limit: 5, maxTokens: 5000 });
+    const bounded = d.recall("budget marker", { limit: 5, maxTokens: 100 });
+    expect(broad.hits.length).toBe(5);
+    expect(bounded.hits.length).toBe(1);
+    d.close();
+  });
+
+  test("resolved handoffs stop directing future agents", () => {
+    const d = memory();
+    const handoff = d.handoff({ summary: "finish the migration" });
+    expect(d.recall("migration").activeHandoff?.id).toBe(handoff.id);
+    expect(d.resolveHandoff(handoff.id)).toBe(true);
+    expect(d.recall("migration").activeHandoff).toBeNull();
+    expect(d.resolveHandoff(handoff.id)).toBe(false);
+    d.close();
+  });
+
+  test("recall assessments produce a scoped quality report", () => {
+    const d = memory();
+    const trace = d.recall("nothing here").traceId;
+    expect(trace).toBeTruthy();
+    expect(d.assessRecall(trace!, "missed", "expected a decision")).toBe(true);
+    expect(d.recallReport()).toMatchObject({ total: 1, assessed: 1, missed: 1 });
+    expect(d.storage.recentRecallTraces(1, d.scope)[0]?.note).toBe("expected a decision");
+    d.close();
+  });
+
+  test("explicit links require scope and recall follows supersession to current truth", () => {
+    const d = memory();
+    const old = d.remember("use jest for the test runner");
+    const fresh = d.remember("use vitest now");
+    d.keep([old.id, fresh.id], { noChainRollup: true });
+    expect(d.link(fresh.id, old.id, "supersedes")).toBe(true);
+    expect(d.storage.linksFrom(fresh.id)[0]?.kind).toBe("supersedes");
+    expect(d.recall("jest test runner").hits[0]?.slip.id).toBe(fresh.id);
+    const foreign = d.remember("foreign", { scope: "repo:elsewhere" });
+    expect(d.link(fresh.id, foreign.id, "related")).toBe(false);
     d.close();
   });
 
@@ -112,6 +243,20 @@ describe("Deja API", () => {
     expect(h).not.toBeNull();
     expect(h!.summary).toContain("Bun");
     expect(h!.summary).not.toContain("weather");
+    d.close();
+  });
+
+  test("an explicit final handoff replaces the session's automatic rollup", () => {
+    const d = memory();
+    const decision = d.remember("Decision: use Bun.");
+    d.keep([decision.id]);
+    const automatic = d.storage.getHandoffBySession("test-session-1")!;
+    expect(automatic.automatic).toBe(true);
+
+    const final = d.handoff({ summary: "Finished migration", next: ["publish"] });
+    expect(final.automatic).toBe(false);
+    expect(final.id).not.toBe(automatic.id);
+    expect(d.storage.getHandoffBySession("test-session-1")?.summary).toBe("Finished migration");
     d.close();
   });
 
@@ -197,6 +342,8 @@ describe("Deja API", () => {
       id: "01OLD0000000000000000000000",
       sessionId: "old",
       authoredBy: "old-agent",
+      scope: d.scope,
+      kind: "note",
       text: "ancient",
       tags: [],
       state: "draft",

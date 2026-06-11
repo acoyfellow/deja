@@ -24,7 +24,7 @@ describe("MCP dispatch — recall(empty) returns recents", () => {
 
     const state = newDispatchState();
     const r = dispatch(d, state, "recall", { query: "  " });
-    expect(r.text).toContain("previous handoff");
+    expect(r.text).toContain("active handoff");
     expect(r.text).toContain("auth refactor");
     expect(r.text).toContain("recall(recents)");
     expect(r.text).toContain("kept fact A");
@@ -102,6 +102,47 @@ describe("MCP dispatch — prior-handoff nudge on remember/handoff", () => {
     expect(r.text).toContain("…");
     // First 240 chars of x's appear, but not all 500
     expect(r.text.split("x").length - 1).toBeLessThan(500);
+    d.close();
+  });
+});
+
+describe("MCP dispatch — memory quality tools", () => {
+  test("remember accepts kind and supersedes links", () => {
+    const d = memory();
+    const old = d.remember("use jest");
+    const state = newDispatchState();
+    const response = dispatch(d, state, "remember", {
+      text: "Decision: use vitest",
+      kind: "decision",
+      keep: true,
+      supersedes: [old.id],
+    });
+    expect(response.isError).toBeUndefined();
+    const freshId = response.text.match(/slip (\w+)/)?.[1];
+    const fresh = freshId ? d.get(freshId) : null;
+    expect(fresh?.kind).toBe("decision");
+    expect(d.storage.linksFrom(fresh!.id)[0]?.toId).toBe(old.id);
+    d.close();
+  });
+
+  test("assess closes the recall receipt loop", () => {
+    const d = memory();
+    const state = newDispatchState();
+    const recalled = dispatch(d, state, "recall", { query: "missing" });
+    const traceId = recalled.text.match(/recall receipt (\w+)/)?.[1];
+    expect(traceId).toBeTruthy();
+    const assessed = dispatch(d, state, "assess", { traceId, assessment: "no_memory_needed" });
+    expect(assessed.text).toContain("assessed no_memory_needed");
+    expect(d.recallReport().noMemoryNeeded).toBe(1);
+    d.close();
+  });
+
+  test("resolve_handoff removes it from subsequent recall", () => {
+    const d = memory();
+    const handoff = d.handoff({ summary: "old directive" });
+    const state = newDispatchState();
+    expect(dispatch(d, state, "resolve_handoff", { id: handoff.id }).isError).toBeUndefined();
+    expect(d.recall("directive").activeHandoff).toBeNull();
     d.close();
   });
 });
