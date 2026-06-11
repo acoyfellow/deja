@@ -24,15 +24,15 @@ Sanitized result:
 ```json
 {
   "verified": true,
-  "issuerHost": "frontend-team.cloudflareaccess.com",
-  "audienceSha256Prefix": "9815235c1aa9",
-  "namespaceSha256Prefix": "07019743d0e2",
-  "issuedAt": "2026-06-10T17:46:50.000Z",
-  "expiresAt": "2026-06-17T17:46:50.000Z"
+  "issuerHost": "<redacted-access-team>.cloudflareaccess.com",
+  "audienceSha256Prefix": "<redacted>",
+  "namespaceSha256Prefix": "<redacted>",
+  "issuedAt": "<redacted>",
+  "expiresAt": "<redacted>"
 }
 ```
 
-The expected audience was supplied separately to the verifier; it was not accepted from the assertion. `cloudflared access token` completed from cached user state without an API key or a new interactive login. The verifier fetched real remote signing keys and returned success. This is genuine Access session evidence, not a synthetic token.
+The expected audience was supplied separately to the verifier; it was not accepted from the assertion. `cloudflared access token` completed from cached user state without an API key or a new interactive login. Public evidence intentionally redacts the real team hostname, audience digest, namespace digest, and token timestamps. The verifier fetched real remote signing keys and returned success. This is genuine Access session evidence, not a synthetic token.
 
 This proves that a valid existing Access login can be invisible to a local agent and can select a personal namespace without provisioning a static API key. The assertion itself remains a short-lived replayable bearer credential.
 

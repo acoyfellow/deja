@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "tsc --noEmit && node --test test/*.test.mjs",
+    "check": "wrangler types --config wrangler.jsonc && tsc --noEmit && node --test test/*.test.mjs",
     "dev": "wrangler dev --config wrangler.jsonc --port 8792",
     "dev:workflow": "wrangler dev --config wrangler.workflow.jsonc --port 8792",
     "run": "./run.sh",

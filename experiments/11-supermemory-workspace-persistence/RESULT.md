@@ -1,42 +1,26 @@
-# Result
+# Experiment 11 — RESULT
 
-**Status: B — unsupported package/platform combination, machine-verified.**
+Generated: 2026-06-11T10:28:33.195Z
 
-Run on 2026-06-11 from Darwin/arm64:
+## Verdict
 
-```text
-PASS: public npm registry reports latest @cloudflare/workspace as 0.0.0 and alpha.7 exists
-PASS: npm latest tarball is a placeholder: package.json only, with no importable Workspace API
-PASS: alpha.7 ships an x86-64 Linux ELF wsd and no arm64 wsd
-PASS: Supermemory server-v0.0.2 publishes linux-arm64 with checksum 90ebd17c42d2d649af328b1a80518d8eacf966ed2444d8cd25ef5e2d9bb0b165
-PASS: current host Darwin/arm64 cannot directly execute a Linux/arm64 ELF
-PASS: BLOCKER CONFIRMED: alpha Worker backend is just-bash; Container wsd is Linux/x86-64; requested Supermemory binary is Linux/arm64
-RESULT=unsupported
-```
+- **Workspace SQLite VFS persistence: PASS.** Bytes written through the real `@cloudflare/workspace@0.0.0-alpha.7` API survived a full local Wrangler stop/restart using the same persisted Durable Object state.
+- **Matching native Supermemory x64 execution: BLOCKED.** The matching image reached `workspace-container-connect` and returned: `Network connection lost.`.
 
-## Evidence and interpretation
+## Evidence
 
-| Check | Observed | Consequence |
-|---|---|---|
-| npm dist-tag | `latest = 0.0.0` | Default installation does not provide the preview API. |
-| `0.0.0` tar contents | only `package/package.json` | There is no `index.js`, `dist/`, or exported `Workspace`. |
-| Preview package | `0.0.0-alpha.7` has `dist/index.js` | This is the only public version tested with an implementation. |
-| Worker backend contract | package README says it runs the shell as `just-bash` | It cannot launch a native Supermemory ELF. |
-| Container transport | packaged `wsd-linux-x64` has ELF `e_machine=62`; no arm64 `wsd` exists | The shipped native container route is x86-64, not arm64. |
-| Supermemory release | release tag and manifest are `server-v0.0.2` / `0.0.2`; Linux/arm64 asset exists | The requested artifact is real and platform-specific. |
-| Integrity metadata | manifest and `.sha256` both say `90ebd17...b0b165` | A local artifact can be verified with `SUPERMEMORY_BIN=...`. |
-| Test machine | `Darwin/arm64` | It cannot directly execute the Linux/arm64 artifact either. |
+| Assertion | Result |
+| --- | --- |
+| Workspace package | `0.0.0-alpha.7` preview |
+| Persisted marker digest | `ab595ba1b2c5` |
+| Read before restart | exact match |
+| Read after Wrangler restart | exact match |
+| Supermemory artifact | `linux-x64` v0.0.2 |
+| Published SHA-256 | `8bf394690807b37786d22a61d3ee64212b7ae82374894e754856134ca60761b4` |
+| Workspace container/native result | `blocked` |
 
-The initial package discovery was fail-fast. An `npm view` request was rewritten
-by the local managed npm client to an HTML-returning registry gateway despite an
-explicit public registry argument, so discovery switched to direct bounded
-HTTPS requests to `registry.npmjs.org`. The public metadata and tarballs were
-then successfully inspected. No secrets were read or used.
+The filesystem result is independent of Container startup. No claim is made that the native binary executed or that Supermemory can currently use the persisted VFS through local Wrangler. The remaining blocker is the actual Workspace Container lifecycle/connect path, not CPU architecture: both wsd and Supermemory were Linux x64.
 
-## What was not proven
+## Boundaries
 
-No Wrangler persistence test was run, and this result must not be interpreted
-as evidence that bytes survive a Workspace runtime restart. The blocker occurs
-before a truthful end-to-end Supermemory execution can be constructed. A
-filesystem-only test would answer a weaker question and was deliberately not
-presented as the requested proof.
+This is local workerd/Container evidence, not deployed durability. The content is synthetic. The binary was downloaded in the Docker build from the public v0.0.2 release and verified against its published checksum. No cloud model credential was supplied; successful startup uses host Ollama and skips embedding prewarm.

@@ -1,65 +1,40 @@
-# Experiment 11: Supermemory on Workspace persistence
+# Experiment 11 — Supermemory native state on Cloudflare Workspace
 
 ## Question
 
-Can the verified Supermemory server `v0.0.2` Linux/arm64 binary run over a
-Cloudflare Workspace path, with bytes surviving a local Wrangler runtime
-restart?
+Can a native memory binary put its state on a real Cloudflare Workspace filesystem, survive runtime restart, and execute through Workspace's Container backend?
 
-## Outcome
+## Two independent gates
 
-**Blocked at preflight; no persistence claim is made.** The public package and
-platform matrix do not currently expose a compatible execution path:
+1. **Filesystem durability:** a filesystem-only `Workspace` backed by Durable Object SQLite writes synthetic bytes, fully stops local Wrangler, restarts against the same persisted state, and reads the exact bytes.
+2. **Native execution:** a matching Linux x64 image combines `workspace-wsd-linux-x64:0.0.0-alpha.7` with Supermemory `server-v0.0.2` Linux x64. The image verifies Supermemory's published SHA-256, starts it with `SUPERMEMORY_DATA_DIR=/workspace/supermemory-data`, and pulls resulting files back through Workspace sync.
 
-1. The public npm `latest` for `@cloudflare/workspace` is `0.0.0`, a placeholder
-   tarball containing only `package.json`. It has no Workspace API.
-2. The usable preview is `0.0.0-alpha.7`. Its Worker backend is explicitly a
-   `just-bash` interpreter, not a native Linux process environment.
-3. Its Container backend package contains one daemon,
-   `dist/bin/wsd-linux-x64`. The file is an ELF with `e_machine=62` (x86-64),
-   and the package contains no arm64 daemon.
-4. The requested Supermemory release artifact is Linux/arm64. The release API,
-   manifest, and checksum sidecar agree on version and checksum, but that binary
-   cannot execute in `just-bash`, against the package's x86-64 container
-   transport, or directly on this Darwin/arm64 test host.
-
-A filesystem-only Workspace can persist bytes in Durable Object SQLite, but
-that would not establish that the Supermemory native process can execute
-against the path. Substituting a normal directory or mock filesystem would fake
-the central premise, so this experiment follows branch **B** of the task and
-stops before Wrangler setup.
+These gates stay separate. Container failure cannot erase a valid VFS persistence result, and VFS persistence cannot be presented as proof that a native process executed.
 
 ## Run
 
-Requirements: Bash, Node.js, `curl`, and `tar`. No credentials are used.
+Requires Docker/Colima, Bun/npm, Wrangler, and host Ollama for the optional native startup:
 
-```sh
-./tests/preflight.test.sh
+```bash
+NPM_CONFIG_USERCONFIG=/tmp/deja-experiments-npmrc npm install
+npm run check
+npm run run
 ```
 
-The preflight reads the public npm registry and public GitHub release endpoints.
-It downloads the alpha tarball (about 43 MiB compressed) into a temporary
-directory, applies finite connect/transfer timeouts, inspects the packaged ELF
-header, and removes all temporary files.
+`run.sh` records only a digest of the synthetic marker. It downloads no binary to the repository. The Docker build obtains the public x64 release and fails if this checksum does not match:
 
-To additionally verify already-downloaded Supermemory bytes:
-
-```sh
-SUPERMEMORY_BIN=/path/to/supermemory-server-linux-arm64 \
-  ./scripts/preflight.sh
+```text
+8bf394690807b37786d22a61d3ee64212b7ae82374894e754856134ca60761b4
 ```
 
-That optional mode SHA-256 checks the file against the checksum published for
-`server-v0.0.2`; it still reports the same execution incompatibility.
+## Why x64
 
-## Success condition for a future retry
+The first preflight incorrectly treated Workspace's x64 `wsd` and Supermemory's ARM64 artifact as the only available pairing. Supermemory also publishes Linux x64. This corrected experiment uses matching Linux x64 artifacts, so any remaining blocker belongs to the Workspace/Container runtime path rather than architecture selection.
 
-A real branch-A proof needs all of the following:
+## Expected interpretation
 
-- an importable public Workspace release (not the `0.0.0` placeholder),
-- a backend that can launch native Linux/arm64 processes, or a matching verified
-  Supermemory Linux/x64 artifact for the Workspace Container backend,
-- a local Wrangler flow that writes through Workspace, fully stops and restarts
-  the runtime, then reads the same bytes, and
-- execution of Supermemory against the Workspace-backed path—not a host
-  directory standing in for Workspace.
+- `Workspace restart persistence: PASS` proves the preview VFS itself survives local Wrangler restart.
+- `Container native execution: PASS` proves the binary can start against the Workspace mount locally.
+- `BLOCKED at workspace-container-connect` isolates the current local Container supervisor/connect seam. It does not imply deployed Cloudflare Containers fail.
+
+The preview package is unstable and unsuitable for production. This experiment exists to generate product feedback, not bless an API.

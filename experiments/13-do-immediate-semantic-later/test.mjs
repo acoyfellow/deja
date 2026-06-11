@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { semanticFlags } from "./harness.mjs";
 
-const base = process.env.DO_BASE ?? "http://127.0.0.1:8913";
+const base = process.env.DO_BASE;
+const integrationTest = base ? test : test.skip;
 
 test("status flags never call pending or submitted fresh", () => {
   assert.deepEqual(semanticFlags("pending"), { pending: true, stale: true, fresh: false });
@@ -11,7 +12,7 @@ test("status flags never call pending or submitted fresh", () => {
   assert.deepEqual(semanticFlags("visible"), { pending: false, stale: false, fresh: true });
 });
 
-test("real local DO commits exact content and immediately reads it as semantic-pending", async () => {
+integrationTest("real local DO commits exact content and immediately reads it as semantic-pending", async () => {
   const id = `exp13-test-${randomUUID()}`;
   const marker = `test-${randomUUID()}`;
   const content = `Synthetic exact test payload ${marker}\nsecond line preserved.`;

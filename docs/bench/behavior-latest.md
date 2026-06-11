@@ -1,6 +1,6 @@
 # deja behavioral bench latest
 
-Generated: 2026-06-11T02:08:02.572Z
+Generated: 2026-06-11T10:29:53.106Z
 
 Summary: **3/3 experiments passed**
 

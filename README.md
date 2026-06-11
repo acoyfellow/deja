@@ -370,6 +370,7 @@ The repository also contains:
 - [`docs/bench/claims.md`](docs/bench/claims.md) — claim-to-evidence map;
 - [`docs/loops/`](docs/loops/) — failed and successful agent behavior experiments;
 - [`experiments/`](experiments/) — Cloudflare shared-memory protocol receipts;
+- [`experiments/MEMORY-SEAMS-2026-06-11.md`](experiments/MEMORY-SEAMS-2026-06-11.md) — seven parallel Workspace, Containers, Workflows, DO, AI Gateway, Access, continuity, and Agents-provider experiments;
 - [`eval/next-agent/`](eval/next-agent/) — a retained negative result that prevented an unproven ranker from becoming default behavior.
 
 The eight-case lexical benchmark is a smoke test, not proof that memory improves agents. Recall receipts and baseline-vs-Deja session experiments are the path to stronger claims.

@@ -90,6 +90,25 @@ Status: **release candidate implemented**.
 - [x] One-command release check.
 - [ ] Tag and publish `v0.1.0` after review.
 
+## Cloudflare-native provider seams — completed experiment wave
+
+Seven isolated experiments now live in [`experiments/MEMORY-SEAMS-2026-06-11.md`](../experiments/MEMORY-SEAMS-2026-06-11.md).
+
+- [x] Workspace SQLite VFS persistence survives local Wrangler restart.
+- [x] Matching x64 Workspace/Supermemory image builds and verifies; local Container connect blocker is isolated.
+- [x] Workflows provide idempotent submit/poll/retry/failure receipts.
+- [x] DO SQL proves immediate operational authority while semantic indexing remains explicitly pending.
+- [x] AI Gateway memory-extraction metadata/policy preflight is executable and payload-off.
+- [x] Real cached Access identity validates against live JWKS without a static API key.
+- [x] Independent local/cloud-shaped clients prove stale gaps, catch-up, and resolution without theater.
+- [x] A real `agents@0.15.0` Agent hosts a provider-neutral memory lifecycle contract.
+- [ ] Deployed protected Container proof after Workspace/Container local-connect feedback.
+- [ ] Independent remote Access ceremony, continuity, expiry, and revocation proof.
+- [ ] One bounded AI Gateway live call after a blocking spend limit is verified.
+- [ ] Diagnose local Supermemory + Ollama memory-agent failure (chunk indexing succeeds; extracted memories fail).
+
+Architectural decision: immediate operational continuity belongs in Agent/DO SQL; richer providers are asynchronous and must expose `pending | fresh | stale | failed` independently from durability. Do not build a Deja-owned vector engine.
+
 ## v0.2 — stronger recall, earned by eval
 
 No item in this batch ships merely because it sounds intelligent.
