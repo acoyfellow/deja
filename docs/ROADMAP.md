@@ -105,7 +105,8 @@ Seven isolated experiments now live in [`experiments/MEMORY-SEAMS-2026-06-11.md`
 - [ ] Deployed protected Container proof after Workspace/Container local-connect feedback.
 - [ ] Independent remote Access ceremony, continuity, expiry, and revocation proof.
 - [ ] One bounded AI Gateway live call after a blocking spend limit is verified.
-- [ ] Diagnose local Supermemory + Ollama memory-agent failure (chunk indexing succeeds; extracted memories fail).
+- [x] Diagnose local Supermemory + Ollama memory-agent failure: both tested models fail on the same unsupported Responses API `item_reference` continuation while chunk indexing succeeds.
+- [ ] Prove a thin Responses compatibility adapter can normalize/replay referenced output items and make extracted memory/profile acceptance pass.
 
 Architectural decision: immediate operational continuity belongs in Agent/DO SQL; richer providers are asynchronous and must expose `pending | fresh | stale | failed` independently from durability. Do not build a Deja-owned vector engine.
 

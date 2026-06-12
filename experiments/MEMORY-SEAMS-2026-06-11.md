@@ -33,6 +33,7 @@ The experiments ask where Cloudflare primitives already compose cleanly, where l
 | 15 | Access identity across agents | **Partial pass** | A real cached laptop Access assertion validated against live JWKS and derived stable pseudonymous identity with no static API key. Independent remote identity/continuity and revocation remain unproved. |
 | 16 | One local/cloud continuity model | **Operational pass; semantic fail** | Exact revisioned continuity, honest stale state, reconnect/catch-up, and resolution passed across independent processes. Supermemory memory extraction failed and never masqueraded as fresh. |
 | 17 | Companion memory-provider contract on Agents | **Pass** | A real `agents@0.15.0` Agent/SQLite DO hosted immediate and asynchronous provider adapters behind one storage-neutral lifecycle contract, implemented entirely outside the SDK. |
+| 18 | Supermemory local-model compatibility | **Protocol failure isolated** | Both local models completed direct structured/tool baselines and Supermemory's first Responses call. Ollama rejected the identical follow-up `item_reference` continuation with HTTP 400; chunks indexed, zero memories extracted. |
 
 ## The strongest conclusion
 
@@ -163,14 +164,18 @@ The current experimental session/context-provider APIs solve different problems.
 
 ## Supermemory-specific finding
 
-With local embeddings and Ollama `gpt-oss:20b`:
+Experiment 18 placed a redacting OpenAI-compatible recorder between Supermemory and Ollama and ran fresh isolated data directories for `gpt-oss:20b` and `qwen3-coder:30b`.
 
-- raw documents were accepted;
+For both models:
+
+- direct plain, JSON-schema, and required-tool baselines returned HTTP 200;
+- Supermemory's initial `POST /v1/responses` returned HTTP 200 with function calls;
+- Supermemory executed those calls and sent a continuation containing `item_reference` plus `function_call_output` entries;
+- Ollama 0.21.0 rejected the first `item_reference` with HTTP 400 `invalid_request_error`;
 - chunks were embedded and became searchable;
-- the memory-agent extraction stage repeatedly failed;
-- documents finalized with zero extracted memories.
+- zero memories were extracted and profiles remained empty.
 
-Therefore the current local proof supports Supermemory as a semantic document index in this setup, but **not** as a successful automatic memory extractor with this model/configuration. The provider status must remain visible independently from search visibility.
+The failure is therefore **protocol-specific, not model-specific** in this matrix. The next thin-glue opportunity is a compatibility adapter that resolves/replays prior response items into a continuation form Ollama accepts, or an Ollama Responses implementation that supports `item_reference`. Until that is proved, Supermemory is only a semantic document index in this local path.
 
 ## Portfolio leverage
 
@@ -189,7 +194,7 @@ This architecture connects existing work rather than creating another isolated p
 ## Recommended next actions
 
 1. Report the Workspace VFS pass and matching-x64 local Container connect failure to the Workspace/Containers teams; rerun the native half in a protected deployed Container when approved.
-2. Diagnose the Supermemory + Ollama memory-agent failure separately from chunk indexing.
+2. Build Experiment 19 as a narrow Responses compatibility adapter: cache initial response output items and normalize Supermemory's `item_reference` continuation into an Ollama-supported form; rerun the exact Experiment 18 acceptance gate.
 3. Extract experiment 17 into a tiny independent companion library/plugin on top of `agents`, backed by experiments 12, 13, and 16. Ship and dogfood it without requiring upstream SDK changes.
 4. Run one protected deployed Container proof only after Access is configured; compare with the local supervisor failure.
 5. Complete experiment 15's independent remote SSO/WARP proof and stream revocation test.

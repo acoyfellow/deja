@@ -20,7 +20,7 @@ A full pass requires processing done, at least one extracted memory, and exact-t
 | gpt-oss:20b | 200 | 400 | message, item_reference, function_call_output | input[2]: unknown input item type: "[REDACTED_QUOTED_VALUE]" |
 | qwen3-coder:30b | 200 | 400 | message, item_reference, function_call_output | input[2]: unknown input item type: "[REDACTED_QUOTED_VALUE]" |
 
-The first model turn succeeds and returns tool calls. Supermemory executes them, then its next Responses API request sends prior outputs as `item_reference` entries plus `function_call_output`. ollama version is 0.21.0 rejects the first `item_reference` before another model turn, identically for both model names. This local evidence isolates the failure at Responses API continuation compatibility rather than generation quality.
+The first model turn succeeds and returns tool calls. Supermemory executes them, then its next Responses API request sends prior outputs as `item_reference` entries plus `function_call_output`. Ollama 0.21.0 rejects the first `item_reference` before another model turn, identically for both model names. This local evidence isolates the failure at Responses API continuation compatibility rather than generation quality.
 
 ## Reproducibility and safety
 
