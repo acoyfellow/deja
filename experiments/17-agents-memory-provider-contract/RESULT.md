@@ -51,21 +51,22 @@ README's “actually provides” section for the precise separation.
 
 ## Product conclusion (recommendation, not existing API)
 
-Cloudflare Agents should natively define the storage-neutral types in
-`src/contract.ts`, or an equivalent minimal interface. The highest-value rule is
-that **durability and retrieval freshness are separate fields**. That allows one
-Agent application to compose immediate SQL memory and delayed richer retrieval
-without treating a committed write as immediately indexed or hard-coding
-vectors.
+Ship the storage-neutral types in `src/contract.ts` as a small independent
+companion library/plugin **on top of** `agents`; do not propose or wait for an
+Agents SDK change. The highest-value rule is that **durability and retrieval
+freshness are separate fields**. That allows one Agent application to compose
+immediate SQL memory and delayed richer retrieval without treating a committed
+write as immediately indexed or hard-coding vectors.
 
-Native SDK ownership should cover receipts, scope, freshness/pending work,
-context budgets, provenance, deletion, and resolution. Implementations should
-remain free to use Agent SQL, Postgres, R2, a service, lexical search, knowledge
-graphs, vectors, or hybrids.
+The companion layer should cover receipts, scope, freshness/pending work,
+context budgets, provenance, deletion, and resolution while consuming only
+public Agent/SQL/Workflow seams. Implementations remain free to use Agent SQL,
+Postgres, R2, a service, lexical search, knowledge graphs, vectors, or hybrids.
 
-This is additive to the current experimental `SessionProvider` and context
-provider APIs. Those APIs handle conversation trees and system-prompt blocks;
-they should not be re-described as this durable memory contract.
+This swims alongside the current experimental `SessionProvider` and context
+provider APIs. It neither forks nor patches them. Shipping outside the SDK keeps
+the experiment loop independent from upstream design consensus, compatibility
+review, and release cadence.
 
 ## Caveats
 

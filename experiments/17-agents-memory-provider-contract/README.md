@@ -1,8 +1,8 @@
-# Experiment 17 — Agents memory-provider contract
+# Experiment 17 — companion memory-provider contract on Agents
 
 ## Question
 
-> What should the Cloudflare Agents SDK provide natively for pluggable memory providers?
+> What can a fast-moving companion library provide on top of Cloudflare Agents for pluggable memory providers?
 
 This experiment targets the public npm package **`agents@0.15.0`** (the package
 is named `agents`, although the product is commonly called Cloudflare Agents;
@@ -10,8 +10,9 @@ there is no `@cloudflare/agents` package involved here).
 
 ## Short answer / product recommendation
 
-Agents should expose a small, storage-neutral **durable memory contract** next
-to its session-history and context-block contracts:
+Ship a small, storage-neutral **durable memory contract** as an independent
+library/plugin next to Agents—not inside the SDK and not gated on an upstream
+proposal:
 
 ```ts
 interface MemoryProvider {
@@ -36,8 +37,9 @@ observable contract carries:
 - provider-defined optional ranking scores, with **no vector or embedding
   requirement**.
 
-The SDK should own these semantics and lifecycle shapes. Providers should own
-storage, indexing, ranking, and asynchronous processing. In particular,
+The companion library should own these semantics and lifecycle shapes while
+using only public Agents/SQL/Workflow seams. Providers should own storage,
+indexing, ranking, and asynchronous processing. In particular,
 "the source row committed" and "the retrieval index is fresh" must be separate
 facts: a durable write may correctly return `durability: "committed"` and
 `freshness.state: "pending"`.
@@ -95,8 +97,8 @@ Declaration sources inspected after installing the exact version:
 
 These are API observations, not claims that the experimental APIs are defective.
 Session history and prompt context solve different jobs and should remain. The
-recommendation is an additional common boundary for durable cross-session
-memory.
+recommendation is an external common boundary for durable cross-session memory:
+a thin plugin/library that composes public primitives and can evolve on its own cadence.
 
 ## Real local example
 

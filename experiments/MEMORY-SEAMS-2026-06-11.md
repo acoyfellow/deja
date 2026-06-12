@@ -20,7 +20,7 @@ Supermemory makes semantic extraction, profiles, graph evolution, and hybrid sea
 - pluggable provider contracts;
 - files and native processes inside an agent Workspace.
 
-The experiments ask where Cloudflare primitives already compose cleanly, where local parity is incomplete, and what the Agents SDK should make native.
+The experiments ask where Cloudflare primitives already compose cleanly, where local parity is incomplete, and what a fast-moving companion layer can supply without waiting on SDK changes.
 
 ## Results at a glance
 
@@ -32,7 +32,7 @@ The experiments ask where Cloudflare primitives already compose cleanly, where l
 | 14 | AI Gateway for BYO-model memory | **Conditional / preflight** | Gateway metadata, payload-off logs, retry bounds, and spend policies fit memory extraction. No paid call was made because spend-limit and control-plane verification were absent. |
 | 15 | Access identity across agents | **Partial pass** | A real cached laptop Access assertion validated against live JWKS and derived stable pseudonymous identity with no static API key. Independent remote identity/continuity and revocation remain unproved. |
 | 16 | One local/cloud continuity model | **Operational pass; semantic fail** | Exact revisioned continuity, honest stale state, reconnect/catch-up, and resolution passed across independent processes. Supermemory memory extraction failed and never masqueraded as fresh. |
-| 17 | Native Agents memory-provider contract | **Pass** | A real `agents@0.15.0` Agent/SQLite DO hosted immediate and asynchronous provider adapters behind one storage-neutral lifecycle contract. |
+| 17 | Companion memory-provider contract on Agents | **Pass** | A real `agents@0.15.0` Agent/SQLite DO hosted immediate and asynchronous provider adapters behind one storage-neutral lifecycle contract, implemented entirely outside the SDK. |
 
 ## The strongest conclusion
 
@@ -134,9 +134,9 @@ A cached user session can make local acquisition invisible after initial SSO/WAR
 
 Access removes static API-key distribution; it does not remove bearer replay, host trust, or the irreducible first ceremony on an independent remote machine.
 
-### `@cloudflare/agents`
+### Companion library on `@cloudflare/agents`
 
-The strongest proposed native seam is a provider-neutral lifecycle contract, not a vector-store interface:
+The strongest adjacent seam is a provider-neutral lifecycle contract shipped as independent glue on top of Agents—not a change request for the Agents SDK and not a vector-store interface:
 
 ```ts
 interface MemoryProvider {
@@ -159,7 +159,7 @@ Required concepts:
 - deletion and supersession/resolution;
 - provider-defined scores without assuming vectors.
 
-The current experimental session/context-provider APIs solve different problems. Durable memory lifecycle should be additive.
+The current experimental session/context-provider APIs solve different problems. Keep this lifecycle additive in an external package/plugin that consumes public `Agent`, `Agent.sql`, scheduling, and Workflow APIs. Do not block iteration on upstream SDK design, review, compatibility, or release cadence.
 
 ## Supermemory-specific finding
 
@@ -190,7 +190,7 @@ This architecture connects existing work rather than creating another isolated p
 
 1. Report the Workspace VFS pass and matching-x64 local Container connect failure to the Workspace/Containers teams; rerun the native half in a protected deployed Container when approved.
 2. Diagnose the Supermemory + Ollama memory-agent failure separately from chunk indexing.
-3. Turn experiment 17's contract into a small proposal/issue for the Agents team, backed by experiments 12, 13, and 16.
+3. Extract experiment 17 into a tiny independent companion library/plugin on top of `agents`, backed by experiments 12, 13, and 16. Ship and dogfood it without requiring upstream SDK changes.
 4. Run one protected deployed Container proof only after Access is configured; compare with the local supervisor failure.
 5. Complete experiment 15's independent remote SSO/WARP proof and stream revocation test.
 6. Configure one bounded AI Gateway with a blocking spend limit, then make exactly one payload-off extraction call and inspect its log dimensions.
