@@ -17,6 +17,7 @@ function slip(id: string, text: string): Slip {
     expiredAt: null,
     usedCount: 0,
     wrongCount: 0,
+    redacted: false,
   };
 }
 

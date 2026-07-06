@@ -23,6 +23,7 @@ function makeSlip(overrides: Partial<Slip> = {}): Slip {
     expiredAt: null,
     usedCount: 0,
     wrongCount: 0,
+    redacted: false,
     ...overrides,
   };
 }

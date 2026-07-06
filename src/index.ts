@@ -41,6 +41,9 @@ import type {
   RecallAssessment,
   HandoffStatus,
   LinkKind,
+  Episode,
+  EpisodeEvaluation,
+  AblationReceipt,
 } from "./types.ts";
 
 export type {
@@ -59,6 +62,9 @@ export type {
   HandoffStatus,
   LinkKind,
   MemoryKind,
+  Episode,
+  EpisodeEvaluation,
+  AblationReceipt,
 } from "./types.ts";
 
 export { defaultDbPath } from "./storage.ts";
@@ -89,6 +95,11 @@ export interface DejaOptions extends StorageOptions {
   recordRecallTraces?: boolean;
   /** Skip auto-GC of expired drafts on init. Default: false. */
   skipGc?: boolean;
+  /**
+   * Keep raw memory text local-only. When true, recall output masks redacted
+   * slips and traces never include memory text. This is the safe default.
+   */
+  rawMemoryLocal?: boolean;
   /**
    * Disable auto-rollup of chain-shaped kept slips into a session handoff.
    *
@@ -121,6 +132,7 @@ export class Deja {
     this.options = {
       ...opts,
       includeLegacy: opts.includeLegacy ?? process.env.DEJA_INCLUDE_LEGACY === "1",
+      rawMemoryLocal: opts.rawMemoryLocal ?? true,
     };
     const derived = currentMemoryContext();
     this.context = opts.scope ? { ...derived, scope: opts.scope, source: "env" } : derived;
@@ -159,10 +171,10 @@ export class Deja {
         )
       : this.storage
           .listKept(Math.max(limit, limit * 2), this.scope, this.options.includeLegacy, options.kinds)
-          .map((slip) => ({ slip, score: 0 }));
+          .map((slip) => ({ slip: this.maskSlip(slip), score: 0 }));
     const seen = new Set<string>();
     const hits = raw.flatMap((candidate) => {
-      const slip = this.storage.activeSuperseder(candidate.slip.id, this.scope) ?? candidate.slip;
+      const slip = this.maskSlip(this.storage.activeSuperseder(candidate.slip.id, this.scope) ?? candidate.slip);
       if (seen.has(slip.id)) return [];
       seen.add(slip.id);
       return [{ slip, score: candidate.score, trust: trustForSlip(slip) }];
@@ -219,6 +231,7 @@ export class Deja {
       expiredAt: null,
       usedCount: 0,
       wrongCount: 0,
+      redacted: opts.redacted ?? false,
     };
     this.storage.insertSlip(slip);
 
@@ -416,6 +429,114 @@ export class Deja {
   /** Record that a recalled slip was misleading. */
   wrong(id: string): void {
     this.storage.bumpWrong(id);
+  }
+
+  /**
+   * Explicitly redact a slip: the raw text stays in the local DB, but future
+   * recall output masks it. Returns true if the slip existed and was not
+   * already redacted. Local-only; does not modify shared copies.
+   */
+  redact(id: string): boolean {
+    return this.storage.redactSlip(id, Date.now());
+  }
+
+  /** Return a copy of a slip with text masked if redacted and rawMemoryLocal is on. */
+  private maskSlip(slip: Slip): Slip {
+    if (!this.options.rawMemoryLocal || !slip.redacted) return slip;
+    return { ...slip, text: "[redacted]" };
+  }
+
+  // ---------- failure->repair episodes ----------
+
+  /**
+   * Record a failure->repair episode. The failure and repair slips should
+   * already exist (created via remember/keep). The episode metadata is
+   * portable; raw memory text stays local.
+   */
+  recordEpisode(input: {
+    failureMode: string;
+    failureSlipIds: string[];
+    repairSlipIds: string[];
+    taskClass: string;
+    failingModel?: string | null;
+    repairModel?: string | null;
+  }): Episode {
+    const now = Date.now();
+    const episode: Episode = {
+      id: ulid(now),
+      sessionId: currentSessionId(),
+      authoredBy: currentAuthor(),
+      scope: this.scope,
+      failureMode: input.failureMode,
+      failureSlipIds: input.failureSlipIds,
+      repairSlipIds: input.repairSlipIds,
+      taskClass: input.taskClass,
+      failingModel: input.failingModel ?? null,
+      repairModel: input.repairModel ?? null,
+      createdAt: now,
+      evaluations: [],
+    };
+    this.storage.insertEpisode(episode);
+    return episode;
+  }
+
+  /** Retrieve a stored episode by id. */
+  getEpisode(id: string): Episode | null {
+    return this.storage.getEpisode(id);
+  }
+
+  /** Find all episodes for a task class in the current scope. */
+  episodesByTaskClass(taskClass: string): Episode[] {
+    return this.storage.episodesByTaskClass(taskClass, this.scope);
+  }
+
+  /**
+   * Add an evaluation result to an episode. Returns true if the episode
+   * was found.
+   */
+  addEpisodeEvaluation(
+    episodeId: string,
+    evaluation: EpisodeEvaluation,
+  ): boolean {
+    return this.storage.addEpisodeEvaluation(episodeId, evaluation);
+  }
+
+  /**
+   * Produce an ablation receipt for a task class. Compares evaluations
+   * run with episodes present vs. ablated (episodes removed). The receipt
+   * is deterministic from stored evaluations — no model calls here.
+   */
+  ablationReceipt(taskClass: string): AblationReceipt | null {
+    const episodes = this.storage.episodesByTaskClass(taskClass, this.scope);
+    if (episodes.length === 0) return null;
+
+    const evalCounts = { withEpisodes: 0, passedWith: 0, ablated: 0, passedAblated: 0 };
+    for (const ep of episodes) {
+      for (const evalResult of ep.evaluations) {
+        if (evalResult.ablated) {
+          evalCounts.ablated += 1;
+          if (evalResult.pass) evalCounts.passedAblated += 1;
+        } else {
+          evalCounts.withEpisodes += 1;
+          if (evalResult.pass) evalCounts.passedWith += 1;
+        }
+      }
+    }
+
+    const totalCases = evalCounts.withEpisodes + evalCounts.ablated;
+    return {
+      episodeId: episodes[0]!.id,
+      taskClass,
+      failingModel: episodes[0]!.failingModel,
+      repairModel: episodes[0]!.repairModel,
+      totalCases,
+      passedWithEpisodes: evalCounts.passedWith,
+      passedAblated: evalCounts.passedAblated,
+      ablationDemonstrated:
+        evalCounts.passedWith > 0 &&
+        evalCounts.passedWith > evalCounts.passedAblated,
+      evaluatedAt: Date.now(),
+    };
   }
 
   // ---------- mailbox ----------

@@ -37,9 +37,10 @@ Usage:
   deja handoff <summary>     Leave one active handoff for this session
   deja resolve <id> [completed|abandoned]
   deja link <from> <supersedes|contradicts|related> <to>
-  deja assess <trace> <useful|wrong|missed|no_memory_needed> [note]
-  deja eval                  Show scoped recall-quality evidence
-  deja forget-session <id> --yes  Expire a session's scoped slips
+   deja assess <trace> <useful|wrong|missed|no_memory_needed> [note]
+   deja eval                  Show scoped recall-quality evidence
+   deja redact <id>           Mask a slip in recall output; raw text stays local
+   deja forget-session <id> --yes  Expire a session's scoped slips
   deja ls [--session]        List kept slips (or current session's slips)
   deja show <id>             Show a slip + its links
   deja stats                 Print counts and DB path
@@ -226,6 +227,15 @@ function cmdAssess(args: string[]): void {
   const d = new Deja({ path: dbPath(), skipGc: true });
   if (!d.assessRecall(traceId, assessment, noteParts.join(" "))) throw new Error(`recall trace ${traceId} not found`);
   console.log(`recall ${traceId}: ${assessment}`);
+  d.close();
+}
+
+function cmdRedact(args: string[]): void {
+  const id = args[0];
+  if (!id) throw new Error("usage: deja redact <id>");
+  const d = new Deja({ path: dbPath(), skipGc: true });
+  if (!d.redact(id)) throw new Error(`slip ${id} not found or already redacted`);
+  console.log(`redacted ${id} — raw text remains in local DB but is masked in recall output`);
   d.close();
 }
 
@@ -500,6 +510,9 @@ switch (cmd) {
     break;
   case "eval":
     cmdEval();
+    break;
+  case "redact":
+    cmdRedact(rest);
     break;
   case "forget-session":
     cmdForgetSession(rest);

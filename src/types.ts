@@ -46,6 +46,8 @@ export interface Slip {
   /** Free-form provenance trail — usage signals. */
   usedCount: number;
   wrongCount: number;
+  /** When true, recall output masks the text; raw text stays in local DB. */
+  redacted: boolean;
 }
 
 export type LinkKind =
@@ -164,6 +166,8 @@ export interface RememberOpts {
   authoredBy?: string;
   /** Override automatic repository scope. Use `global` only deliberately. */
   scope?: string;
+  /** When true, the slip is stored but its text is masked in recall output. */
+  redacted?: boolean;
 }
 
 export interface HandoffInput {
@@ -203,4 +207,54 @@ export interface SendInput {
   body: string;
   threadId?: string;
   from?: string;
+}
+
+/**
+ * A recorded failure->repair episode, stored with redacted text.
+ * The raw memory text stays local; only the episode metadata and
+ * evaluation results are portable.
+ */
+export interface Episode {
+  id: string;
+  sessionId: string;
+  authoredBy: string;
+  scope: string;
+  /** Free-text description of the failure mode (redacted-safe). */
+  failureMode: string;
+  /** Slip ids that capture the failed attempt(s). */
+  failureSlipIds: string[];
+  /** Slip ids that capture the successful repair(s). */
+  repairSlipIds: string[];
+  /** Task class or domain label for cross-case evaluation. */
+  taskClass: string;
+  /** Model id that failed (e.g. "llama-3.1-8b"). */
+  failingModel: string | null;
+  /** Model id that supplied the repair (e.g. "claude-opus-4"). */
+  repairModel: string | null;
+  createdAt: number;
+  /** Evaluation results keyed by case label. */
+  evaluations: EpisodeEvaluation[];
+}
+
+export interface EpisodeEvaluation {
+  caseLabel: string;
+  pass: boolean;
+  /** Model id used for this evaluation. */
+  modelId: string | null;
+  /** When true, this eval was run without the episode's repair slips. */
+  ablated: boolean;
+  evaluatedAt: number;
+}
+
+export interface AblationReceipt {
+  episodeId: string;
+  taskClass: string;
+  failingModel: string | null;
+  repairModel: string | null;
+  totalCases: number;
+  passedWithEpisodes: number;
+  passedAblated: number;
+  /** True if ablation (removing episode slips) causes a regression. */
+  ablationDemonstrated: boolean;
+  evaluatedAt: number;
 }

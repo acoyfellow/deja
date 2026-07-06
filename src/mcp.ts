@@ -191,6 +191,14 @@ export function dispatch(
             };
         }
       }
+      case "redact": {
+        const id = String(args.id ?? "");
+        if (!id) return { text: "error: id is required", isError: true };
+        const ok = deja.redact(id);
+        return ok
+          ? { text: `redacted ${id} — raw text remains local; recall output is masked` }
+          : { text: `error: slip ${id} not found or already redacted`, isError: true };
+      }
       case "send": {
         const to = String(args.to ?? "");
         const body = String(args.body ?? "");
@@ -393,6 +401,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
         },
         required: ["id", "action"],
+      },
+    },
+    {
+      name: "redact",
+      description:
+        "Explicitly mask a slip in recall output. The raw text stays in the local SQLite file; only direct inspection (e.g. deja show) can read it after this call. Use when a memory accidentally contains a secret, credential, or customer content.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "Slip ULID to redact.",
+          },
+        },
+        required: ["id"],
       },
     },
     {

@@ -25,6 +25,8 @@ import type {
   MemoryKind,
   HandoffStatus,
   RecallAssessment,
+  Episode,
+  EpisodeEvaluation,
 } from "./types.ts";
 
 export interface StorageOptions {
@@ -50,7 +52,8 @@ CREATE TABLE IF NOT EXISTS slips (
   kept_at     INTEGER,
   expired_at  INTEGER,
   used_count  INTEGER NOT NULL DEFAULT 0,
-  wrong_count INTEGER NOT NULL DEFAULT 0
+  wrong_count INTEGER NOT NULL DEFAULT 0,
+  redacted    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_slips_session  ON slips(session_id);
@@ -114,6 +117,23 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_to_state ON messages(to_author, state, created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id, created_at);
 
+CREATE TABLE IF NOT EXISTS episodes (
+  id             TEXT PRIMARY KEY,
+  session_id     TEXT NOT NULL,
+  authored_by    TEXT NOT NULL,
+  scope          TEXT NOT NULL DEFAULT 'legacy:global',
+  failure_mode   TEXT NOT NULL,
+  failure_slip_ids TEXT NOT NULL DEFAULT '[]',
+  repair_slip_ids  TEXT NOT NULL DEFAULT '[]',
+  task_class     TEXT NOT NULL,
+  failing_model  TEXT,
+  repair_model   TEXT,
+  created_at     INTEGER NOT NULL,
+  evaluations    TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE INDEX IF NOT EXISTS idx_episodes_scope ON episodes(scope, task_class);
+
 -- Porter stemming layered on top of unicode61. Catches morphological
 -- variants ("prefers" matches "preferred", "deploy" matches "deployment").
 -- Stemming is the cheapest possible win for natural-language queries
@@ -156,6 +176,7 @@ interface SlipRow {
   expired_at: number | null;
   used_count: number;
   wrong_count: number;
+  redacted: number;
 }
 
 function rowToSlip(r: SlipRow): Slip {
@@ -173,6 +194,7 @@ function rowToSlip(r: SlipRow): Slip {
     expiredAt: r.expired_at,
     usedCount: r.used_count,
     wrongCount: r.wrong_count,
+    redacted: r.redacted === 1,
   };
 }
 
@@ -230,6 +252,38 @@ function rowToMessage(r: MessageRow): AgentMessage {
   };
 }
 
+interface EpisodeRow {
+  id: string;
+  session_id: string;
+  authored_by: string;
+  scope: string;
+  failure_mode: string;
+  failure_slip_ids: string;
+  repair_slip_ids: string;
+  task_class: string;
+  failing_model: string | null;
+  repair_model: string | null;
+  created_at: number;
+  evaluations: string;
+}
+
+function rowToEpisode(r: EpisodeRow): Episode {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    authoredBy: r.authored_by,
+    scope: r.scope,
+    failureMode: r.failure_mode,
+    failureSlipIds: JSON.parse(r.failure_slip_ids) as string[],
+    repairSlipIds: JSON.parse(r.repair_slip_ids) as string[],
+    taskClass: r.task_class,
+    failingModel: r.failing_model,
+    repairModel: r.repair_model,
+    createdAt: r.created_at,
+    evaluations: JSON.parse(r.evaluations) as EpisodeEvaluation[],
+  };
+}
+
 export class Storage {
   readonly db: Database;
   readonly path: string;
@@ -244,6 +298,7 @@ export class Storage {
     this.db.exec("PRAGMA foreign_keys = ON;");
     this.db.exec(SCHEMA);
     this.ensureScopeColumns();
+    this.ensureEpisodeColumns();
   }
 
   /** Add repository scoping to databases created before v0.0.4. */
@@ -254,6 +309,9 @@ export class Storage {
     }
     if (!slipColumns.some((column) => column.name === "kind")) {
       this.db.exec(`ALTER TABLE slips ADD COLUMN kind TEXT NOT NULL DEFAULT 'note'`);
+    }
+    if (!slipColumns.some((column) => column.name === "redacted")) {
+      this.db.exec(`ALTER TABLE slips ADD COLUMN redacted INTEGER NOT NULL DEFAULT 0`);
     }
     const handoffColumns = this.db.prepare(`PRAGMA table_info(handoffs)`).all() as Array<{ name: string }>;
     if (!handoffColumns.some((column) => column.name === "scope")) {
@@ -282,6 +340,14 @@ export class Storage {
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_handoffs_scope_created ON handoffs(scope, created_at)`);
   }
 
+  private ensureEpisodeColumns(): void {
+    const columns = this.db.prepare(`PRAGMA table_info(episodes)`).all() as Array<{ name: string }>;
+    if (columns.length === 0) return;
+    if (!columns.some((column) => column.name === "evaluations")) {
+      this.db.exec(`ALTER TABLE episodes ADD COLUMN evaluations TEXT NOT NULL DEFAULT '[]'`);
+    }
+  }
+
   close(): void {
     this.db.close();
   }
@@ -292,8 +358,8 @@ export class Storage {
     this.db
       .prepare(
         `INSERT INTO slips
-         (id, session_id, authored_by, scope, kind, text, tags, state, created_at, kept_at, expired_at, used_count, wrong_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, session_id, authored_by, scope, kind, text, tags, state, created_at, kept_at, expired_at, used_count, wrong_count, redacted)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         s.id,
@@ -309,6 +375,7 @@ export class Storage {
         s.expiredAt,
         s.usedCount,
         s.wrongCount,
+        s.redacted ? 1 : 0,
       );
   }
 
@@ -341,6 +408,13 @@ export class Storage {
     this.db
       .prepare(`UPDATE slips SET wrong_count = wrong_count + 1 WHERE id = ?`)
       .run(id);
+  }
+
+  redactSlip(id: string, at: number): boolean {
+    const result = this.db
+      .prepare(`UPDATE slips SET redacted = 1, wrong_count = wrong_count + 1 WHERE id = ? AND redacted = 0`)
+      .run(id);
+    return result.changes > 0;
   }
 
   /** Expire all drafts older than `cutoff` ms. Returns count. */
@@ -681,6 +755,54 @@ export class Storage {
       missed: row.missed ?? 0,
       noMemoryNeeded: row.no_memory_needed ?? 0,
     };
+  }
+
+  // ----- episodes -----
+
+  insertEpisode(e: Episode): void {
+    this.db
+      .prepare(
+        `INSERT INTO episodes
+         (id, session_id, authored_by, scope, failure_mode, failure_slip_ids, repair_slip_ids,
+          task_class, failing_model, repair_model, created_at, evaluations)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        e.id,
+        e.sessionId,
+        e.authoredBy,
+        e.scope,
+        e.failureMode,
+        JSON.stringify(e.failureSlipIds),
+        JSON.stringify(e.repairSlipIds),
+        e.taskClass,
+        e.failingModel,
+        e.repairModel,
+        e.createdAt,
+        JSON.stringify(e.evaluations),
+      );
+  }
+
+  getEpisode(id: string): Episode | null {
+    const r = this.db.prepare(`SELECT * FROM episodes WHERE id = ?`).get(id) as EpisodeRow | null;
+    return r ? rowToEpisode(r) : null;
+  }
+
+  episodesByTaskClass(taskClass: string, scope: string): Episode[] {
+    const rows = this.db
+      .prepare(`SELECT * FROM episodes WHERE task_class = ? AND scope = ? ORDER BY created_at ASC`)
+      .all(taskClass, scope) as EpisodeRow[];
+    return rows.map(rowToEpisode);
+  }
+
+  addEpisodeEvaluation(episodeId: string, evaluation: EpisodeEvaluation): boolean {
+    const existing = this.getEpisode(episodeId);
+    if (!existing) return false;
+    const updated = [...existing.evaluations, evaluation];
+    const result = this.db
+      .prepare(`UPDATE episodes SET evaluations = ? WHERE id = ?`)
+      .run(JSON.stringify(updated), episodeId);
+    return result.changes > 0;
   }
 
   // ----- diagnostics -----
