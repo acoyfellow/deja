@@ -265,6 +265,8 @@ interface EpisodeRow {
   repair_model: string | null;
   created_at: number;
   evaluations: string;
+  export_policy: string;
+  redaction_policy: string;
 }
 
 function rowToEpisode(r: EpisodeRow): Episode {
@@ -281,6 +283,8 @@ function rowToEpisode(r: EpisodeRow): Episode {
     repairModel: r.repair_model,
     createdAt: r.created_at,
     evaluations: JSON.parse(r.evaluations) as EpisodeEvaluation[],
+    exportPolicy: r.export_policy as "metadata-only" | "redacted" | "full",
+    redactionPolicy: r.redaction_policy as "allow" | "strip",
   };
 }
 
@@ -345,6 +349,12 @@ export class Storage {
     if (columns.length === 0) return;
     if (!columns.some((column) => column.name === "evaluations")) {
       this.db.exec(`ALTER TABLE episodes ADD COLUMN evaluations TEXT NOT NULL DEFAULT '[]'`);
+    }
+    if (!columns.some((column) => column.name === "export_policy")) {
+      this.db.exec(`ALTER TABLE episodes ADD COLUMN export_policy TEXT NOT NULL DEFAULT 'metadata-only'`);
+    }
+    if (!columns.some((column) => column.name === "redaction_policy")) {
+      this.db.exec(`ALTER TABLE episodes ADD COLUMN redaction_policy TEXT NOT NULL DEFAULT 'allow'`);
     }
   }
 
@@ -764,8 +774,8 @@ export class Storage {
       .prepare(
         `INSERT INTO episodes
          (id, session_id, authored_by, scope, failure_mode, failure_slip_ids, repair_slip_ids,
-          task_class, failing_model, repair_model, created_at, evaluations)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          task_class, failing_model, repair_model, created_at, evaluations, export_policy, redaction_policy)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         e.id,
@@ -780,6 +790,8 @@ export class Storage {
         e.repairModel,
         e.createdAt,
         JSON.stringify(e.evaluations),
+        e.exportPolicy,
+        e.redactionPolicy,
       );
   }
 
