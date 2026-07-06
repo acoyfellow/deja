@@ -352,10 +352,196 @@ describe("Deja API", () => {
       expiredAt: null,
       usedCount: 0,
       wrongCount: 0,
+      redacted: false,
     });
     const expired = d.gc();
     expect(expired).toBe(1);
     expect(d.get("01OLD0000000000000000000000")!.state).toBe("expired");
+    d.close();
+  });
+});
+
+describe("Redaction", () => {
+  test("remember with redacted: true stores with redacted flag", () => {
+    const d = memory();
+    const s = d.remember("secret: api key is sk-1234", { redacted: true });
+    expect(s.redacted).toBe(true);
+    d.close();
+  });
+
+  test("remember without redacted stores with redacted: false", () => {
+    const d = memory();
+    const s = d.remember("normal memory");
+    expect(s.redacted).toBe(false);
+    d.close();
+  });
+
+  test("redact() marks an existing slip as redacted", () => {
+    const d = memory();
+    const s = d.remember("accidental secret");
+    expect(s.redacted).toBe(false);
+    expect(d.redact(s.id)).toBe(true);
+    expect(d.get(s.id)!.redacted).toBe(true);
+    d.close();
+  });
+
+  test("redact() returns false for already-redacted or missing slips", () => {
+    const d = memory();
+    const s = d.remember("secret", { redacted: true });
+    expect(d.redact(s.id)).toBe(false);
+    expect(d.redact("nonexistent")).toBe(false);
+    d.close();
+  });
+
+  test("recall masks redacted slip text", () => {
+    const d = memory();
+    const s = d.remember("secret: api key is sk-1234", { redacted: true });
+    d.keep([s.id], { noChainRollup: true });
+    const result = d.recall("secret");
+    expect(result.hits.length).toBeGreaterThan(0);
+    for (const hit of result.hits) {
+      if (hit.slip.id === s.id) {
+        expect(hit.slip.text).toBe("[redacted]");
+      }
+    }
+    d.close();
+  });
+
+  test("recall does not mask non-redacted slip text", () => {
+    const d = memory();
+    const s = d.remember("normal memory");
+    d.keep([s.id], { noChainRollup: true });
+    const result = d.recall("normal");
+    expect(result.hits[0]!.slip.text).toBe("normal memory");
+    d.close();
+  });
+
+  test("rawMemoryLocal: false disables masking", () => {
+    const d = new Deja({ path: ":memory:", skipGc: true, rawMemoryLocal: false });
+    const s = d.remember("secret: api key", { redacted: true });
+    d.keep([s.id], { noChainRollup: true });
+    const result = d.recall("secret");
+    expect(result.hits[0]!.slip.text).toBe("secret: api key");
+    d.close();
+  });
+
+  test("get() returns raw text regardless of redaction", () => {
+    const d = memory();
+    const s = d.remember("secret", { redacted: true });
+    expect(d.get(s.id)!.text).toBe("secret");
+    d.close();
+  });
+});
+
+describe("Episodes", () => {
+  test("recordEpisode stores failure->repair metadata", () => {
+    const d = memory();
+    const fail = d.remember("failed to parse JSON");
+    const repair = d.remember("added try-catch around JSON.parse");
+    d.keep([fail.id, repair.id], { noChainRollup: true });
+
+    const ep = d.recordEpisode({
+      failureMode: "JSON parse error on malformed input",
+      failureSlipIds: [fail.id],
+      repairSlipIds: [repair.id],
+      taskClass: "json-handling",
+      failingModel: "llama-3.1-8b",
+      repairModel: "claude-opus-4",
+    });
+    expect(ep.taskClass).toBe("json-handling");
+    expect(ep.failureSlipIds).toEqual([fail.id]);
+    expect(ep.repairSlipIds).toEqual([repair.id]);
+    expect(ep.evaluations).toEqual([]);
+    d.close();
+  });
+
+  test("getEpisode retrieves stored episode", () => {
+    const d = memory();
+    const ep = d.recordEpisode({
+      failureMode: "timeout on large input",
+      failureSlipIds: [],
+      repairSlipIds: [],
+      taskClass: "timeout",
+    });
+    const got = d.getEpisode(ep.id);
+    expect(got).not.toBeNull();
+    expect(got!.failureMode).toBe("timeout on large input");
+    d.close();
+  });
+
+  test("episodesByTaskClass returns scoped episodes", () => {
+    const d = memory();
+    d.recordEpisode({ failureMode: "a", failureSlipIds: [], repairSlipIds: [], taskClass: "parser" });
+    d.recordEpisode({ failureMode: "b", failureSlipIds: [], repairSlipIds: [], taskClass: "parser" });
+    d.recordEpisode({ failureMode: "c", failureSlipIds: [], repairSlipIds: [], taskClass: "network" });
+    expect(d.episodesByTaskClass("parser").length).toBe(2);
+    expect(d.episodesByTaskClass("network").length).toBe(1);
+    d.close();
+  });
+
+  test("addEpisodeEvaluation records an evaluation result", () => {
+    const d = memory();
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [],
+      repairSlipIds: [],
+      taskClass: "test",
+    });
+    const ok = d.addEpisodeEvaluation(ep.id, {
+      caseLabel: "case-1",
+      pass: true,
+      modelId: "test-model",
+      ablated: false,
+      evaluatedAt: Date.now(),
+    });
+    expect(ok).toBe(true);
+    const got = d.getEpisode(ep.id)!;
+    expect(got.evaluations.length).toBe(1);
+    expect(got.evaluations[0]!.caseLabel).toBe("case-1");
+    expect(got.evaluations[0]!.pass).toBe(true);
+    d.close();
+  });
+
+  test("ablationReceipt returns null when no episodes exist", () => {
+    const d = memory();
+    expect(d.ablationReceipt("nonexistent")).toBeNull();
+    d.close();
+  });
+
+  test("ablationReceipt demonstrates ablation when with-episode pass rate exceeds ablated", () => {
+    const d = memory();
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [],
+      repairSlipIds: [],
+      taskClass: "json-handling",
+    });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: 1 });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: true, modelId: null, ablated: false, evaluatedAt: 2 });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c3", pass: false, modelId: null, ablated: true, evaluatedAt: 3 });
+
+    const receipt = d.ablationReceipt("json-handling");
+    expect(receipt).not.toBeNull();
+    expect(receipt!.ablationDemonstrated).toBe(true);
+    expect(receipt!.passedWithEpisodes).toBe(2);
+    expect(receipt!.passedAblated).toBe(0);
+    d.close();
+  });
+
+  test("ablationReceipt shows no ablation when ablated passes match", () => {
+    const d = memory();
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [],
+      repairSlipIds: [],
+      taskClass: "trivial",
+    });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: 1 });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: true, evaluatedAt: 2 });
+
+    const receipt = d.ablationReceipt("trivial");
+    expect(receipt).not.toBeNull();
+    expect(receipt!.ablationDemonstrated).toBe(false);
     d.close();
   });
 });
