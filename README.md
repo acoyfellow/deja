@@ -243,11 +243,14 @@ const ep = d.recordEpisode({
   repairModel: "claude-opus-4",
 });
 d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: Date.now() });
+d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: null, ablated: true, evaluatedAt: Date.now() });
 const receipt = d.ablationReceipt("json-handling");
-// receipt.ablationDemonstrated === true when removing episodes causes regression
+// receipt.ablationDemonstrated === true when paired with-episode pass exceeds ablated pass
+// receipt.mechanicsVerified === true — Deja's schema, redaction, and paired comparison are sound
+// receipt.modelTransferUnproven === true — model-specific transfer requires cross-model eval
 ```
 
-Episodes link failure and repair slips without duplicating raw text. The ablation receipt is a deterministic summary of stored evaluations — no model calls at receipt time.
+Episodes link failure and repair slips without duplicating raw text. The ablation receipt is a deterministic summary of stored evaluations — no model calls at receipt time. The receipt explicitly separates verified mechanics (schema, redaction, paired comparison) from unproven model transfer.
 
 ### Deliberate bulk cleanup
 

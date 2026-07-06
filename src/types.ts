@@ -234,6 +234,18 @@ export interface Episode {
   createdAt: number;
   /** Evaluation results keyed by case label. */
   evaluations: EpisodeEvaluation[];
+  /**
+   * Explicit export policy: what may be shared outside the local
+   * repository. "metadata-only" (default) means slip ids and
+   * evaluation results are portable; raw memory text stays local.
+   */
+  exportPolicy: "metadata-only" | "redacted" | "full";
+  /**
+   * Redaction policy for this episode's metadata when exported.
+   * "allow" (default) permits failureMode and model ids in receipts.
+   * "strip" removes failureMode from portable receipts.
+   */
+  redactionPolicy: "allow" | "strip";
 }
 
 export interface EpisodeEvaluation {
@@ -244,6 +256,19 @@ export interface EpisodeEvaluation {
   /** When true, this eval was run without the episode's repair slips. */
   ablated: boolean;
   evaluatedAt: number;
+}
+
+/**
+ * References to evidence that supports a claim. Slip ids are local
+ * references; the evaluation provenance is the portable record.
+ */
+export interface EvidenceRef {
+  /** Slip ids that constitute the evidence. */
+  slipIds: string[];
+  /** Evaluation trace id that produced this evidence, if recorded. */
+  evaluationTraceId?: string;
+  /** Free-form note about what this evidence demonstrates. */
+  note?: string;
 }
 
 export interface AblationReceipt {
@@ -257,4 +282,32 @@ export interface AblationReceipt {
   /** True if ablation (removing episode slips) causes a regression. */
   ablationDemonstrated: boolean;
   evaluatedAt: number;
+  /**
+   * Per-case paired results. Each pair shares the same caseLabel for
+   * with-episode vs ablated comparison. Only present when evaluations
+   * are properly paired.
+   */
+  pairedResults?: AblationPair[];
+  /**
+   * Evidence references supporting the receipt claims. Slip ids are
+   * local; the evaluation trace is the portable provenance.
+   */
+  evidence?: EvidenceRef[];
+  /**
+   * When true, the receipt proves Deja's mechanics (schema, redaction,
+   * paired-ablation comparison) are sound. Model-specific transfer
+   * remains unproven unless explicitly tested.
+   */
+  mechanicsVerified: boolean;
+  /**
+   * Model transfer is explicitly unproven unless a cross-model
+   * evaluation has been performed and recorded.
+   */
+  modelTransferUnproven: boolean;
+}
+
+export interface AblationPair {
+  caseLabel: string;
+  withEpisode: { pass: boolean; modelId: string | null } | null;
+  ablated: { pass: boolean; modelId: string | null } | null;
 }

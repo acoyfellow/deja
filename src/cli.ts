@@ -37,7 +37,7 @@ Usage:
   deja handoff <summary>     Leave one active handoff for this session
   deja resolve <id> [completed|abandoned]
   deja link <from> <supersedes|contradicts|related> <to>
-   deja assess <trace> <useful|wrong|missed|no_memory_needed> [note]
+deja assess <trace> <useful|wrong|missed|no_memory_needed> [note]
    deja eval                  Show scoped recall-quality evidence
    deja redact <id>           Mask a slip in recall output; raw text stays local
    deja forget-session <id> --yes  Expire a session's scoped slips

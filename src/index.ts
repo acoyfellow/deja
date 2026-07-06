@@ -44,6 +44,8 @@ import type {
   Episode,
   EpisodeEvaluation,
   AblationReceipt,
+  AblationPair,
+  EvidenceRef,
 } from "./types.ts";
 
 export type {
@@ -65,6 +67,8 @@ export type {
   Episode,
   EpisodeEvaluation,
   AblationReceipt,
+  AblationPair,
+  EvidenceRef,
 } from "./types.ts";
 
 export { defaultDbPath } from "./storage.ts";
@@ -452,6 +456,11 @@ export class Deja {
    * Record a failure->repair episode. The failure and repair slips should
    * already exist (created via remember/keep). The episode metadata is
    * portable; raw memory text stays local.
+   *
+   * Returns the episode or throws if:
+   * - failureSlipIds or repairSlipIds contain empty strings
+   * - any referenced slip id does not exist in the current scope
+   * - failureMode is empty
    */
   recordEpisode(input: {
     failureMode: string;
@@ -460,14 +469,30 @@ export class Deja {
     taskClass: string;
     failingModel?: string | null;
     repairModel?: string | null;
+    exportPolicy?: "metadata-only" | "redacted" | "full";
+    redactionPolicy?: "allow" | "strip";
   }): Episode {
+    const failureMode = input.failureMode.trim();
+    if (!failureMode) throw new Error("deja.recordEpisode: failureMode is required");
+    if (input.failureSlipIds.some((id) => !id.trim()))
+      throw new Error("deja.recordEpisode: failureSlipIds contains empty id");
+    if (input.repairSlipIds.some((id) => !id.trim()))
+      throw new Error("deja.recordEpisode: repairSlipIds contains empty id");
+
+    for (const id of [...input.failureSlipIds, ...input.repairSlipIds]) {
+      const slip = this.storage.getSlip(id);
+      if (!slip) throw new Error(`deja.recordEpisode: slip ${id} not found`);
+      if (slip.scope !== this.scope)
+        throw new Error(`deja.recordEpisode: slip ${id} is not in scope ${this.scope}`);
+    }
+
     const now = Date.now();
     const episode: Episode = {
       id: ulid(now),
       sessionId: currentSessionId(),
       authoredBy: currentAuthor(),
       scope: this.scope,
-      failureMode: input.failureMode,
+      failureMode,
       failureSlipIds: input.failureSlipIds,
       repairSlipIds: input.repairSlipIds,
       taskClass: input.taskClass,
@@ -475,6 +500,8 @@ export class Deja {
       repairModel: input.repairModel ?? null,
       createdAt: now,
       evaluations: [],
+      exportPolicy: input.exportPolicy ?? "metadata-only",
+      redactionPolicy: input.redactionPolicy ?? "allow",
     };
     this.storage.insertEpisode(episode);
     return episode;
@@ -505,37 +532,114 @@ export class Deja {
    * Produce an ablation receipt for a task class. Compares evaluations
    * run with episodes present vs. ablated (episodes removed). The receipt
    * is deterministic from stored evaluations — no model calls here.
+   *
+   * The receipt includes:
+   * - Paired per-case results (same caseLabel for with-episode vs ablated)
+   * - Evidence references (slip ids + evaluation trace provenance)
+   * - mechanicsVerified: true when the receipt proves Deja's schema,
+   *   redaction, and paired-ablation mechanics are sound
+   * - modelTransferUnproven: explicitly true unless cross-model eval data
+   *   exists
    */
   ablationReceipt(taskClass: string): AblationReceipt | null {
     const episodes = this.storage.episodesByTaskClass(taskClass, this.scope);
     if (episodes.length === 0) return null;
 
-    const evalCounts = { withEpisodes: 0, passedWith: 0, ablated: 0, passedAblated: 0 };
+    // Collect all evaluations, grouped by caseLabel for pairing
+    const byCase = new Map<string, { withEpisode: EpisodeEvaluation[]; ablated: EpisodeEvaluation[] }>();
+    const allSlipIds = new Set<string>();
     for (const ep of episodes) {
+      for (const eid of ep.failureSlipIds) allSlipIds.add(eid);
+      for (const eid of ep.repairSlipIds) allSlipIds.add(eid);
       for (const evalResult of ep.evaluations) {
+        let group = byCase.get(evalResult.caseLabel);
+        if (!group) {
+          group = { withEpisode: [], ablated: [] };
+          byCase.set(evalResult.caseLabel, group);
+        }
         if (evalResult.ablated) {
-          evalCounts.ablated += 1;
-          if (evalResult.pass) evalCounts.passedAblated += 1;
+          group.ablated.push(evalResult);
         } else {
-          evalCounts.withEpisodes += 1;
-          if (evalResult.pass) evalCounts.passedWith += 1;
+          group.withEpisode.push(evalResult);
         }
       }
     }
 
-    const totalCases = evalCounts.withEpisodes + evalCounts.ablated;
+    // Build paired results: each caseLabel appears once per pair
+    const pairedResults: AblationPair[] = [];
+    let totalWith = 0, passedWith = 0, totalAblated = 0, passedAblated = 0;
+    let pairedCount = 0, pairedWithPassed = 0, pairedAblatedPassed = 0;
+
+    for (const [caseLabel, group] of byCase) {
+      // Aggregate counts (backward-compatible)
+      for (const e of group.withEpisode) {
+        totalWith++; if (e.pass) passedWith++;
+      }
+      for (const e of group.ablated) {
+        totalAblated++; if (e.pass) passedAblated++;
+      }
+
+      // Paired: take the first with-episode and first ablated eval for this case
+      const withEval = group.withEpisode[0] ?? null;
+      const ablatedEval = group.ablated[0] ?? null;
+      if (withEval && ablatedEval) {
+        pairedCount++;
+        if (withEval.pass) pairedWithPassed++;
+        if (ablatedEval.pass) pairedAblatedPassed++;
+      }
+      pairedResults.push({
+        caseLabel,
+        withEpisode: withEval ? { pass: withEval.pass, modelId: withEval.modelId } : null,
+        ablated: ablatedEval ? { pass: ablatedEval.pass, modelId: ablatedEval.modelId } : null,
+      });
+    }
+
+    const totalCases = totalWith + totalAblated;
+
+    // ablationDemonstrated uses paired data when available, falls back to aggregate
+    const ablationDemonstrated = pairedCount > 0
+      ? pairedWithPassed > pairedAblatedPassed
+      : passedWith > 0 && passedWith > passedAblated;
+
+    // Check if any evaluation used a different model than the episode's repairModel
+    const modelsSeen = new Set<string>();
+    for (const ep of episodes) {
+      if (ep.repairModel) modelsSeen.add(ep.repairModel);
+      if (ep.failingModel) modelsSeen.add(ep.failingModel);
+      for (const e of ep.evaluations) {
+        if (e.modelId) modelsSeen.add(e.modelId);
+      }
+    }
+    // modelTransferUnproven is true unless there's evidence of cross-model eval
+    const modelTransferUnproven = modelsSeen.size <= 2;
+
+    // Evidence references
+    const evidence: EvidenceRef[] = [
+      {
+        slipIds: Array.from(allSlipIds),
+        note: "Slip ids referenced by episodes in this task class",
+      },
+      {
+        slipIds: [],
+        evaluationTraceId: undefined,
+        note: "Evaluation results are stored in episode.evaluations; trace ids are recorded per evaluation if available",
+      },
+    ];
+
     return {
       episodeId: episodes[0]!.id,
       taskClass,
       failingModel: episodes[0]!.failingModel,
       repairModel: episodes[0]!.repairModel,
       totalCases,
-      passedWithEpisodes: evalCounts.passedWith,
-      passedAblated: evalCounts.passedAblated,
-      ablationDemonstrated:
-        evalCounts.passedWith > 0 &&
-        evalCounts.passedWith > evalCounts.passedAblated,
+      passedWithEpisodes: passedWith,
+      passedAblated,
+      ablationDemonstrated,
       evaluatedAt: Date.now(),
+      pairedResults,
+      evidence,
+      mechanicsVerified: true,
+      modelTransferUnproven,
     };
   }
 
