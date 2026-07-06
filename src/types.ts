@@ -256,15 +256,25 @@ export interface EpisodeEvaluation {
   /** When true, this eval was run without the episode's repair slips. */
   ablated: boolean;
   evaluatedAt: number;
+  /**
+   * Opaque evidence receipt reference. Must be a nonempty string for this
+   * evaluation to be eligible as an observed result in a paired ablation.
+   * Evaluations without a receipt ref remain storable but are never treated
+   * as observed evidence.
+   */
+  evidenceReceiptRef?: string;
 }
 
 /**
- * References to evidence that supports a claim. Slip ids are local
- * references; the evaluation provenance is the portable record.
+ * References to evidence that supports a claim. Portable provenance only:
+ * local slip ids are never exposed here.
  */
 export interface EvidenceRef {
-  /** Slip ids that constitute the evidence. */
-  slipIds: string[];
+  /**
+   * Evidence receipt references for evaluations that support this claim.
+   * These are opaque, portable handles to recorded evaluation results.
+   */
+  evidenceReceiptRefs?: string[];
   /** Evaluation trace id that produced this evidence, if recorded. */
   evaluationTraceId?: string;
   /** Free-form note about what this evidence demonstrates. */
@@ -279,35 +289,40 @@ export interface AblationReceipt {
   totalCases: number;
   passedWithEpisodes: number;
   passedAblated: number;
-  /** True if ablation (removing episode slips) causes a regression. */
+  /**
+   * True only when eligible paired evidence (same caseLabel, same non-null
+   * modelId, distinct evidence receipt refs on both sides) shows that
+   * with-episode passes exceed ablated passes. Unpaired evaluations never
+   * demonstrate ablation and there is no aggregate fallback.
+   */
   ablationDemonstrated: boolean;
   evaluatedAt: number;
   /**
-   * Per-case paired results. Each pair shares the same caseLabel for
-   * with-episode vs ablated comparison. Only present when evaluations
-   * are properly paired.
+   * Per-case paired results for complete, evidence-backed pairs only.
+   * A pair is eligible when both sides share the same caseLabel, share
+   * the same non-null modelId, and carry distinct evidence receipt refs.
    */
   pairedResults?: AblationPair[];
   /**
-   * Evidence references supporting the receipt claims. Slip ids are
-   * local; the evaluation trace is the portable provenance.
+   * Evidence references supporting the receipt claims. Contains no local
+   * slip ids and omits undefined evaluationTraceId entries.
    */
   evidence?: EvidenceRef[];
   /**
-   * When true, the receipt proves Deja's mechanics (schema, redaction,
-   * paired-ablation comparison) are sound. Model-specific transfer
-   * remains unproven unless explicitly tested.
+   * True only when the receipt is backed by at least one complete,
+   * evidence-backed pair (contract validation). Model-specific transfer
+   * remains unproven in this Phase 1 API.
    */
   mechanicsVerified: boolean;
   /**
-   * Model transfer is explicitly unproven unless a cross-model
-   * evaluation has been performed and recorded.
+   * Model transfer is explicitly unproven in this Phase 1 API. The
+   * presence of multiple model names is never used to infer transfer.
    */
   modelTransferUnproven: boolean;
 }
 
 export interface AblationPair {
   caseLabel: string;
-  withEpisode: { pass: boolean; modelId: string | null } | null;
-  ablated: { pass: boolean; modelId: string | null } | null;
+  withEpisode: { pass: boolean; modelId: string | null; evidenceReceiptRef?: string } | null;
+  ablated: { pass: boolean; modelId: string | null; evidenceReceiptRef?: string } | null;
 }

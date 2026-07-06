@@ -42,7 +42,8 @@
     "mcp": "bun run src/mcp.ts",
     "mcp:shared": "bun run src/shared-mcp.ts",
     "check": "bun test ./test && bun run typecheck && bun run bench/recall.ts && bun run bench:behavior",
-    "bench:behavior": "bun run bench/behavior/run.ts"
+    "bench:behavior": "bun run bench/behavior/run.ts",
+    "proof:stage3": "bun run scripts/proof-stage3.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
