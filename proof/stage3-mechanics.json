@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2025-09-04T15:33:22.000Z",
+  "modelTransfer": "unproven",
+  "receipt": {
+    "episodeId": "01K4ANRRG0HJKMNPQRSTVWXYZ0",
+    "taskClass": "stage3-mechanics",
+    "failingModel": "model-a",
+    "repairModel": "model-a",
+    "totalCases": 2,
+    "passedWithEpisodes": 1,
+    "passedAblated": 0,
+    "ablationDemonstrated": true,
+    "evaluatedAt": 1757000000000,
+    "pairedResults": [
+      {
+        "caseLabel": "contract-validation",
+        "withEpisode": {
+          "pass": true,
+          "modelId": "model-a",
+          "evidenceReceiptRef": "stage3-ev-with-episode"
+        },
+        "ablated": {
+          "pass": false,
+          "modelId": "model-a",
+          "evidenceReceiptRef": "stage3-ev-ablated"
+        }
+      }
+    ],
+    "evidence": [
+      {
+        "evidenceReceiptRefs": [
+          "stage3-ev-with-episode",
+          "stage3-ev-ablated"
+        ],
+        "note": "Evidence receipt refs for complete paired ablation evaluations"
+      }
+    ],
+    "mechanicsVerified": true,
+    "modelTransferUnproven": true
+  }
+}

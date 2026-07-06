@@ -533,13 +533,17 @@ export class Deja {
    * run with episodes present vs. ablated (episodes removed). The receipt
    * is deterministic from stored evaluations — no model calls here.
    *
+   * A paired ablation is eligible only when both sides share the same
+   * caseLabel, the same non-null modelId, and distinct, nonempty evidence
+   * receipt refs. Unpaired evaluations remain storable but are never used
+   * to demonstrate ablation and never fall back to aggregate counts.
+   *
    * The receipt includes:
-   * - Paired per-case results (same caseLabel for with-episode vs ablated)
-   * - Evidence references (slip ids + evaluation trace provenance)
-   * - mechanicsVerified: true when the receipt proves Deja's schema,
-   *   redaction, and paired-ablation mechanics are sound
-   * - modelTransferUnproven: explicitly true unless cross-model eval data
-   *   exists
+   * - Paired per-case results for complete, evidence-backed pairs only
+   * - Evidence references (portable receipt refs only; no local slip ids)
+   * - mechanicsVerified: true only when at least one complete,
+   *   evidence-backed pair validates the contract
+   * - modelTransferUnproven: always true in this Phase 1 API
    */
   ablationReceipt(taskClass: string): AblationReceipt | null {
     const episodes = this.storage.episodesByTaskClass(taskClass, this.scope);
@@ -547,10 +551,7 @@ export class Deja {
 
     // Collect all evaluations, grouped by caseLabel for pairing
     const byCase = new Map<string, { withEpisode: EpisodeEvaluation[]; ablated: EpisodeEvaluation[] }>();
-    const allSlipIds = new Set<string>();
     for (const ep of episodes) {
-      for (const eid of ep.failureSlipIds) allSlipIds.add(eid);
-      for (const eid of ep.repairSlipIds) allSlipIds.add(eid);
       for (const evalResult of ep.evaluations) {
         let group = byCase.get(evalResult.caseLabel);
         if (!group) {
@@ -565,13 +566,14 @@ export class Deja {
       }
     }
 
-    // Build paired results: each caseLabel appears once per pair
+    // Build complete, evidence-backed pairs only.
     const pairedResults: AblationPair[] = [];
     let totalWith = 0, passedWith = 0, totalAblated = 0, passedAblated = 0;
     let pairedCount = 0, pairedWithPassed = 0, pairedAblatedPassed = 0;
+    const evidenceReceiptRefs: string[] = [];
 
     for (const [caseLabel, group] of byCase) {
-      // Aggregate counts (backward-compatible)
+      // Aggregate counts remain backward-compatible but do not drive ablation claims.
       for (const e of group.withEpisode) {
         totalWith++; if (e.pass) passedWith++;
       }
@@ -579,52 +581,46 @@ export class Deja {
         totalAblated++; if (e.pass) passedAblated++;
       }
 
-      // Paired: take the first with-episode and first ablated eval for this case
-      const withEval = group.withEpisode[0] ?? null;
-      const ablatedEval = group.ablated[0] ?? null;
-      if (withEval && ablatedEval) {
+      // Eligible pair: same caseLabel, same non-null modelId, distinct nonempty receipt refs.
+      const pair = this.findEligiblePair(group.withEpisode, group.ablated);
+      if (pair) {
         pairedCount++;
-        if (withEval.pass) pairedWithPassed++;
-        if (ablatedEval.pass) pairedAblatedPassed++;
+        if (pair.withEpisode.pass) pairedWithPassed++;
+        if (pair.ablated.pass) pairedAblatedPassed++;
+        pairedResults.push({
+          caseLabel,
+          withEpisode: {
+            pass: pair.withEpisode.pass,
+            modelId: pair.withEpisode.modelId,
+            evidenceReceiptRef: pair.withEpisode.evidenceReceiptRef,
+          },
+          ablated: {
+            pass: pair.ablated.pass,
+            modelId: pair.ablated.modelId,
+            evidenceReceiptRef: pair.ablated.evidenceReceiptRef,
+          },
+        });
+        if (pair.withEpisode.evidenceReceiptRef) evidenceReceiptRefs.push(pair.withEpisode.evidenceReceiptRef);
+        if (pair.ablated.evidenceReceiptRef) evidenceReceiptRefs.push(pair.ablated.evidenceReceiptRef);
       }
-      pairedResults.push({
-        caseLabel,
-        withEpisode: withEval ? { pass: withEval.pass, modelId: withEval.modelId } : null,
-        ablated: ablatedEval ? { pass: ablatedEval.pass, modelId: ablatedEval.modelId } : null,
-      });
     }
 
     const totalCases = totalWith + totalAblated;
 
-    // ablationDemonstrated uses paired data when available, falls back to aggregate
-    const ablationDemonstrated = pairedCount > 0
-      ? pairedWithPassed > pairedAblatedPassed
-      : passedWith > 0 && passedWith > passedAblated;
+    // Ablation is demonstrated only by eligible paired evidence; no aggregate fallback.
+    const ablationDemonstrated = pairedCount > 0 && pairedWithPassed > pairedAblatedPassed;
 
-    // Check if any evaluation used a different model than the episode's repairModel
-    const modelsSeen = new Set<string>();
-    for (const ep of episodes) {
-      if (ep.repairModel) modelsSeen.add(ep.repairModel);
-      if (ep.failingModel) modelsSeen.add(ep.failingModel);
-      for (const e of ep.evaluations) {
-        if (e.modelId) modelsSeen.add(e.modelId);
-      }
+    // Phase 1 API: model transfer is always explicitly unproven.
+    const modelTransferUnproven = true;
+
+    // Portable evidence: no local slip ids, no undefined evaluationTraceId.
+    const evidence: EvidenceRef[] = [];
+    if (evidenceReceiptRefs.length > 0) {
+      evidence.push({
+        evidenceReceiptRefs: Array.from(new Set(evidenceReceiptRefs)),
+        note: "Evidence receipt refs for complete paired ablation evaluations",
+      });
     }
-    // modelTransferUnproven is true unless there's evidence of cross-model eval
-    const modelTransferUnproven = modelsSeen.size <= 2;
-
-    // Evidence references
-    const evidence: EvidenceRef[] = [
-      {
-        slipIds: Array.from(allSlipIds),
-        note: "Slip ids referenced by episodes in this task class",
-      },
-      {
-        slipIds: [],
-        evaluationTraceId: undefined,
-        note: "Evaluation results are stored in episode.evaluations; trace ids are recorded per evaluation if available",
-      },
-    ];
 
     return {
       episodeId: episodes[0]!.id,
@@ -636,11 +632,28 @@ export class Deja {
       passedAblated,
       ablationDemonstrated,
       evaluatedAt: Date.now(),
-      pairedResults,
+      pairedResults: pairedResults.length > 0 ? pairedResults : undefined,
       evidence,
-      mechanicsVerified: true,
+      mechanicsVerified: pairedCount > 0,
       modelTransferUnproven,
     };
+  }
+
+  private findEligiblePair(
+    withEpisode: EpisodeEvaluation[],
+    ablated: EpisodeEvaluation[],
+  ): { withEpisode: EpisodeEvaluation; ablated: EpisodeEvaluation } | null {
+    for (const w of withEpisode) {
+      if (!w.evidenceReceiptRef || w.evidenceReceiptRef.length === 0) continue;
+      if (!w.modelId) continue;
+      for (const a of ablated) {
+        if (!a.evidenceReceiptRef || a.evidenceReceiptRef.length === 0) continue;
+        if (a.modelId !== w.modelId) continue;
+        if (a.evidenceReceiptRef === w.evidenceReceiptRef) continue;
+        return { withEpisode: w, ablated: a };
+      }
+    }
+    return null;
   }
 
   // ---------- mailbox ----------

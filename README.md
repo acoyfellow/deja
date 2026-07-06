@@ -242,15 +242,15 @@ const ep = d.recordEpisode({
   failingModel: "llama-3.1-8b",
   repairModel: "claude-opus-4",
 });
-d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: Date.now() });
-d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: null, ablated: true, evaluatedAt: Date.now() });
+d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "claude-opus-4", ablated: false, evaluatedAt: Date.now(), evidenceReceiptRef: "ev-c1-with" });
+d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "claude-opus-4", ablated: true, evaluatedAt: Date.now(), evidenceReceiptRef: "ev-c1-ablated" });
 const receipt = d.ablationReceipt("json-handling");
-// receipt.ablationDemonstrated === true when paired with-episode pass exceeds ablated pass
-// receipt.mechanicsVerified === true — Deja's schema, redaction, and paired comparison are sound
-// receipt.modelTransferUnproven === true — model-specific transfer requires cross-model eval
+// receipt.ablationDemonstrated === true only when an eligible paired comparison shows regression
+// receipt.mechanicsVerified === true only when at least one complete evidence-backed pair exists
+// receipt.modelTransferUnproven === true — model-specific transfer is always unproven in Phase 1
 ```
 
-Episodes link failure and repair slips without duplicating raw text. The ablation receipt is a deterministic summary of stored evaluations — no model calls at receipt time. The receipt explicitly separates verified mechanics (schema, redaction, paired comparison) from unproven model transfer.
+Episodes link failure and repair slips without duplicating raw text. The ablation receipt is a deterministic summary of stored evaluations — no model calls at receipt time. A paired ablation is eligible only when both sides share the same `caseLabel`, the same non-null `modelId`, and distinct, nonempty `evidenceReceiptRef` values. Unpaired or evidence-less evaluations remain storable but are never treated as observed evidence and never fall back to aggregate counts. The receipt explicitly separates verified mechanics (contract validation through complete evidence-backed pairs) from unproven model transfer.
 
 ### Deliberate bulk cleanup
 

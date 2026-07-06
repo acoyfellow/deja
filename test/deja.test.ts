@@ -527,11 +527,11 @@ describe("Episodes", () => {
       repairSlipIds: [s.id],
       taskClass: "json-handling",
     });
-    // Paired: same caseLabel for with-episode and ablated
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: 1 });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: null, ablated: true, evaluatedAt: 2 });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: true, modelId: null, ablated: false, evaluatedAt: 3 });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: false, modelId: null, ablated: true, evaluatedAt: 4 });
+    // Paired: same caseLabel, same non-null modelId, distinct evidence receipt refs
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 3, evidenceReceiptRef: "ev-c2-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 4, evidenceReceiptRef: "ev-c2-ablated" });
 
     const receipt = d.ablationReceipt("json-handling");
     expect(receipt).not.toBeNull();
@@ -543,6 +543,7 @@ describe("Episodes", () => {
     expect(receipt!.pairedResults![0]!.caseLabel).toBe("c1");
     expect(receipt!.pairedResults![0]!.withEpisode!.pass).toBe(true);
     expect(receipt!.pairedResults![0]!.ablated!.pass).toBe(false);
+    expect(receipt!.pairedResults![0]!.withEpisode!.evidenceReceiptRef).toBe("ev-c1-with");
     expect(receipt!.mechanicsVerified).toBe(true);
     expect(receipt!.modelTransferUnproven).toBe(true);
     d.close();
@@ -558,8 +559,8 @@ describe("Episodes", () => {
       repairSlipIds: [s.id],
       taskClass: "trivial",
     });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: 1 });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: true, evaluatedAt: 2 });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
 
     const receipt = d.ablationReceipt("trivial");
     expect(receipt).not.toBeNull();
@@ -567,6 +568,8 @@ describe("Episodes", () => {
     expect(receipt!.pairedResults).toBeDefined();
     expect(receipt!.pairedResults![0]!.withEpisode!.pass).toBe(true);
     expect(receipt!.pairedResults![0]!.ablated!.pass).toBe(true);
+    expect(receipt!.mechanicsVerified).toBe(true);
+    expect(receipt!.modelTransferUnproven).toBe(true);
     d.close();
   });
 
@@ -632,7 +635,7 @@ describe("Episodes", () => {
     d2.close();
   });
 
-  test("ablationReceipt paired results handle unpaired evaluations gracefully", () => {
+  test("ablationReceipt ignores unpaired evaluations for ablation claims", () => {
     const d = memory();
     const s = d.remember("slip");
     d.keep([s.id], { noChainRollup: true });
@@ -642,26 +645,24 @@ describe("Episodes", () => {
       repairSlipIds: [s.id],
       taskClass: "unpaired",
     });
-    // Only with-episode eval, no matching ablated eval for this case
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: 1 });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: true, modelId: null, ablated: false, evaluatedAt: 2 });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: false, modelId: null, ablated: true, evaluatedAt: 3 });
+    // c1 has only a with-episode eval; c2 has both sides but no evidence receipt refs.
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 2 });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 3 });
 
     const receipt = d.ablationReceipt("unpaired");
     expect(receipt).not.toBeNull();
-    // c1 has no ablated pair — pairedResults shows withEpisode but ablated: null
-    expect(receipt!.pairedResults!.length).toBe(2);
-    const c1 = receipt!.pairedResults!.find((p) => p.caseLabel === "c1")!;
-    expect(c1.withEpisode!.pass).toBe(true);
-    expect(c1.ablated).toBeNull();
-    // c2 has both
-    const c2 = receipt!.pairedResults!.find((p) => p.caseLabel === "c2")!;
-    expect(c2.withEpisode!.pass).toBe(true);
-    expect(c2.ablated!.pass).toBe(false);
+    // No eligible complete pairs, so mechanics are not verified and ablation is not demonstrated.
+    expect(receipt!.pairedResults).toBeUndefined();
+    expect(receipt!.ablationDemonstrated).toBe(false);
+    expect(receipt!.mechanicsVerified).toBe(false);
+    // Aggregate counts are still reported for backward compatibility.
+    expect(receipt!.passedWithEpisodes).toBe(2);
+    expect(receipt!.passedAblated).toBe(0);
     d.close();
   });
 
-  test("ablationReceipt includes evidence refs", () => {
+  test("ablationReceipt includes portable evidence refs without local slip ids", () => {
     const d = memory();
     const s = d.remember("slip");
     d.keep([s.id], { noChainRollup: true });
@@ -671,17 +672,19 @@ describe("Episodes", () => {
       repairSlipIds: [s.id],
       taskClass: "ev-test",
     });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: 1 });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: null, ablated: true, evaluatedAt: 2 });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
 
     const receipt = d.ablationReceipt("ev-test");
     expect(receipt!.evidence).toBeDefined();
-    expect(receipt!.evidence!.length).toBeGreaterThanOrEqual(1);
-    expect(receipt!.evidence![0]!.slipIds).toContain(s.id);
+    expect(receipt!.evidence!.length).toBe(1);
+    expect(receipt!.evidence![0]!.evidenceReceiptRefs).toEqual(["ev-c1-with", "ev-c1-ablated"]);
+    expect(receipt!.evidence![0]).not.toHaveProperty("slipIds");
+    expect(receipt!.evidence![0]!.evaluationTraceId).toBeUndefined();
     d.close();
   });
 
-  test("ablationReceipt marks modelTransferUnproven when only one model", () => {
+  test("ablationReceipt marks modelTransferUnproven unconditionally", () => {
     const d = memory();
     const s = d.remember("slip");
     d.keep([s.id], { noChainRollup: true });
@@ -691,14 +694,75 @@ describe("Episodes", () => {
       repairSlipIds: [s.id],
       taskClass: "single-model",
       failingModel: "llama-3.1-8b",
-      repairModel: "llama-3.1-8b",
+      repairModel: "claude-opus-4",
     });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "llama-3.1-8b", ablated: false, evaluatedAt: 1 });
-    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "llama-3.1-8b", ablated: true, evaluatedAt: 2 });
+    // Multiple models are present, but Phase 1 API still reports transfer as unproven.
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "llama-3.1-8b", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "llama-3.1-8b", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
 
     const receipt = d.ablationReceipt("single-model");
     expect(receipt!.modelTransferUnproven).toBe(true);
     expect(receipt!.mechanicsVerified).toBe(true);
+    d.close();
+  });
+
+  test("ablationReceipt requires distinct evidence receipt refs for pairing", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "same-ref",
+    });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "same-ref" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "same-ref" });
+
+    const receipt = d.ablationReceipt("same-ref");
+    expect(receipt!.pairedResults).toBeUndefined();
+    expect(receipt!.mechanicsVerified).toBe(false);
+    expect(receipt!.ablationDemonstrated).toBe(false);
+    d.close();
+  });
+
+  test("ablationReceipt requires same non-null modelId for pairing", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "null-model",
+    });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: null, ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
+
+    const receipt = d.ablationReceipt("null-model");
+    expect(receipt!.pairedResults).toBeUndefined();
+    expect(receipt!.mechanicsVerified).toBe(false);
+    expect(receipt!.ablationDemonstrated).toBe(false);
+    d.close();
+  });
+
+  test("evidence-less evaluations remain storable but are ineligible for observed receipt", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "legacy",
+    });
+    const ok = d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1 });
+    expect(ok).toBe(true);
+
+    const receipt = d.ablationReceipt("legacy");
+    expect(receipt).not.toBeNull();
+    expect(receipt!.mechanicsVerified).toBe(false);
+    expect(receipt!.ablationDemonstrated).toBe(false);
     d.close();
   });
 
