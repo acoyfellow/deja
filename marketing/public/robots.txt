@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://deja.coey.dev/sitemap-index.xml
