@@ -212,6 +212,30 @@ export class SharedAuthority {
     };
   }
 
+  /**
+   * Rehydrate an authority from previously committed events (e.g. a Durable
+   * Object replaying its persisted log on cold start). Events must be
+   * revision-ascending and contiguous from 1. Does not fan out — this is
+   * restoration, not new writes. Idempotent per revision.
+   */
+  restore(events: SharedMemoryEvent[]): void {
+    if (!Array.isArray(events) || events.length === 0) return;
+    if (this.log.length > 0) {
+      throw new Error("restore requires an empty authority");
+    }
+    let expected = 1;
+    for (const event of events) {
+      if (event.revision !== expected) {
+        throw new Error(
+          `restore requires contiguous ascending revisions from 1; expected ${expected}, got ${event.revision}`,
+        );
+      }
+      this.log.push(event);
+      this.headRevision = event.revision;
+      expected += 1;
+    }
+  }
+
   // ---- internals ----
 
   private commit<T>(type: SharedMemoryEvent["type"], payload: T): SharedMemoryEvent<T> {

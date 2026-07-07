@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src/shared-worker.ts", "src/shared-authority/**/*"],
+  "exclude": ["node_modules", "dist", "marketing", "test"]
+}

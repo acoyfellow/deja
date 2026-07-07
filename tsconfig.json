@@ -19,5 +19,5 @@
     "allowImportingTsExtensions": true
   },
   "include": ["src/**/*", "test/**/*", "scripts/**/*"],
-  "exclude": ["node_modules", "dist", "marketing"]
+  "exclude": ["node_modules", "dist", "marketing", "src/shared-worker.ts"]
 }
