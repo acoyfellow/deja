@@ -7,56 +7,54 @@ import Metric from "../components/Metric.astro";
 ---
 
 <Base
-  title="deja — memory for coding agents"
-  description="Repository-scoped, local-first memory that lets coding agents continue instead of start over."
+  title="deja — memory for coding assistants"
+  description="A small, private memory that stays on your computer. Your coding assistant remembers what matters for this project between sessions."
 >
   <section class="pt-16 sm:pt-24 pb-16">
-    <div class="relative border border-brass/20 rounded-sm p-8 sm:p-14 overflow-hidden bg-cover bg-center shadow-hero">
+    <div class="relative border border-amber/20 rounded-sm p-8 sm:p-14 overflow-hidden bg-cover bg-center shadow-hero">
       <div class="absolute inset-0 bg-cover bg-center -z-10 opacity-80" style="background-image: url('/brain.jpg');"></div>
-      <div class="absolute inset-0 bg-gradient-to-b from-void/75 via-void/90 to-void -z-10"></div>
-      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-5">
-        local-first · repository-scoped · agent-native
-      </div>
-      <h1 class="font-serif-sc text-[3.5rem] sm:text-[5.5rem] leading-none font-bold tracking-tight m-0 mb-6">deja</h1>
-      <p class="font-serif font-light text-xl sm:text-2xl text-chrome max-w-[760px] mb-4 leading-relaxed">
-        Memory that lets coding agents continue instead of start over.
+      <div class="absolute inset-0 bg-gradient-to-b from-ink/75 via-ink/90 to-ink -z-10"></div>
+      <div class="eyebrow mb-5">kept per project · stays on your computer · for coding assistants</div>
+      <h1 class="font-sans text-[3.5rem] sm:text-[5.5rem] leading-none font-extrabold tracking-tight m-0 mb-6 text-text">deja</h1>
+      <p class="font-sans font-light text-xl sm:text-2xl text-text max-w-[760px] mb-4 leading-relaxed">
+        Memory that lets your coding assistant pick up where it left off.
       </p>
-      <p class="font-serif font-light text-base text-chrome-dark max-w-[720px] mb-9 leading-relaxed">
-        Decisions, procedures, pitfalls, preferences, and active work in one inspectable SQLite file. Recall is local, bounded, cited, and isolated to the repository you are actually working in.
+      <p class="font-sans font-light text-base text-muted max-w-[720px] mb-9 leading-relaxed">
+        AI coding assistants forget everything between sessions. You re-explain the same project details over and over. Deja keeps the decisions and preferences that matter for this project in one small file on your computer. Nothing leaves your machine unless you choose to share a specific note.
       </p>
       <div class="flex flex-wrap gap-3">
-        <a href="#install" class="font-mono px-6 py-3.5 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-brass-dark bg-gradient-to-b from-steel-light to-steel text-chrome shadow-btn hover:-translate-y-px transition-transform">Install</a>
-        <a href="https://github.com/acoyfellow/deja" class="font-mono px-6 py-3.5 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-brass/20 text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors">GitHub</a>
-        <a href="https://github.com/acoyfellow/deja/blob/main/docs/ROADMAP.md" class="font-mono px-6 py-3.5 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-brass/20 text-chrome-dark hover:bg-brass/5 hover:text-brass transition-colors">Roadmap</a>
+        <a href="#install" class="font-mono px-6 py-3.5 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-orange bg-gradient-to-b from-layer-2 to-layer text-text shadow-btn hover:-translate-y-px transition-transform">Install</a>
+        <a href="https://github.com/acoyfellow/deja" class="font-mono px-6 py-3.5 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-amber/20 text-muted hover:bg-orange/5 hover:text-orange transition-colors">GitHub</a>
+        <a href="https://github.com/acoyfellow/deja/blob/main/docs/ROADMAP.md" class="font-mono px-6 py-3.5 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-amber/20 text-muted hover:bg-orange/5 hover:text-orange transition-colors">Roadmap</a>
       </div>
-      <div class="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-6 font-mono text-[10px] uppercase tracking-[0.16em] text-chrome-dark/75">
-        <div><div class="text-brass-light mb-1">Storage</div><div>SQLite + FTS5</div></div>
-        <div><div class="text-brass-light mb-1">Scope</div><div>Git repository</div></div>
-        <div><div class="text-brass-light mb-1">Context</div><div>Token bounded</div></div>
-        <div><div class="text-brass-light mb-1">Runtime</div><div>Bun + MCP</div></div>
+      <div class="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-6 font-mono text-[10px] uppercase tracking-[0.16em] text-muted/75">
+        <div><div class="text-amber mb-1">Storage</div><div>SQLite + FTS5</div></div>
+        <div><div class="text-amber mb-1">Scope</div><div>Git repository</div></div>
+        <div><div class="text-amber mb-1">Context</div><div>Token bounded</div></div>
+        <div><div class="text-amber mb-1">Runtime</div><div>Bun + MCP</div></div>
       </div>
     </div>
   </section>
 
   <section class="py-14">
     <div class="mb-10">
-      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">why memory fails</div>
-      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">A database is not enough.</h2>
-      <p class="font-serif font-light text-chrome-dark max-w-[760px] leading-relaxed">
-        Memory has to appear in the right project, fit inside the prompt, preserve corrections, stop repeating completed instructions, and show evidence when it gets something wrong. Deja builds those constraints into the tool.
+      <div class="eyebrow mb-3">why memory fails</div>
+      <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3 text-text">A database is not enough.</h2>
+      <p class="font-sans font-light text-muted max-w-[760px] leading-relaxed">
+        Memory has to show up in the right project, stay short enough to fit inside a prompt, remember when you corrected something, stop repeating work you finished, and show evidence when it gets something wrong. Deja builds those constraints into the tool.
       </p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <Feature eyebrow="scope" title="No project soup" body="A stable scope comes from the Git origin. Two checkouts can share memory; unrelated repositories cannot leak slips or handoffs." />
-      <Feature eyebrow="budget" title="No transcript dump" body="Recall accepts a context budget and memory-kind filters. It returns the smallest useful packet, not the whole conversation history." />
-      <Feature eyebrow="truth" title="No silent rewrites" body="A correction supersedes or contradicts an immutable older slip. Recall follows current truth while the evidence remains inspectable." />
+      <Feature eyebrow="scope" title="Kept per project" body="Memory is tied to the Git repository you are actually working in. Two checkouts of the same project can share notes; unrelated projects never leak." />
+      <Feature eyebrow="budget" title="Keeps it short" body="Recall accepts a limit on how much to return and what kind of memory you want. It sends the smallest useful packet, not the whole history." />
+      <Feature eyebrow="truth" title="Old versions stay visible" body="When a note gets corrected, the old version stays in the file so you can see what changed. Recall follows the current version while keeping the evidence inspectable." />
     </div>
   </section>
 
   <section class="py-14" id="mechanism">
     <div class="mb-10">
-      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">the mechanism</div>
-      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">Write less. Recover more.</h2>
+      <div class="eyebrow mb-3">the mechanism</div>
+      <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3 text-text">Write less. Recover more.</h2>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <CodeCard label="finish a session" code={`const decision = d.remember(
@@ -75,9 +73,9 @@ d.handoff({
   kinds: ["decision", "pitfall", "wip"],
 });
 
-// repository-scoped hits
-// one active handoff
-// provenance + evidence trust
+// hits are scoped to this project
+// one active catch-up note
+// provenance + trust score
 // a receipt to evaluate later
 
 d.assessRecall(context.traceId, "useful");`} />
@@ -86,29 +84,29 @@ d.assessRecall(context.traceId, "useful");`} />
 
   <section class="py-14">
     <div class="mb-10">
-      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">v0.1.0</div>
-      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">A complete local memory loop.</h2>
+      <div class="eyebrow mb-3">v0.1.0</div>
+      <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3 text-text">A complete local memory loop.</h2>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <Feature eyebrow="typed memory" title="Seven useful kinds" body="Decision, preference, procedure, pitfall, fact, WIP, and note. Agents may classify explicitly; the fallback is deterministic and conservative." />
-      <Feature eyebrow="evidence trust" title="Relevance is not truth" body="BM25 finds matching text. Draft/kept state and used/wrong outcomes determine trust. High means repeatedly useful—not magically authoritative." />
-      <Feature eyebrow="handoff lifecycle" title="Old work stops directing" body="Handoffs are active, completed, or abandoned. Only active handoffs from the current repository reach a fresh agent." />
-      <Feature eyebrow="feedback" title="Recall can be evaluated" body="Every retrieval has a content-free receipt. Mark it useful, wrong, missed, or unnecessary, then inspect real scoped quality with deja eval." />
-      <Feature eyebrow="correction" title="Supersession is explicit" body="Link new memory to old as supersedes, contradicts, or related. Old lexical matches resolve to the current slip without deleting history." />
+      <Feature eyebrow="typed memory" title="Seven useful kinds" body="Decision, preference, procedure, pitfall, fact, work-in-progress, and note. Your assistant can classify explicitly; the fallback is conservative." />
+      <Feature eyebrow="evidence trust" title="Relevance is not truth" body="BM25 finds matching text. Draft-versus-kept state and used-versus-wrong outcomes determine trust. High means repeatedly useful, not magically authoritative." />
+      <Feature eyebrow="handoff lifecycle" title="Old work stops directing" body="Catch-up notes are active, completed, or abandoned. Only active notes from the current project reach a fresh assistant." />
+      <Feature eyebrow="feedback" title="Recall can be evaluated" body="Every retrieval has a content-free receipt. Mark it useful, wrong, missed, or unnecessary, then inspect real quality with deja eval." />
+      <Feature eyebrow="correction" title="Changes are explicit" body="Link a new note to an old one as a replacement, contradiction, or related. Old matches resolve to the current note without deleting history." />
       <Feature eyebrow="inspection" title="One file, ordinary tools" body="Open ~/.deja/deja.db with SQLite. Use the library, MCP tools, or CLI. No daemon, account, hidden model call, or remote ingestion path." />
     </div>
   </section>
 
   <section id="install" class="py-14 scroll-mt-24">
     <div class="mb-10">
-      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">install</div>
-      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">Give an agent memory in sixty seconds.</h2>
+      <div class="eyebrow mb-3">install</div>
+      <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3 text-text">Give your assistant memory in sixty seconds.</h2>
     </div>
     <CodeCard label="terminal" code={`bun add github:acoyfellow/deja
 bunx github:acoyfellow/deja init`} />
-    <div class="mt-5 border border-brass/15 rounded-sm bg-steel/30 shadow-card overflow-hidden">
-      <div class="border-b border-brass/10 px-5 py-3 bg-void-deep/50 font-mono text-[10px] tracking-[0.2em] uppercase text-brass-light">MCP configuration</div>
-      <pre class="font-mono text-[12px] leading-relaxed text-chrome-dark p-5 overflow-x-auto">{`{
+    <div class="mt-5 border border-amber/15 rounded-sm bg-layer/30 shadow-card overflow-hidden">
+      <div class="border-b border-amber/10 px-5 py-3 bg-ink/50 font-mono text-[10px] tracking-[0.2em] uppercase text-amber">MCP configuration</div>
+      <pre class="font-mono text-[12px] leading-relaxed text-muted p-5 overflow-x-auto">{`{
   "mcpServers": {
     "deja": {
       "command": "bunx",
@@ -117,34 +115,34 @@ bunx github:acoyfellow/deja init`} />
   }
 }`}</pre>
     </div>
-    <p class="font-serif font-light text-sm text-chrome-dark/80 max-w-[760px] mt-5 leading-relaxed">
-      Tool descriptions are the operating contract. No SKILL.md, AGENTS.md, or memory prompt copied into every session.
+    <p class="font-sans font-light text-sm text-muted/80 max-w-[760px] mt-5 leading-relaxed">
+      Tool descriptions are the operating contract. No SKILL.md, AGENTS.md, or memory prompt pasted into every session.
     </p>
   </section>
 
   <section class="py-14">
     <div class="mb-10">
-      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">agent tools</div>
-      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">Small primitives, closed loop.</h2>
+      <div class="eyebrow mb-3">agent tools</div>
+      <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3 text-text">Small primitives, closed loop.</h2>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Tool name="recall" body="Scoped, budgeted context plus the active handoff." />
+      <Tool name="recall" body="Scoped, budgeted context plus the active catch-up note." />
       <Tool name="remember" body="Draft or keep typed memory; link corrections immediately." />
-      <Tool name="handoff" body="Leave one continuation packet for the next session." />
+      <Tool name="handoff" body="Leave one short note for the next session." />
       <Tool name="resolve_handoff" body="Complete or abandon work so it stops resurfacing." />
       <Tool name="signal" body="Mark one memory used, wrong, or forgotten." />
-      <Tool name="assess" body="Evaluate the whole recall receipt after acting." />
-      <Tool name="link" body="Supersede, contradict, or relate existing slips." />
-      <Tool name="send / inbox / reply" body="Optional local coordination; deliberately separate from memory truth." />
+      <Tool name="assess" body="Evaluate the whole retrieval after acting." />
+      <Tool name="link" body="Replace, contradict, or relate existing notes." />
+      <Tool name="send / inbox / reply" body="Optional local coordination; deliberately separate from memory." />
     </div>
   </section>
 
   <section class="py-14" id="evidence">
     <div class="mb-10">
-      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">evidence, not slogans</div>
-      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3">The failures stay in the repository.</h2>
-      <p class="font-serif font-light text-chrome-dark max-w-[760px] leading-relaxed">
-        Deja includes behavior loops, negative results, protocol experiments, claim-to-evidence mapping, and a one-command release gate. The eight-case lexical score is a smoke test—not proof that memory improves every agent.
+      <div class="eyebrow mb-3">evidence, not slogans</div>
+      <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3 text-text">The failures stay in the repository.</h2>
+      <p class="font-sans font-light text-muted max-w-[760px] leading-relaxed">
+        Deja includes behavior tests, negative results, protocol experiments, claim-to-evidence mapping, and a one-command release gate. The eight-case lexical score is a smoke test, not proof that memory improves every assistant.
       </p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -160,27 +158,27 @@ bunx github:acoyfellow/deja init`} />
   </section>
 
   <section class="py-14" id="shared">
-    <div class="border border-brass/20 rounded-sm p-7 sm:p-10 bg-steel/25 shadow-card">
-      <div class="font-mono text-[11px] font-bold tracking-[0.28em] uppercase text-brass mb-3">preview · cloudflare only</div>
-      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-4">Shared memory is real—and not yet deployable.</h2>
-      <p class="font-serif font-light text-chrome-dark max-w-[780px] leading-relaxed mb-5">
+    <div class="border border-amber/20 rounded-sm p-7 sm:p-10 bg-layer/25 shadow-card">
+      <div class="eyebrow mb-3">preview · cloudflare only</div>
+      <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-4 text-text">Shared memory works and is not ready to ship.</h2>
+      <p class="font-sans font-light text-muted max-w-[780px] leading-relaxed mb-5">
         The preview uses a Cloudflare Worker, one Durable Object SQL authority per memory space, numbered commits, SSE, and rebuildable local SQLite mirrors. Read-after-write, live peer updates, explicit stale state, catch-up, and hard deletion are tested.
       </p>
-      <p class="font-serif font-light text-chrome-dark max-w-[780px] leading-relaxed mb-6">
+      <p class="font-sans font-light text-muted max-w-[780px] leading-relaxed mb-6">
         It remains local dogfood until verified identity, revocation, retention, content policy, audit boundaries, and encryption are resolved. We will not call a bearer-token demo production.
       </p>
       <div class="flex flex-wrap gap-3">
-        <a href="https://github.com/acoyfellow/deja/blob/main/docs/shared-memory.md" class="font-mono text-[11px] tracking-[0.16em] uppercase text-brass hover:underline">Protocol →</a>
-        <a href="https://github.com/acoyfellow/deja/blob/main/docs/shared-security-review.md" class="font-mono text-[11px] tracking-[0.16em] uppercase text-brass hover:underline">Security review →</a>
+        <a href="https://github.com/acoyfellow/deja/blob/main/docs/shared-memory.md" class="font-mono text-[11px] tracking-[0.16em] uppercase text-orange hover:underline">Protocol →</a>
+        <a href="https://github.com/acoyfellow/deja/blob/main/docs/shared-security-review.md" class="font-mono text-[11px] tracking-[0.16em] uppercase text-orange hover:underline">Security review →</a>
       </div>
     </div>
   </section>
 
   <section class="py-14 pb-24">
-    <div class="text-center border-t border-brass/10 pt-14">
-      <h2 class="font-serif text-3xl sm:text-4xl font-semibold tracking-tight mb-4">Let the next agent start further ahead.</h2>
-      <p class="font-serif font-light text-chrome-dark mb-8">Local-first. Inspectable. Falsifiable. Built for the agent using it.</p>
-      <a href="#install" class="font-mono px-7 py-4 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-brass-dark bg-gradient-to-b from-steel-light to-steel text-chrome shadow-btn">Install Deja</a>
+    <div class="text-center border-t border-amber/10 pt-14">
+      <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight mb-4 text-text">Let the next session start further ahead.</h2>
+      <p class="font-sans font-light text-muted mb-8">Stays on your computer. Inspectable. Falsifiable. Built for the assistant using it.</p>
+      <a href="#install" class="font-mono px-7 py-4 rounded-sm font-semibold text-[11px] tracking-[0.18em] uppercase border border-orange bg-gradient-to-b from-layer-2 to-layer text-text shadow-btn">Install Deja</a>
     </div>
   </section>
 </Base>

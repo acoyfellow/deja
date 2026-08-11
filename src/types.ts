@@ -46,6 +46,8 @@ export interface Slip {
   /** Free-form provenance trail — usage signals. */
   usedCount: number;
   wrongCount: number;
+  /** When true, recall output masks the text; raw text stays in local DB. */
+  redacted: boolean;
 }
 
 export type LinkKind =
@@ -164,6 +166,8 @@ export interface RememberOpts {
   authoredBy?: string;
   /** Override automatic repository scope. Use `global` only deliberately. */
   scope?: string;
+  /** When true, the slip is stored but its text is masked in recall output. */
+  redacted?: boolean;
 }
 
 export interface HandoffInput {
@@ -203,4 +207,122 @@ export interface SendInput {
   body: string;
   threadId?: string;
   from?: string;
+}
+
+/**
+ * A recorded failure->repair episode, stored with redacted text.
+ * The raw memory text stays local; only the episode metadata and
+ * evaluation results are portable.
+ */
+export interface Episode {
+  id: string;
+  sessionId: string;
+  authoredBy: string;
+  scope: string;
+  /** Free-text description of the failure mode (redacted-safe). */
+  failureMode: string;
+  /** Slip ids that capture the failed attempt(s). */
+  failureSlipIds: string[];
+  /** Slip ids that capture the successful repair(s). */
+  repairSlipIds: string[];
+  /** Task class or domain label for cross-case evaluation. */
+  taskClass: string;
+  /** Model id that failed (e.g. "llama-3.1-8b"). */
+  failingModel: string | null;
+  /** Model id that supplied the repair (e.g. "claude-opus-4"). */
+  repairModel: string | null;
+  createdAt: number;
+  /** Evaluation results keyed by case label. */
+  evaluations: EpisodeEvaluation[];
+  /**
+   * Explicit export policy: what may be shared outside the local
+   * repository. "metadata-only" (default) means slip ids and
+   * evaluation results are portable; raw memory text stays local.
+   */
+  exportPolicy: "metadata-only" | "redacted" | "full";
+  /**
+   * Redaction policy for this episode's metadata when exported.
+   * "allow" (default) permits failureMode and model ids in receipts.
+   * "strip" removes failureMode from portable receipts.
+   */
+  redactionPolicy: "allow" | "strip";
+}
+
+export interface EpisodeEvaluation {
+  caseLabel: string;
+  pass: boolean;
+  /** Model id used for this evaluation. */
+  modelId: string | null;
+  /** When true, this eval was run without the episode's repair slips. */
+  ablated: boolean;
+  evaluatedAt: number;
+  /**
+   * Opaque evidence receipt reference. Must be a nonempty string for this
+   * evaluation to be eligible as an observed result in a paired ablation.
+   * Evaluations without a receipt ref remain storable but are never treated
+   * as observed evidence.
+   */
+  evidenceReceiptRef?: string;
+}
+
+/**
+ * References to evidence that supports a claim. Portable provenance only:
+ * local slip ids are never exposed here.
+ */
+export interface EvidenceRef {
+  /**
+   * Evidence receipt references for evaluations that support this claim.
+   * These are opaque, portable handles to recorded evaluation results.
+   */
+  evidenceReceiptRefs?: string[];
+  /** Evaluation trace id that produced this evidence, if recorded. */
+  evaluationTraceId?: string;
+  /** Free-form note about what this evidence demonstrates. */
+  note?: string;
+}
+
+export interface AblationReceipt {
+  episodeId: string;
+  taskClass: string;
+  failingModel: string | null;
+  repairModel: string | null;
+  totalCases: number;
+  passedWithEpisodes: number;
+  passedAblated: number;
+  /**
+   * True only when eligible paired evidence (same caseLabel, same non-null
+   * modelId, distinct evidence receipt refs on both sides) shows that
+   * with-episode passes exceed ablated passes. Unpaired evaluations never
+   * demonstrate ablation and there is no aggregate fallback.
+   */
+  ablationDemonstrated: boolean;
+  evaluatedAt: number;
+  /**
+   * Per-case paired results for complete, evidence-backed pairs only.
+   * A pair is eligible when both sides share the same caseLabel, share
+   * the same non-null modelId, and carry distinct evidence receipt refs.
+   */
+  pairedResults?: AblationPair[];
+  /**
+   * Evidence references supporting the receipt claims. Contains no local
+   * slip ids and omits undefined evaluationTraceId entries.
+   */
+  evidence?: EvidenceRef[];
+  /**
+   * True only when the receipt is backed by at least one complete,
+   * evidence-backed pair (contract validation). Model-specific transfer
+   * remains unproven in this Phase 1 API.
+   */
+  mechanicsVerified: boolean;
+  /**
+   * Model transfer is explicitly unproven in this Phase 1 API. The
+   * presence of multiple model names is never used to infer transfer.
+   */
+  modelTransferUnproven: boolean;
+}
+
+export interface AblationPair {
+  caseLabel: string;
+  withEpisode: { pass: boolean; modelId: string | null; evidenceReceiptRef?: string } | null;
+  ablated: { pass: boolean; modelId: string | null; evidenceReceiptRef?: string } | null;
 }

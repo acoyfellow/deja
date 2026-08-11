@@ -41,6 +41,11 @@ import type {
   RecallAssessment,
   HandoffStatus,
   LinkKind,
+  Episode,
+  EpisodeEvaluation,
+  AblationReceipt,
+  AblationPair,
+  EvidenceRef,
 } from "./types.ts";
 
 export type {
@@ -59,6 +64,11 @@ export type {
   HandoffStatus,
   LinkKind,
   MemoryKind,
+  Episode,
+  EpisodeEvaluation,
+  AblationReceipt,
+  AblationPair,
+  EvidenceRef,
 } from "./types.ts";
 
 export { defaultDbPath } from "./storage.ts";
@@ -89,6 +99,11 @@ export interface DejaOptions extends StorageOptions {
   recordRecallTraces?: boolean;
   /** Skip auto-GC of expired drafts on init. Default: false. */
   skipGc?: boolean;
+  /**
+   * Keep raw memory text local-only. When true, recall output masks redacted
+   * slips and traces never include memory text. This is the safe default.
+   */
+  rawMemoryLocal?: boolean;
   /**
    * Disable auto-rollup of chain-shaped kept slips into a session handoff.
    *
@@ -121,6 +136,7 @@ export class Deja {
     this.options = {
       ...opts,
       includeLegacy: opts.includeLegacy ?? process.env.DEJA_INCLUDE_LEGACY === "1",
+      rawMemoryLocal: opts.rawMemoryLocal ?? true,
     };
     const derived = currentMemoryContext();
     this.context = opts.scope ? { ...derived, scope: opts.scope, source: "env" } : derived;
@@ -159,10 +175,10 @@ export class Deja {
         )
       : this.storage
           .listKept(Math.max(limit, limit * 2), this.scope, this.options.includeLegacy, options.kinds)
-          .map((slip) => ({ slip, score: 0 }));
+          .map((slip) => ({ slip: this.maskSlip(slip), score: 0 }));
     const seen = new Set<string>();
     const hits = raw.flatMap((candidate) => {
-      const slip = this.storage.activeSuperseder(candidate.slip.id, this.scope) ?? candidate.slip;
+      const slip = this.maskSlip(this.storage.activeSuperseder(candidate.slip.id, this.scope) ?? candidate.slip);
       if (seen.has(slip.id)) return [];
       seen.add(slip.id);
       return [{ slip, score: candidate.score, trust: trustForSlip(slip) }];
@@ -219,6 +235,7 @@ export class Deja {
       expiredAt: null,
       usedCount: 0,
       wrongCount: 0,
+      redacted: opts.redacted ?? false,
     };
     this.storage.insertSlip(slip);
 
@@ -416,6 +433,227 @@ export class Deja {
   /** Record that a recalled slip was misleading. */
   wrong(id: string): void {
     this.storage.bumpWrong(id);
+  }
+
+  /**
+   * Explicitly redact a slip: the raw text stays in the local DB, but future
+   * recall output masks it. Returns true if the slip existed and was not
+   * already redacted. Local-only; does not modify shared copies.
+   */
+  redact(id: string): boolean {
+    return this.storage.redactSlip(id, Date.now());
+  }
+
+  /** Return a copy of a slip with text masked if redacted and rawMemoryLocal is on. */
+  private maskSlip(slip: Slip): Slip {
+    if (!this.options.rawMemoryLocal || !slip.redacted) return slip;
+    return { ...slip, text: "[redacted]" };
+  }
+
+  // ---------- failure->repair episodes ----------
+
+  /**
+   * Record a failure->repair episode. The failure and repair slips should
+   * already exist (created via remember/keep). The episode metadata is
+   * portable; raw memory text stays local.
+   *
+   * Returns the episode or throws if:
+   * - failureSlipIds or repairSlipIds contain empty strings
+   * - any referenced slip id does not exist in the current scope
+   * - failureMode is empty
+   */
+  recordEpisode(input: {
+    failureMode: string;
+    failureSlipIds: string[];
+    repairSlipIds: string[];
+    taskClass: string;
+    failingModel?: string | null;
+    repairModel?: string | null;
+    exportPolicy?: "metadata-only" | "redacted" | "full";
+    redactionPolicy?: "allow" | "strip";
+  }): Episode {
+    const failureMode = input.failureMode.trim();
+    if (!failureMode) throw new Error("deja.recordEpisode: failureMode is required");
+    if (input.failureSlipIds.some((id) => !id.trim()))
+      throw new Error("deja.recordEpisode: failureSlipIds contains empty id");
+    if (input.repairSlipIds.some((id) => !id.trim()))
+      throw new Error("deja.recordEpisode: repairSlipIds contains empty id");
+
+    for (const id of [...input.failureSlipIds, ...input.repairSlipIds]) {
+      const slip = this.storage.getSlip(id);
+      if (!slip) throw new Error(`deja.recordEpisode: slip ${id} not found`);
+      if (slip.scope !== this.scope)
+        throw new Error(`deja.recordEpisode: slip ${id} is not in scope ${this.scope}`);
+    }
+
+    const now = Date.now();
+    const episode: Episode = {
+      id: ulid(now),
+      sessionId: currentSessionId(),
+      authoredBy: currentAuthor(),
+      scope: this.scope,
+      failureMode,
+      failureSlipIds: input.failureSlipIds,
+      repairSlipIds: input.repairSlipIds,
+      taskClass: input.taskClass,
+      failingModel: input.failingModel ?? null,
+      repairModel: input.repairModel ?? null,
+      createdAt: now,
+      evaluations: [],
+      exportPolicy: input.exportPolicy ?? "metadata-only",
+      redactionPolicy: input.redactionPolicy ?? "allow",
+    };
+    this.storage.insertEpisode(episode);
+    return episode;
+  }
+
+  /** Retrieve a stored episode by id. */
+  getEpisode(id: string): Episode | null {
+    return this.storage.getEpisode(id);
+  }
+
+  /** Find all episodes for a task class in the current scope. */
+  episodesByTaskClass(taskClass: string): Episode[] {
+    return this.storage.episodesByTaskClass(taskClass, this.scope);
+  }
+
+  /**
+   * Add an evaluation result to an episode. Returns true if the episode
+   * was found.
+   */
+  addEpisodeEvaluation(
+    episodeId: string,
+    evaluation: EpisodeEvaluation,
+  ): boolean {
+    return this.storage.addEpisodeEvaluation(episodeId, evaluation);
+  }
+
+  /**
+   * Produce an ablation receipt for a task class. Compares evaluations
+   * run with episodes present vs. ablated (episodes removed). The receipt
+   * is deterministic from stored evaluations — no model calls here.
+   *
+   * A paired ablation is eligible only when both sides share the same
+   * caseLabel, the same non-null modelId, and distinct, nonempty evidence
+   * receipt refs. Unpaired evaluations remain storable but are never used
+   * to demonstrate ablation and never fall back to aggregate counts.
+   *
+   * The receipt includes:
+   * - Paired per-case results for complete, evidence-backed pairs only
+   * - Evidence references (portable receipt refs only; no local slip ids)
+   * - mechanicsVerified: true only when at least one complete,
+   *   evidence-backed pair validates the contract
+   * - modelTransferUnproven: always true in this Phase 1 API
+   */
+  ablationReceipt(taskClass: string): AblationReceipt | null {
+    const episodes = this.storage.episodesByTaskClass(taskClass, this.scope);
+    if (episodes.length === 0) return null;
+
+    // Collect all evaluations, grouped by caseLabel for pairing
+    const byCase = new Map<string, { withEpisode: EpisodeEvaluation[]; ablated: EpisodeEvaluation[] }>();
+    for (const ep of episodes) {
+      for (const evalResult of ep.evaluations) {
+        let group = byCase.get(evalResult.caseLabel);
+        if (!group) {
+          group = { withEpisode: [], ablated: [] };
+          byCase.set(evalResult.caseLabel, group);
+        }
+        if (evalResult.ablated) {
+          group.ablated.push(evalResult);
+        } else {
+          group.withEpisode.push(evalResult);
+        }
+      }
+    }
+
+    // Build complete, evidence-backed pairs only.
+    const pairedResults: AblationPair[] = [];
+    let totalWith = 0, passedWith = 0, totalAblated = 0, passedAblated = 0;
+    let pairedCount = 0, pairedWithPassed = 0, pairedAblatedPassed = 0;
+    const evidenceReceiptRefs: string[] = [];
+
+    for (const [caseLabel, group] of byCase) {
+      // Aggregate counts remain backward-compatible but do not drive ablation claims.
+      for (const e of group.withEpisode) {
+        totalWith++; if (e.pass) passedWith++;
+      }
+      for (const e of group.ablated) {
+        totalAblated++; if (e.pass) passedAblated++;
+      }
+
+      // Eligible pair: same caseLabel, same non-null modelId, distinct nonempty receipt refs.
+      const pair = this.findEligiblePair(group.withEpisode, group.ablated);
+      if (pair) {
+        pairedCount++;
+        if (pair.withEpisode.pass) pairedWithPassed++;
+        if (pair.ablated.pass) pairedAblatedPassed++;
+        pairedResults.push({
+          caseLabel,
+          withEpisode: {
+            pass: pair.withEpisode.pass,
+            modelId: pair.withEpisode.modelId,
+            evidenceReceiptRef: pair.withEpisode.evidenceReceiptRef,
+          },
+          ablated: {
+            pass: pair.ablated.pass,
+            modelId: pair.ablated.modelId,
+            evidenceReceiptRef: pair.ablated.evidenceReceiptRef,
+          },
+        });
+        if (pair.withEpisode.evidenceReceiptRef) evidenceReceiptRefs.push(pair.withEpisode.evidenceReceiptRef);
+        if (pair.ablated.evidenceReceiptRef) evidenceReceiptRefs.push(pair.ablated.evidenceReceiptRef);
+      }
+    }
+
+    const totalCases = totalWith + totalAblated;
+
+    // Ablation is demonstrated only by eligible paired evidence; no aggregate fallback.
+    const ablationDemonstrated = pairedCount > 0 && pairedWithPassed > pairedAblatedPassed;
+
+    // Phase 1 API: model transfer is always explicitly unproven.
+    const modelTransferUnproven = true;
+
+    // Portable evidence: no local slip ids, no undefined evaluationTraceId.
+    const evidence: EvidenceRef[] = [];
+    if (evidenceReceiptRefs.length > 0) {
+      evidence.push({
+        evidenceReceiptRefs: Array.from(new Set(evidenceReceiptRefs)),
+        note: "Evidence receipt refs for complete paired ablation evaluations",
+      });
+    }
+
+    return {
+      episodeId: episodes[0]!.id,
+      taskClass,
+      failingModel: episodes[0]!.failingModel,
+      repairModel: episodes[0]!.repairModel,
+      totalCases,
+      passedWithEpisodes: passedWith,
+      passedAblated,
+      ablationDemonstrated,
+      evaluatedAt: Date.now(),
+      pairedResults: pairedResults.length > 0 ? pairedResults : undefined,
+      evidence,
+      mechanicsVerified: pairedCount > 0,
+      modelTransferUnproven,
+    };
+  }
+
+  private findEligiblePair(
+    withEpisode: EpisodeEvaluation[],
+    ablated: EpisodeEvaluation[],
+  ): { withEpisode: EpisodeEvaluation; ablated: EpisodeEvaluation } | null {
+    for (const w of withEpisode) {
+      if (!w.evidenceReceiptRef || w.evidenceReceiptRef.length === 0) continue;
+      if (!w.modelId) continue;
+      for (const a of ablated) {
+        if (!a.evidenceReceiptRef || a.evidenceReceiptRef.length === 0) continue;
+        if (a.modelId !== w.modelId) continue;
+        if (a.evidenceReceiptRef === w.evidenceReceiptRef) continue;
+        return { withEpisode: w, ablated: a };
+      }
+    }
+    return null;
   }
 
   // ---------- mailbox ----------

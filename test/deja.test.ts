@@ -352,10 +352,434 @@ describe("Deja API", () => {
       expiredAt: null,
       usedCount: 0,
       wrongCount: 0,
+      redacted: false,
     });
     const expired = d.gc();
     expect(expired).toBe(1);
     expect(d.get("01OLD0000000000000000000000")!.state).toBe("expired");
+    d.close();
+  });
+});
+
+describe("Redaction", () => {
+  test("remember with redacted: true stores with redacted flag", () => {
+    const d = memory();
+    const s = d.remember("secret: api key is sk-1234", { redacted: true });
+    expect(s.redacted).toBe(true);
+    d.close();
+  });
+
+  test("remember without redacted stores with redacted: false", () => {
+    const d = memory();
+    const s = d.remember("normal memory");
+    expect(s.redacted).toBe(false);
+    d.close();
+  });
+
+  test("redact() marks an existing slip as redacted", () => {
+    const d = memory();
+    const s = d.remember("accidental secret");
+    expect(s.redacted).toBe(false);
+    expect(d.redact(s.id)).toBe(true);
+    expect(d.get(s.id)!.redacted).toBe(true);
+    d.close();
+  });
+
+  test("redact() returns false for already-redacted or missing slips", () => {
+    const d = memory();
+    const s = d.remember("secret", { redacted: true });
+    expect(d.redact(s.id)).toBe(false);
+    expect(d.redact("nonexistent")).toBe(false);
+    d.close();
+  });
+
+  test("recall masks redacted slip text", () => {
+    const d = memory();
+    const s = d.remember("secret: api key is sk-1234", { redacted: true });
+    d.keep([s.id], { noChainRollup: true });
+    const result = d.recall("secret");
+    expect(result.hits.length).toBeGreaterThan(0);
+    for (const hit of result.hits) {
+      if (hit.slip.id === s.id) {
+        expect(hit.slip.text).toBe("[redacted]");
+      }
+    }
+    d.close();
+  });
+
+  test("recall does not mask non-redacted slip text", () => {
+    const d = memory();
+    const s = d.remember("normal memory");
+    d.keep([s.id], { noChainRollup: true });
+    const result = d.recall("normal");
+    expect(result.hits[0]!.slip.text).toBe("normal memory");
+    d.close();
+  });
+
+  test("rawMemoryLocal: false disables masking", () => {
+    const d = new Deja({ path: ":memory:", skipGc: true, rawMemoryLocal: false });
+    const s = d.remember("secret: api key", { redacted: true });
+    d.keep([s.id], { noChainRollup: true });
+    const result = d.recall("secret");
+    expect(result.hits[0]!.slip.text).toBe("secret: api key");
+    d.close();
+  });
+
+  test("get() returns raw text regardless of redaction", () => {
+    const d = memory();
+    const s = d.remember("secret", { redacted: true });
+    expect(d.get(s.id)!.text).toBe("secret");
+    d.close();
+  });
+});
+
+describe("Episodes", () => {
+  test("recordEpisode stores failure->repair metadata", () => {
+    const d = memory();
+    const fail = d.remember("failed to parse JSON");
+    const repair = d.remember("added try-catch around JSON.parse");
+    d.keep([fail.id, repair.id], { noChainRollup: true });
+
+    const ep = d.recordEpisode({
+      failureMode: "JSON parse error on malformed input",
+      failureSlipIds: [fail.id],
+      repairSlipIds: [repair.id],
+      taskClass: "json-handling",
+      failingModel: "llama-3.1-8b",
+      repairModel: "claude-opus-4",
+    });
+    expect(ep.taskClass).toBe("json-handling");
+    expect(ep.failureSlipIds).toEqual([fail.id]);
+    expect(ep.repairSlipIds).toEqual([repair.id]);
+    expect(ep.evaluations).toEqual([]);
+    expect(ep.exportPolicy).toBe("metadata-only");
+    expect(ep.redactionPolicy).toBe("allow");
+    d.close();
+  });
+
+  test("getEpisode retrieves stored episode", () => {
+    const d = memory();
+    const fail = d.remember("failure slip");
+    const repair = d.remember("repair slip");
+    d.keep([fail.id, repair.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "timeout on large input",
+      failureSlipIds: [fail.id],
+      repairSlipIds: [repair.id],
+      taskClass: "timeout",
+    });
+    const got = d.getEpisode(ep.id);
+    expect(got).not.toBeNull();
+    expect(got!.failureMode).toBe("timeout on large input");
+    d.close();
+  });
+
+  test("episodesByTaskClass returns scoped episodes", () => {
+    const d = memory();
+    const a = d.remember("a"); const b = d.remember("b"); const c = d.remember("c");
+    d.keep([a.id, b.id, c.id], { noChainRollup: true });
+    d.recordEpisode({ failureMode: "a", failureSlipIds: [a.id], repairSlipIds: [a.id], taskClass: "parser" });
+    d.recordEpisode({ failureMode: "b", failureSlipIds: [b.id], repairSlipIds: [b.id], taskClass: "parser" });
+    d.recordEpisode({ failureMode: "c", failureSlipIds: [c.id], repairSlipIds: [c.id], taskClass: "network" });
+    expect(d.episodesByTaskClass("parser").length).toBe(2);
+    expect(d.episodesByTaskClass("network").length).toBe(1);
+    d.close();
+  });
+
+  test("addEpisodeEvaluation records an evaluation result", () => {
+    const d = memory();
+    const s = d.remember("test slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "test",
+    });
+    const ok = d.addEpisodeEvaluation(ep.id, {
+      caseLabel: "case-1",
+      pass: true,
+      modelId: "test-model",
+      ablated: false,
+      evaluatedAt: Date.now(),
+    });
+    expect(ok).toBe(true);
+    const got = d.getEpisode(ep.id)!;
+    expect(got.evaluations.length).toBe(1);
+    expect(got.evaluations[0]!.caseLabel).toBe("case-1");
+    expect(got.evaluations[0]!.pass).toBe(true);
+    d.close();
+  });
+
+  test("ablationReceipt returns null when no episodes exist", () => {
+    const d = memory();
+    expect(d.ablationReceipt("nonexistent")).toBeNull();
+    d.close();
+  });
+
+  test("ablationReceipt demonstrates ablation with paired comparison", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "json-handling",
+    });
+    // Paired: same caseLabel, same non-null modelId, distinct evidence receipt refs
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 3, evidenceReceiptRef: "ev-c2-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 4, evidenceReceiptRef: "ev-c2-ablated" });
+
+    const receipt = d.ablationReceipt("json-handling");
+    expect(receipt).not.toBeNull();
+    expect(receipt!.ablationDemonstrated).toBe(true);
+    expect(receipt!.passedWithEpisodes).toBe(2);
+    expect(receipt!.passedAblated).toBe(0);
+    expect(receipt!.pairedResults).toBeDefined();
+    expect(receipt!.pairedResults!.length).toBe(2);
+    expect(receipt!.pairedResults![0]!.caseLabel).toBe("c1");
+    expect(receipt!.pairedResults![0]!.withEpisode!.pass).toBe(true);
+    expect(receipt!.pairedResults![0]!.ablated!.pass).toBe(false);
+    expect(receipt!.pairedResults![0]!.withEpisode!.evidenceReceiptRef).toBe("ev-c1-with");
+    expect(receipt!.mechanicsVerified).toBe(true);
+    expect(receipt!.modelTransferUnproven).toBe(true);
+    d.close();
+  });
+
+  test("ablationReceipt shows no ablation when paired passes match", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "trivial",
+    });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
+
+    const receipt = d.ablationReceipt("trivial");
+    expect(receipt).not.toBeNull();
+    expect(receipt!.ablationDemonstrated).toBe(false);
+    expect(receipt!.pairedResults).toBeDefined();
+    expect(receipt!.pairedResults![0]!.withEpisode!.pass).toBe(true);
+    expect(receipt!.pairedResults![0]!.ablated!.pass).toBe(true);
+    expect(receipt!.mechanicsVerified).toBe(true);
+    expect(receipt!.modelTransferUnproven).toBe(true);
+    d.close();
+  });
+
+  // ----- negative tests -----
+
+  test("recordEpisode rejects empty failureMode", () => {
+    const d = memory();
+    expect(() => d.recordEpisode({
+      failureMode: "",
+      failureSlipIds: [],
+      repairSlipIds: [],
+      taskClass: "test",
+    })).toThrow("failureMode is required");
+    d.close();
+  });
+
+  test("recordEpisode rejects empty slip ids in failureSlipIds", () => {
+    const d = memory();
+    expect(() => d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [""],
+      repairSlipIds: [],
+      taskClass: "test",
+    })).toThrow("failureSlipIds contains empty id");
+    d.close();
+  });
+
+  test("recordEpisode rejects empty slip ids in repairSlipIds", () => {
+    const d = memory();
+    expect(() => d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [],
+      repairSlipIds: [""],
+      taskClass: "test",
+    })).toThrow("repairSlipIds contains empty id");
+    d.close();
+  });
+
+  test("recordEpisode rejects nonexistent slip ids", () => {
+    const d = memory();
+    expect(() => d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: ["nonexistent-ulid"],
+      repairSlipIds: [],
+      taskClass: "test",
+    })).toThrow("slip nonexistent-ulid not found");
+    d.close();
+  });
+
+  test("recordEpisode rejects slip from another scope or DB", () => {
+    const d = memory();
+    const s = d.remember("scoped slip");
+    d.keep([s.id], { noChainRollup: true });
+    // A different deja instance (separate :memory: DB) can't see this slip
+    const d2 = new Deja({ path: ":memory:", skipGc: true, scope: "repo:other" });
+    expect(() => d2.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [],
+      taskClass: "test",
+    })).toThrow("not found");
+    d.close();
+    d2.close();
+  });
+
+  test("ablationReceipt ignores unpaired evaluations for ablation claims", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "unpaired",
+    });
+    // c1 has only a with-episode eval; c2 has both sides but no evidence receipt refs.
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 2 });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c2", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 3 });
+
+    const receipt = d.ablationReceipt("unpaired");
+    expect(receipt).not.toBeNull();
+    // No eligible complete pairs, so mechanics are not verified and ablation is not demonstrated.
+    expect(receipt!.pairedResults).toBeUndefined();
+    expect(receipt!.ablationDemonstrated).toBe(false);
+    expect(receipt!.mechanicsVerified).toBe(false);
+    // Aggregate counts are still reported for backward compatibility.
+    expect(receipt!.passedWithEpisodes).toBe(2);
+    expect(receipt!.passedAblated).toBe(0);
+    d.close();
+  });
+
+  test("ablationReceipt includes portable evidence refs without local slip ids", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "ev-test",
+    });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
+
+    const receipt = d.ablationReceipt("ev-test");
+    expect(receipt!.evidence).toBeDefined();
+    expect(receipt!.evidence!.length).toBe(1);
+    expect(receipt!.evidence![0]!.evidenceReceiptRefs).toEqual(["ev-c1-with", "ev-c1-ablated"]);
+    expect(receipt!.evidence![0]).not.toHaveProperty("slipIds");
+    expect(receipt!.evidence![0]!.evaluationTraceId).toBeUndefined();
+    d.close();
+  });
+
+  test("ablationReceipt marks modelTransferUnproven unconditionally", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "single-model",
+      failingModel: "llama-3.1-8b",
+      repairModel: "claude-opus-4",
+    });
+    // Multiple models are present, but Phase 1 API still reports transfer as unproven.
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "llama-3.1-8b", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "llama-3.1-8b", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
+
+    const receipt = d.ablationReceipt("single-model");
+    expect(receipt!.modelTransferUnproven).toBe(true);
+    expect(receipt!.mechanicsVerified).toBe(true);
+    d.close();
+  });
+
+  test("ablationReceipt requires distinct evidence receipt refs for pairing", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "same-ref",
+    });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1, evidenceReceiptRef: "same-ref" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "model-a", ablated: true, evaluatedAt: 2, evidenceReceiptRef: "same-ref" });
+
+    const receipt = d.ablationReceipt("same-ref");
+    expect(receipt!.pairedResults).toBeUndefined();
+    expect(receipt!.mechanicsVerified).toBe(false);
+    expect(receipt!.ablationDemonstrated).toBe(false);
+    d.close();
+  });
+
+  test("ablationReceipt requires same non-null modelId for pairing", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "null-model",
+    });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: null, ablated: false, evaluatedAt: 1, evidenceReceiptRef: "ev-c1-with" });
+    d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: null, ablated: true, evaluatedAt: 2, evidenceReceiptRef: "ev-c1-ablated" });
+
+    const receipt = d.ablationReceipt("null-model");
+    expect(receipt!.pairedResults).toBeUndefined();
+    expect(receipt!.mechanicsVerified).toBe(false);
+    expect(receipt!.ablationDemonstrated).toBe(false);
+    d.close();
+  });
+
+  test("evidence-less evaluations remain storable but are ineligible for observed receipt", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "legacy",
+    });
+    const ok = d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "model-a", ablated: false, evaluatedAt: 1 });
+    expect(ok).toBe(true);
+
+    const receipt = d.ablationReceipt("legacy");
+    expect(receipt).not.toBeNull();
+    expect(receipt!.mechanicsVerified).toBe(false);
+    expect(receipt!.ablationDemonstrated).toBe(false);
+    d.close();
+  });
+
+  test("recordEpisode accepts exportPolicy and redactionPolicy", () => {
+    const d = memory();
+    const s = d.remember("slip");
+    d.keep([s.id], { noChainRollup: true });
+    const ep = d.recordEpisode({
+      failureMode: "test",
+      failureSlipIds: [s.id],
+      repairSlipIds: [s.id],
+      taskClass: "policy-test",
+      exportPolicy: "redacted",
+      redactionPolicy: "strip",
+    });
+    expect(ep.exportPolicy).toBe("redacted");
+    expect(ep.redactionPolicy).toBe("strip");
     d.close();
   });
 });

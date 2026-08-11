@@ -1,19 +1,20 @@
 @import "tailwindcss";
 
 @theme {
-  --color-void: #0a0a0a;
-  --color-void-deep: #050505;
-  --color-steel: #1a1a1a;
-  --color-steel-light: #2a2a2a;
-  --color-chrome: #e8e8e8;
-  --color-chrome-dark: #b8b8b8;
-  --color-brass: #c9a961;
-  --color-brass-dark: #9b7e3c;
-  --color-brass-light: #d4bc87;
+  --color-ink: #0b1118;
+  --color-layer: #111a24;
+  --color-layer-2: #182431;
+  --color-text: #f7f9fb;
+  --color-muted: #9baaba;
+  --color-orange: #f6821f;
+  --color-amber: #f7b53b;
+  --color-blue-light: #71b8d8;
+  --color-green: #63d5a2;
+  --color-red: #ff7d68;
+  --color-border: rgba(174, 196, 216, 0.14);
 
-  --font-family-serif: "Spectral", Georgia, serif;
-  --font-family-serif-sc: "Spectral SC", serif;
-  --font-family-mono: "JetBrains Mono", monospace;
+  --font-family-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-family-mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
 }
 
 html {
@@ -21,88 +22,99 @@ html {
 }
 
 body {
-  font-family: var(--font-family-serif);
-  background: var(--color-void);
-  color: var(--color-chrome);
+  font-family: var(--font-family-sans);
+  background: var(--color-ink);
+  color: var(--color-text);
   line-height: 1.6;
   letter-spacing: 0.01em;
 }
 
-/* Texture overlay — subtle scanlines + warm/cool radial blooms.
-   Sits behind everything; gives the page an imperfect, instrument-panel feel. */
+/* Texture overlay — subtle scanlines + warm/cool radial blooms */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   background:
     repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px, rgba(255, 255, 255, 0.02) 4px),
-    radial-gradient(circle at 30% 20%, rgba(201, 169, 97, 0.03), transparent 50%),
-    radial-gradient(circle at 70% 80%, rgba(232, 232, 232, 0.02), transparent 50%);
+    radial-gradient(circle at 30% 20%, rgba(246, 130, 31, 0.03), transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(247, 181, 59, 0.02), transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* Code syntax tokens for inline manual highlighting */
-.code-block .cmd { color: #8ab4f8; }
-.code-block .flag { color: var(--color-brass); }
-.code-block .string { color: #9ece6a; }
-.code-block .var { color: var(--color-brass-light); }
-.code-block .comment { color: var(--color-chrome-dark); opacity: 0.6; }
-.code-block .keyword { color: #c678dd; }
-.code-block .fn { color: var(--color-brass-light); }
+/* Eyebrow label: uppercase mono, .18em tracking, corner-bracket marks */
+.eyebrow {
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-orange);
+}
+.eyebrow::before {
+  content: "[ ";
+}
+.eyebrow::after {
+  content: " ]";
+}
 
-/* Layered shadows — these give cards/buttons their pressed-into-the-page weight */
+/* Code syntax tokens for inline manual highlighting */
+.code-block .cmd { color: var(--color-blue-light); }
+.code-block .flag { color: var(--color-orange); }
+.code-block .string { color: var(--color-green); }
+.code-block .var { color: var(--color-amber); }
+.code-block .comment { color: var(--color-muted); opacity: 0.6; }
+.code-block .keyword { color: #c678dd; }
+.code-block .fn { color: var(--color-amber); }
+
+/* Layered shadows */
 .shadow-card {
   box-shadow:
-    inset 0 1px 0 rgba(201, 169, 97, 0.08),
-    0 2px 0 var(--color-void-deep),
+    inset 0 1px 0 rgba(246, 130, 31, 0.08),
+    0 2px 0 var(--color-ink),
     0 8px 24px rgba(0, 0, 0, 0.6);
 }
 
 .shadow-hero {
   box-shadow:
-    inset 0 1px 0 rgba(201, 169, 97, 0.15),
-    0 2px 0 var(--color-void-deep),
+    inset 0 1px 0 rgba(246, 130, 31, 0.15),
+    0 2px 0 var(--color-ink),
     0 20px 60px rgba(0, 0, 0, 0.8);
 }
 
 .shadow-cta {
   box-shadow:
-    inset 0 1px 0 rgba(201, 169, 97, 0.2),
+    inset 0 1px 0 rgba(246, 130, 31, 0.2),
     inset 0 -1px 0 rgba(0, 0, 0, 0.5),
-    0 4px 0 var(--color-void-deep),
+    0 4px 0 var(--color-ink),
     0 20px 60px rgba(0, 0, 0, 0.8);
 }
 
 .shadow-code {
   box-shadow:
     inset 0 1px 3px rgba(0, 0, 0, 0.8),
-    inset 0 0 0 1px rgba(201, 169, 97, 0.05);
+    inset 0 0 0 1px rgba(246, 130, 31, 0.05);
 }
 
 .shadow-btn {
   box-shadow:
-    inset 0 1px 0 rgba(201, 169, 97, 0.3),
-    0 2px 0 var(--color-void-deep),
+    inset 0 1px 0 rgba(246, 130, 31, 0.3),
+    0 2px 0 var(--color-ink),
     0 4px 16px rgba(0, 0, 0, 0.6);
 }
 
 .shadow-btn:hover {
   box-shadow:
-    inset 0 1px 0 rgba(201, 169, 97, 0.4),
-    0 3px 0 var(--color-void-deep),
+    inset 0 1px 0 rgba(246, 130, 31, 0.4),
+    0 3px 0 var(--color-ink),
     0 6px 20px rgba(0, 0, 0, 0.7);
 }
 
-.glow-brass {
-  box-shadow: 0 0 8px var(--color-brass);
+.glow-amber {
+  box-shadow: 0 0 8px var(--color-amber);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Flow visualization — "watching a mechanism cycle"
-   Used for the recall → remember → keep → handoff diagram.
-   ═══════════════════════════════════════════════════════════ */
-
+/* Flow visualization */
 .flow-container {
   position: relative;
   display: flex;
@@ -118,7 +130,7 @@ body::before {
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--color-steel-light);
+  background: var(--color-layer-2);
   transform: translateY(-50%);
   z-index: 0;
 }
@@ -130,9 +142,9 @@ body::before {
   left: 0;
   width: 60px;
   height: 4px;
-  background: linear-gradient(90deg, transparent, var(--color-brass), var(--color-brass-light), transparent);
+  background: linear-gradient(90deg, transparent, var(--color-orange), var(--color-amber), transparent);
   border-radius: 2px;
-  box-shadow: 0 0 12px var(--color-brass), 0 0 24px rgba(201, 169, 97, 0.4);
+  box-shadow: 0 0 12px var(--color-orange), 0 0 24px rgba(246, 130, 31, 0.4);
   animation: data-pulse 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
@@ -157,8 +169,8 @@ body::before {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  border: 2px solid var(--color-steel-light);
-  background: var(--color-void-deep);
+  border: 2px solid var(--color-layer-2);
+  background: var(--color-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -171,7 +183,7 @@ body::before {
   position: absolute;
   inset: 4px;
   border-radius: 50%;
-  border: 1px solid var(--color-brass);
+  border: 1px solid var(--color-orange);
   opacity: 0.3;
   transition: opacity 0.4s;
 }
@@ -181,14 +193,14 @@ body::before {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  border: 1px solid var(--color-brass);
+  border: 1px solid var(--color-orange);
   opacity: 0;
   transition: all 0.4s;
 }
 
 .flow-node:hover .flow-node-ring {
-  border-color: var(--color-brass);
-  box-shadow: 0 0 20px rgba(201, 169, 97, 0.3), inset 0 0 20px rgba(201, 169, 97, 0.1);
+  border-color: var(--color-orange);
+  box-shadow: 0 0 20px rgba(246, 130, 31, 0.3), inset 0 0 20px rgba(246, 130, 31, 0.1);
 }
 
 .flow-node:hover .flow-node-ring::before {
@@ -205,7 +217,7 @@ body::before {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
-  color: var(--color-brass);
+  color: var(--color-orange);
   text-transform: lowercase;
 }
 
@@ -214,14 +226,14 @@ body::before {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.18em;
-  color: var(--color-brass-light);
+  color: var(--color-amber);
   text-transform: uppercase;
 }
 
 .flow-node-desc {
-  font-family: var(--font-family-serif);
+  font-family: var(--font-family-sans);
   font-size: 13px;
-  color: var(--color-chrome-dark);
+  color: var(--color-muted);
   text-align: center;
   max-width: 180px;
   line-height: 1.45;
@@ -235,14 +247,13 @@ body::before {
 .flow-node:nth-child(4) .flow-node-ring { animation-delay: 3s; }
 
 @keyframes node-pulse {
-  0%, 100% { border-color: var(--color-steel-light); box-shadow: none; }
+  0%, 100% { border-color: var(--color-layer-2); box-shadow: none; }
   20%, 30% {
-    border-color: var(--color-brass);
-    box-shadow: 0 0 24px rgba(201, 169, 97, 0.5), inset 0 0 12px rgba(201, 169, 97, 0.2);
+    border-color: var(--color-orange);
+    box-shadow: 0 0 24px rgba(246, 130, 31, 0.5), inset 0 0 12px rgba(246, 130, 31, 0.2);
   }
 }
 
-/* Mobile: stack vertically */
 @media (max-width: 768px) {
   .flow-container {
     flex-direction: column;
@@ -263,7 +274,7 @@ body::before {
     left: -1px;
     width: 4px;
     height: 60px;
-    background: linear-gradient(180deg, transparent, var(--color-brass), var(--color-brass-light), transparent);
+    background: linear-gradient(180deg, transparent, var(--color-orange), var(--color-amber), transparent);
     animation: data-pulse-vertical 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
   @keyframes data-pulse-vertical {

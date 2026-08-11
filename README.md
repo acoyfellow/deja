@@ -228,7 +228,29 @@ d.forget(slipId)
 d.link(fromId, toId, "supersedes" | "contradicts" | "related")
 d.assessRecall(traceId, assessment, note?)
 d.recallReport()
+d.redact(slipId) // mask slip text in recall output; raw text stays local
 ```
+
+### Failure→repair episodes
+
+```ts
+const ep = d.recordEpisode({
+  failureMode: "JSON parse error on malformed input",
+  failureSlipIds: [fail.id],
+  repairSlipIds: [repair.id],
+  taskClass: "json-handling",
+  failingModel: "llama-3.1-8b",
+  repairModel: "claude-opus-4",
+});
+d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: true, modelId: "claude-opus-4", ablated: false, evaluatedAt: Date.now(), evidenceReceiptRef: "ev-c1-with" });
+d.addEpisodeEvaluation(ep.id, { caseLabel: "c1", pass: false, modelId: "claude-opus-4", ablated: true, evaluatedAt: Date.now(), evidenceReceiptRef: "ev-c1-ablated" });
+const receipt = d.ablationReceipt("json-handling");
+// receipt.ablationDemonstrated === true only when an eligible paired comparison shows regression
+// receipt.mechanicsVerified === true only when at least one complete evidence-backed pair exists
+// receipt.modelTransferUnproven === true — model-specific transfer is always unproven in Phase 1
+```
+
+Episodes link failure and repair slips without duplicating raw text. The ablation receipt is a deterministic summary of stored evaluations — no model calls at receipt time. A paired ablation is eligible only when both sides share the same `caseLabel`, the same non-null `modelId`, and distinct, nonempty `evidenceReceiptRef` values. Unpaired or evidence-less evaluations remain storable but are never treated as observed evidence and never fall back to aggregate counts. The receipt explicitly separates verified mechanics (contract validation through complete evidence-backed pairs) from unproven model transfer.
 
 ### Deliberate bulk cleanup
 
@@ -251,6 +273,7 @@ The local MCP server exposes two small groups.
 | `signal` | Mark one slip used, wrong, or forgotten |
 | `link` | Relate two existing slips |
 | `assess` | Evaluate a recall receipt |
+| `redact` | Mask a slip in recall output; raw text stays local |
 
 **Local coordination**
 
@@ -299,6 +322,7 @@ The default database is `~/.deja/deja.db`.
 | `links` | Supersession, contradiction, and related-memory edges |
 | `handoffs` | Active/resolved continuation packets |
 | `recall_traces` | Retrieval receipts and assessments, without duplicated memory text |
+| `episodes` | Failure→repair episode metadata and ablation evaluations |
 | `messages` | Local asynchronous agent mailbox |
 
 Schema changes are additive and run automatically when Deja opens the database. Existing text is never rewritten during migration.

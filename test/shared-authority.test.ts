@@ -248,3 +248,45 @@ describe("handleAuthorityRequest — fetch-like adapter", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("SharedAuthority.restore — durable rehydration", () => {
+  test("restores committed events and continues the revision sequence", () => {
+    const source = makeAuthority();
+    source.remember({ ...baseInput, slipId: "s1" });
+    source.remember({ ...baseInput, slipId: "s2" });
+    const events = source.eventsSince(0).events;
+    expect(events.length).toBe(2);
+
+    const restored = makeAuthority();
+    restored.restore(events);
+    expect(restored.status().headRevision).toBe(2);
+
+    // New writes continue from the restored head, not from zero.
+    const receipt = restored.remember({ ...baseInput, slipId: "s3" });
+    expect(receipt.event.revision).toBe(3);
+  });
+
+  test("rejects non-contiguous revisions", () => {
+    const source = makeAuthority();
+    source.remember({ ...baseInput, slipId: "s1" });
+    source.remember({ ...baseInput, slipId: "s2" });
+    const [, second] = source.eventsSince(0).events;
+    const restored = makeAuthority();
+    expect(() => restored.restore([second!])).toThrow("contiguous");
+  });
+
+  test("rejects restore into a non-empty authority", () => {
+    const source = makeAuthority();
+    source.remember({ ...baseInput, slipId: "s1" });
+    const events = source.eventsSince(0).events;
+    const target = makeAuthority();
+    target.remember({ ...baseInput, slipId: "other" });
+    expect(() => target.restore(events)).toThrow("empty authority");
+  });
+
+  test("empty restore is a no-op", () => {
+    const a = makeAuthority();
+    a.restore([]);
+    expect(a.status().headRevision).toBe(0);
+  });
+});
