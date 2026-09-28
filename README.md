@@ -18,7 +18,7 @@ finish a session                         start the next one
 
 No account. No daemon. No embeddings required. No transcript dump into the prompt.
 
-> **Release status:** local Deja is the production surface in `v0.1.0`. Shared mode is a tested preview and intentionally remains local-only until its security review is complete.
+> **Release status:** local Deja is the supported **daily-dogfood** surface in this release candidate, not a public-production claim. Run [`SHIP-READINESS.md`](SHIP-READINESS.md) before relying on a checkout. Shared mode is a tested preview and intentionally remains local-only until its security review is complete.
 
 ## Why Deja
 
@@ -79,7 +79,7 @@ At the end, it calls:
 handoff({ summary: "Implemented scoped auth", next: ["run the remote smoke test"] })
 ```
 
-## What ships in v0.1.0
+## What local dogfood supports
 
 ### Repository isolation by default
 
@@ -306,6 +306,7 @@ deja eval
 deja ls
 deja show <slip-id>
 deja handoffs
+deja forget <slip-id> --yes       # expires one scoped slip; raw SQLite text remains
 deja forget-session <session-id> --yes
 ```
 
@@ -325,7 +326,7 @@ The default database is `~/.deja/deja.db`.
 | `episodes` | Failure→repair episode metadata and ablation evaluations |
 | `messages` | Local asynchronous agent mailbox |
 
-Schema changes are additive and run automatically when Deja opens the database. Existing text is never rewritten during migration.
+Schema migrations run automatically when Deja opens the database and preserve stored memory and handoff text. Some schema constraints are rebuilt when required to repair correctness; migrations never rewrite memory text.
 
 Useful environment variables:
 
@@ -337,7 +338,7 @@ DEJA_SCOPE=global             # deliberate override; normally automatic
 DEJA_INCLUDE_LEGACY=1         # temporary pre-v0.1 migration aid
 ```
 
-Local SQLite is plaintext. Do not store credentials, customer data, or secrets. See [`SECURITY.md`](SECURITY.md) for the supported boundary and vulnerability-reporting guidance.
+Local SQLite is plaintext. Do not store credentials, customer data, or secrets. `forget` expires a slip from recall but does not erase its raw SQLite row; `redact` masks recall output but also retains raw local text. Local hard erasure and export/import are not supported. See [`SECURITY.md`](SECURITY.md) for the supported boundary and vulnerability-reporting guidance.
 
 ## Shared mode — preview
 
@@ -380,14 +381,7 @@ Run the complete local release gate:
 bun run check
 ```
 
-It runs:
-
-```bash
-bun test ./test
-bun run typecheck
-bun run bench/recall.ts
-bun run bench:behavior
-```
+It runs local unit/release tests, both TypeScript configurations, lexical and behavior benchmarks, the clean CLI/MCP smoke journey, and the serial shared-server integration proof. Run `bun run smoke:local` when iterating on the local user journey, or `bun run test:shared-server` for the shared-preview proof alone.
 
 The repository also contains:
 

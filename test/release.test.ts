@@ -13,6 +13,7 @@ describe("release metadata", () => {
       "README.md",
       "CHANGELOG.md",
       "SECURITY.md",
+      "SHIP-READINESS.md",
       "docs/ROADMAP.md",
       "docs/shared-memory.md",
       "docs/shared-memory-implementation-contract.md",

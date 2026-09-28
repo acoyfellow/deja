@@ -29,6 +29,7 @@
     "README.md",
     "CHANGELOG.md",
     "SECURITY.md",
+    "SHIP-READINESS.md",
     "docs/ROADMAP.md",
     "docs/shared-memory.md",
     "docs/shared-memory-implementation-contract.md",
@@ -38,11 +39,15 @@
   "scripts": {
     "test": "bun test ./test",
     "typecheck": "tsc --noEmit",
+    "typecheck:shared": "tsc --noEmit --project tsconfig.worker.json",
+    "test:shared-server": "bun test ./shared-server/test/worker.unit.test.ts && ./shared-server/test/server.test.sh && ./shared-server/test-local.sh",
     "cli": "bun run src/cli.ts",
     "mcp": "bun run src/mcp.ts",
     "mcp:shared": "bun run src/shared-mcp.ts",
-    "check": "bun test ./test && bun run typecheck && bun run bench/recall.ts && bun run bench:behavior",
+    "check": "bun test ./test && bun run typecheck && bun run typecheck:shared && bun run bench/recall.ts && bun run bench:behavior && bun run smoke:local && bun run smoke:package && bun run test:shared-server",
     "bench:behavior": "bun run bench/behavior/run.ts",
+    "smoke:local": "./scripts/smoke-local.sh",
+    "smoke:package": "./scripts/smoke-package.sh",
     "proof:stage3": "bun run scripts/proof-stage3.ts"
   },
   "dependencies": {

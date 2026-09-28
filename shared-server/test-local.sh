@@ -9,6 +9,10 @@ DEJA_SHARED_TOKENS=dev-token:demo
 VARS
 PORT="${PORT:-8790}"
 BASE="http://127.0.0.1:$PORT"
+if lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "FAIL: port $PORT is already in use by another process; rerun with PORT=<free port>" >&2
+  exit 1
+fi
 (cd shared-server && wrangler dev --local --ip 127.0.0.1 --port "$PORT" >.tmp/server.log 2>&1) &
 pid=$!
 cleanup() {

@@ -3,6 +3,6 @@
   "compilerOptions": {
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["src/shared-worker.ts", "src/shared-authority/**/*"],
+  "include": ["src/shared-worker.ts", "src/shared-authority/**/*", "shared-server/src/**/*"],
   "exclude": ["node_modules", "dist", "marketing", "test"]
 }

@@ -54,6 +54,19 @@ describe("Storage", () => {
     expect(migrated.getSlip("old")?.scope).toBe("legacy:global");
     expect(migrated.latestHandoffs(1)[0]?.scope).toBe("legacy:global");
     expect(migrated.searchFts("legacy", 10, "repo:new")).toEqual([]);
+    expect(() => migrated.insertHandoff({
+      id: "h-new",
+      sessionId: "s",
+      authoredBy: "agent",
+      scope: "repo:new",
+      summary: "new scoped handoff",
+      kept: [],
+      next: [],
+      status: "active",
+      automatic: false,
+      createdAt: 2,
+      resolvedAt: null,
+    })).not.toThrow();
     migrated.close();
     rmSync(dir, { recursive: true, force: true });
   });
@@ -161,7 +174,7 @@ describe("Storage", () => {
     s.close();
   });
 
-  test("handoffs are unique per session", () => {
+  test("handoffs are unique per session and repository scope", () => {
     const s = new Storage({ path: ":memory:" });
     const now = Date.now();
     s.insertHandoff({
@@ -192,6 +205,21 @@ describe("Storage", () => {
         resolvedAt: null,
       }),
     ).toThrow();
+    expect(() =>
+      s.insertHandoff({
+        id: ulid(now + 2),
+        sessionId: "S1",
+        authoredBy: "test",
+        scope: "repo:other",
+        summary: "other repository session",
+        kept: [],
+        next: [],
+        status: "active",
+        automatic: false,
+        createdAt: now + 2,
+        resolvedAt: null,
+      }),
+    ).not.toThrow();
     s.close();
   });
 

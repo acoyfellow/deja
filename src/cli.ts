@@ -40,6 +40,7 @@ Usage:
 deja assess <trace> <useful|wrong|missed|no_memory_needed> [note]
    deja eval                  Show scoped recall-quality evidence
    deja redact <id>           Mask a slip in recall output; raw text stays local
+   deja forget <id> --yes     Expire one scoped slip; does not erase raw SQLite text
    deja forget-session <id> --yes  Expire a session's scoped slips
   deja ls [--session]        List kept slips (or current session's slips)
   deja show <id>             Show a slip + its links
@@ -254,11 +255,20 @@ function cmdEval(): void {
   d.close();
 }
 
+function cmdForget(args: string[]): void {
+  const id = args.find((arg) => arg !== "--yes");
+  if (!id || !args.includes("--yes")) throw new Error("usage: deja forget <id> --yes");
+  const d = new Deja({ path: dbPath(), skipGc: true });
+  if (!d.forget(id)) throw new Error(`active slip ${id} not found in ${d.scope}`);
+  console.log(`expired ${id} in ${d.scope}; raw text remains in local SQLite`);
+  d.close();
+}
+
 function cmdForgetSession(args: string[]): void {
   const sessionId = args.find((arg) => arg !== "--yes");
   if (!sessionId || !args.includes("--yes")) throw new Error("usage: deja forget-session <id> --yes");
   const d = new Deja({ path: dbPath(), skipGc: true });
-  console.log(`expired ${d.forgetSession(sessionId)} slip(s) from ${sessionId} in ${d.scope}`);
+  console.log(`expired ${d.forgetSession(sessionId)} slip(s) from ${sessionId} in ${d.scope}; raw text remains in local SQLite`);
   d.close();
 }
 
@@ -513,6 +523,9 @@ switch (cmd) {
     break;
   case "redact":
     cmdRedact(rest);
+    break;
+  case "forget":
+    cmdForget(rest);
     break;
   case "forget-session":
     cmdForgetSession(rest);

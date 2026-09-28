@@ -237,17 +237,21 @@ export class Deja {
       wrongCount: 0,
       redacted: opts.redacted ?? false,
     };
+    for (const link of opts.links ?? []) {
+      if (!this.storage.getSlip(link.toId, slip.scope)) {
+        throw new Error(`deja.remember: linked slip ${link.toId} is not in scope ${slip.scope}`);
+      }
+    }
+
     this.storage.insertSlip(slip);
 
-    if (opts.links) {
-      for (const link of opts.links) {
-        this.storage.insertLink({
-          fromId: slip.id,
-          toId: link.toId,
-          kind: link.kind,
-          createdAt: now,
-        });
-      }
+    for (const link of opts.links ?? []) {
+      this.storage.insertLink({
+        fromId: slip.id,
+        toId: link.toId,
+        kind: link.kind,
+        createdAt: now,
+      });
     }
     return slip;
   }
@@ -267,10 +271,10 @@ export class Deja {
     const now = Date.now();
     const promoted: Slip[] = [];
     for (const id of ids) {
-      const s = this.storage.getSlip(id);
+      const s = this.storage.getSlip(id, this.scope);
       if (!s) continue;
       if (s.state !== "draft") continue;
-      this.storage.setState(id, "kept", now);
+      this.storage.setState(id, "kept", now, this.scope);
       promoted.push({ ...s, state: "kept", keptAt: now });
     }
 
@@ -323,22 +327,22 @@ export class Deja {
     const sessionId = input.sessionId ?? currentSessionId();
     const authoredBy = input.authoredBy ?? currentAuthor();
 
-    const existing = this.storage.getHandoffBySession(sessionId, input.scope ?? this.scope);
+    const scope = input.scope ?? this.scope;
+    const existing = this.storage.getHandoffBySession(sessionId, scope);
     if (existing && (input.automatic || !existing.automatic)) {
       throw new Error(
-        `deja.handoff: session ${sessionId} already has a handoff (${existing.id}). One handoff per session.`,
+        `deja.handoff: session ${sessionId} already has a handoff in ${scope} (${existing.id}).`,
       );
     }
 
     // Promote everything kept-eligible in this session to kept,
     // collect the ids for the handoff packet.
-    const scope = input.scope ?? this.scope;
     const sessionSlips = this.storage.listBySession(sessionId, scope);
     const now = Date.now();
     const keptIds: string[] = [];
     for (const s of sessionSlips) {
       if (s.state === "draft") {
-        this.storage.setState(s.id, "kept", now);
+        this.storage.setState(s.id, "kept", now, scope);
         keptIds.push(s.id);
       } else if (s.state === "kept") {
         keptIds.push(s.id);
@@ -396,7 +400,7 @@ export class Deja {
   }
 
   resolveHandoff(id: string, status: Exclude<HandoffStatus, "active"> = "completed"): boolean {
-    return this.storage.resolveHandoff(id, status, Date.now());
+    return this.storage.resolveHandoff(id, status, Date.now(), this.scope);
   }
 
   link(fromId: string, toId: string, kind: LinkKind): boolean {
@@ -420,19 +424,17 @@ export class Deja {
 
   /** Expire a slip regardless of state. Returns true if anything changed. */
   forget(id: string): boolean {
-    const s = this.storage.getSlip(id);
+    const s = this.storage.getSlip(id, this.scope);
     if (!s || s.state === "expired") return false;
-    return this.storage.setState(id, "expired", Date.now());
+    return this.storage.setState(id, "expired", Date.now(), this.scope);
   }
 
-  /** Record that a recalled slip was helpful. */
-  used(id: string): void {
-    this.storage.bumpUsed(id);
+  used(id: string): boolean {
+    return this.storage.bumpUsed(id, this.scope);
   }
 
-  /** Record that a recalled slip was misleading. */
-  wrong(id: string): void {
-    this.storage.bumpWrong(id);
+  wrong(id: string): boolean {
+    return this.storage.bumpWrong(id, this.scope);
   }
 
   /**
@@ -441,7 +443,7 @@ export class Deja {
    * already redacted. Local-only; does not modify shared copies.
    */
   redact(id: string): boolean {
-    return this.storage.redactSlip(id, Date.now());
+    return this.storage.redactSlip(id, this.scope);
   }
 
   /** Return a copy of a slip with text masked if redacted and rawMemoryLocal is on. */
@@ -480,7 +482,7 @@ export class Deja {
       throw new Error("deja.recordEpisode: repairSlipIds contains empty id");
 
     for (const id of [...input.failureSlipIds, ...input.repairSlipIds]) {
-      const slip = this.storage.getSlip(id);
+      const slip = this.storage.getSlip(id, this.scope);
       if (!slip) throw new Error(`deja.recordEpisode: slip ${id} not found`);
       if (slip.scope !== this.scope)
         throw new Error(`deja.recordEpisode: slip ${id} is not in scope ${this.scope}`);
@@ -509,7 +511,7 @@ export class Deja {
 
   /** Retrieve a stored episode by id. */
   getEpisode(id: string): Episode | null {
-    return this.storage.getEpisode(id);
+    return this.storage.getEpisode(id, this.scope);
   }
 
   /** Find all episodes for a task class in the current scope. */
@@ -525,7 +527,7 @@ export class Deja {
     episodeId: string,
     evaluation: EpisodeEvaluation,
   ): boolean {
-    return this.storage.addEpisodeEvaluation(episodeId, evaluation);
+    return this.storage.addEpisodeEvaluation(episodeId, evaluation, this.scope);
   }
 
   /**
@@ -711,7 +713,7 @@ export class Deja {
   // ---------- introspection ----------
 
   get(id: string): Slip | null {
-    return this.storage.getSlip(id);
+    return this.storage.getSlip(id, this.scope);
   }
 
   listSession(sessionId?: string): Slip[] {

@@ -1,4 +1,7 @@
 import { describe, expect, test, beforeEach } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Deja, memory } from "../src/index.ts";
 import { _resetSessionForTesting } from "../src/lifecycle.ts";
 
@@ -57,6 +60,53 @@ describe("Deja API", () => {
     expect(recalled.hits.map((hit) => hit.slip.text)).toEqual(["shared marker belongs to alpha"]);
     expect(recalled.activeHandoff).toBeNull();
     d.close();
+  });
+
+  test("direct inspection and mutation cannot cross repository scope", () => {
+    const dir = mkdtempSync(join(tmpdir(), "deja-scope-"));
+    const path = join(dir, "memory.db");
+    const alpha = new Deja({ path, skipGc: true, scope: "repo:alpha" });
+    const beta = new Deja({ path, skipGc: true, scope: "repo:beta" });
+    try {
+      const slip = alpha.remember("Decision: alpha-only marker");
+      alpha.keep([slip.id], { noChainRollup: true });
+      const handoff = alpha.handoff({ summary: "alpha-only handoff" });
+
+      expect(beta.get(slip.id)).toBeNull();
+      expect(beta.keep([slip.id])).toEqual([]);
+      expect(beta.forget(slip.id)).toBe(false);
+      expect(beta.used(slip.id)).toBe(false);
+      expect(beta.wrong(slip.id)).toBe(false);
+      expect(beta.redact(slip.id)).toBe(false);
+      expect(beta.resolveHandoff(handoff.id)).toBe(false);
+      expect(() => beta.remember("bad cross-scope link", {
+        links: [{ toId: slip.id, kind: "related" }],
+      })).toThrow(/not in scope/);
+
+      expect(alpha.get(slip.id)).toMatchObject({ state: "kept", usedCount: 0, wrongCount: 0, redacted: false });
+      expect(alpha.recall("alpha marker").hits.map((hit) => hit.slip.id)).toEqual([slip.id]);
+    } finally {
+      alpha.close();
+      beta.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a shared session may leave independent handoffs per repository scope", () => {
+    const dir = mkdtempSync(join(tmpdir(), "deja-handoff-scope-"));
+    const path = join(dir, "memory.db");
+    const alpha = new Deja({ path, skipGc: true, scope: "repo:alpha" });
+    const beta = new Deja({ path, skipGc: true, scope: "repo:beta" });
+    try {
+      const alphaHandoff = alpha.handoff({ summary: "alpha handoff" });
+      const betaHandoff = beta.handoff({ summary: "beta handoff" });
+      expect(alpha.recall("").activeHandoff?.id).toBe(alphaHandoff.id);
+      expect(beta.recall("").activeHandoff?.id).toBe(betaHandoff.id);
+    } finally {
+      alpha.close();
+      beta.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("empty library recall returns budgeted scoped recents", () => {

@@ -125,7 +125,7 @@ describe("worker entry: local token-to-space routing", () => {
     expect(seen.request?.headers.get("x-deja-stream-ttl-seconds")).toBe("60");
   });
 
-  test("DEJA_SHARED_STREAM_TTL_SECONDS=unbounded omits the TTL header", async () => {
+  test("invalid or unbounded TTL configuration falls back to the bounded default", async () => {
     const { env, seen } = makeEnv({ mappedTokens: "alice-token:alice", ttl: "unbounded" });
     await worker.fetch(
       new Request("http://server.test/v1/shared/stream", {
@@ -133,6 +133,29 @@ describe("worker entry: local token-to-space routing", () => {
       }),
       env as unknown as Parameters<typeof worker.fetch>[1],
     );
-    expect(seen.request?.headers.get("x-deja-stream-ttl-seconds")).toBeNull();
+    expect(seen.request?.headers.get("x-deja-stream-ttl-seconds")).toBe("900");
+  });
+
+  test("stream TTL is capped at one hour", async () => {
+    const { env, seen } = makeEnv({ mappedTokens: "alice-token:alice", ttl: "86400" });
+    await worker.fetch(
+      new Request("http://server.test/v1/shared/stream", {
+        headers: { authorization: "Bearer alice-token" },
+      }),
+      env as unknown as Parameters<typeof worker.fetch>[1],
+    );
+    expect(seen.request?.headers.get("x-deja-stream-ttl-seconds")).toBe("3600");
+  });
+});
+
+import { maxActiveStreams } from "../src/worker.ts";
+
+describe("stream cap configuration", () => {
+  test("defaults to 32 and only allows lowering it", () => {
+    expect(maxActiveStreams({} as never)).toBe(32);
+    expect(maxActiveStreams({ DEJA_SHARED_MAX_STREAMS: "4" } as never)).toBe(4);
+    expect(maxActiveStreams({ DEJA_SHARED_MAX_STREAMS: "500" } as never)).toBe(32);
+    expect(maxActiveStreams({ DEJA_SHARED_MAX_STREAMS: "0" } as never)).toBe(32);
+    expect(maxActiveStreams({ DEJA_SHARED_MAX_STREAMS: "abc" } as never)).toBe(32);
   });
 });

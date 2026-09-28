@@ -88,8 +88,8 @@ Do not publish this server unauthenticated or deploy it before security review.
 ## Bounded stream lifetime
 
 Each authenticated `/v1/shared/stream` connection is closed after a bounded
-TTL (default 900 seconds; override via `DEJA_SHARED_STREAM_TTL_SECONDS`, or
-set `unbounded` to opt out). The server sends:
+TTL (default 900 seconds; override with a positive
+`DEJA_SHARED_STREAM_TTL_SECONDS` value, capped at 3600 seconds). The server sends:
 
 ```text
 event: expires
@@ -104,7 +104,7 @@ data: { "reason": "stream-ttl" }
 ```
 
 at the TTL boundary. The reconnect is the enforcement point for future
-deployed token rotation or revocation; do not deploy with `unbounded`.
+deployed token rotation or revocation; there is no unbounded-stream mode.
 
 ## Code map
 

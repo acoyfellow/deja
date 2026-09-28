@@ -27,11 +27,13 @@ PORT="${PORT:-8791}"
 TOKEN="test-token-$$"
 OTHER_TOKEN="other-token-$$"
 BASE="http://127.0.0.1:$PORT"
+STREAM_CAP=4
 
 mkdir -p .tmp
 rm -rf .wrangler/state
 cat > .dev.vars <<VARS
 DEJA_SHARED_TOKENS=$TOKEN:alice,$OTHER_TOKEN:bob
+DEJA_SHARED_MAX_STREAMS=$STREAM_CAP
 VARS
 
 # Free the port if anything is lingering from a prior run.
@@ -105,6 +107,17 @@ echo "$other_status" | grep -q '"authority":"bob"' || fail "second token missing
 echo "$other_status" | grep -q '"headRevision":0' || fail "second space should begin empty: $other_status"
 pass "a second token reaches a separate empty memory space"
 
+
+code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{not-json' "$BASE/v1/shared/remember")"
+[ "$code" = "400" ] || fail "malformed JSON should be 400, got $code"
+
+code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"slipId":"missing-required-fields"}' "$BASE/v1/shared/remember")"
+[ "$code" = "400" ] || fail "incomplete remember payload should be 400, got $code"
+
+code="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$BASE/v1/shared/events?limit=201")"
+[ "$code" = "400" ] || fail "unbounded event page should be 400, got $code"
+pass "malformed writes and oversized event pages fail explicitly"
+
 # ---------------------------------------------------------------------------
 # remember / handoff / signal record changes, revisions advance in order
 # ---------------------------------------------------------------------------
@@ -115,16 +128,16 @@ post_event() {
     -d "$body" "$BASE$path"
 }
 
-r1="$(post_event /v1/shared/remember '{"slipId":"slip-1","text":"first decision"}')"
+r1="$(post_event /v1/shared/remember '{"slipId":"slip-1","text":"first decision","tags":[],"authoredBy":"test","sessionId":"test"}')"
 echo "$r1" | grep -q '"ok":true' || fail "remember not ok: $r1"
 echo "$r1" | grep -q '"revision":1' || fail "expected revision=1, got: $r1"
 pass "remember -> revision 1"
 
-r2="$(post_event /v1/shared/handoff '{"handoffId":"hand-1","summary":"client A done"}')"
+r2="$(post_event /v1/shared/handoff '{"handoffId":"hand-1","summary":"client A done","next":[],"kept":[],"authoredBy":"test","sessionId":"test"}')"
 echo "$r2" | grep -q '"revision":2' || fail "expected revision=2, got: $r2"
 pass "handoff -> revision 2"
 
-r3="$(post_event /v1/shared/signal '{"signalId":"sig-1","action":"used"}')"
+r3="$(post_event /v1/shared/signal '{"signalId":"sig-1","slipId":"slip-1","action":"used","authoredBy":"test","sessionId":"test"}')"
 echo "$r3" | grep -q '"revision":3' || fail "expected revision=3, got: $r3"
 pass "signal -> revision 3"
 
@@ -190,7 +203,7 @@ stream_pid=$!
 sleep 1
 
 # Fire a fresh event after the consumer is connected.
-r5="$(post_event /v1/shared/remember '{"slipId":"slip-live","text":"live event after subscribe"}')"
+r5="$(post_event /v1/shared/remember '{"slipId":"slip-live","text":"live event after subscribe","tags":[],"authoredBy":"test","sessionId":"test"}')"
 echo "$r5" | grep -q '"revision":5' || fail "expected revision=5, got: $r5"
 
 # Wait for the streaming consumer to finish (max-time will end it).
@@ -206,5 +219,16 @@ echo "$stream_out" | grep -q 'live event after subscribe' || fail "stream missin
 echo "$stream_out" | grep -q '^event: expires' || fail "stream missing bounded-lifetime expires frame: $stream_out"
 echo "$stream_out" | grep -q '"reason":"stream-ttl"' || fail "stream missing TTL reason in expires frame: $stream_out"
 pass "stream replays prior events, broadcasts live ones, and announces a bounded TTL"
+
+stream_pids=()
+for _ in $(seq 1 "$STREAM_CAP"); do
+  (curl -N -s --max-time 6 -H "Authorization: Bearer $TOKEN" "$BASE/v1/shared/stream?since=5" >/dev/null 2>&1 || true) &
+  stream_pids+=("$!")
+done
+sleep 2
+code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 -H "Authorization: Bearer $TOKEN" "$BASE/v1/shared/stream?since=5" || true)"
+[ "$code" = "429" ] || fail "stream beyond the cap of $STREAM_CAP should be 429, got $code"
+for stream_pid in "${stream_pids[@]}"; do wait "$stream_pid" 2>/dev/null || true; done
+pass "active streams are bounded per memory space"
 
 echo "ALL PASS"

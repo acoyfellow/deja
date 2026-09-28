@@ -170,12 +170,18 @@ export function dispatch(
         const action = String(args.action ?? "");
         if (!id) return { text: "error: id is required", isError: true };
         switch (action) {
-          case "used":
-            deja.used(id);
-            return { text: `signal: ${id} used (+1)` };
-          case "wrong":
-            deja.wrong(id);
-            return { text: `signal: ${id} wrong (+1)` };
+          case "used": {
+            const ok = deja.used(id);
+            return ok
+              ? { text: `signal: ${id} used (+1)` }
+              : { text: `error: slip ${id} not found in the current repository scope`, isError: true };
+          }
+          case "wrong": {
+            const ok = deja.wrong(id);
+            return ok
+              ? { text: `signal: ${id} wrong (+1)` }
+              : { text: `error: slip ${id} not found in the current repository scope`, isError: true };
+          }
           case "forget": {
             const ok = deja.forget(id);
             return {
@@ -385,7 +391,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "signal",
       description:
-        "Close the feedback loop on a recalled slip. Three actions: 'used' bumps usedCount (the slip was helpful — confirms the trust label), 'wrong' bumps wrongCount (the slip was misleading or stale — warns future recalls), 'forget' expires the slip permanently (no undo; use when something was written incorrectly with keep=true). Use 'used' when a memory materially helped; two successful uses promote a kept memory to high trust. Use 'wrong' when misleading. Use 'forget' only when you're sure the slip is wrong, not merely outdated.",
+        "Close the feedback loop on a recalled slip in this repository. Three actions: 'used' bumps usedCount (the slip was helpful — confirms the trust label), 'wrong' bumps wrongCount (the slip was misleading or stale — warns future recalls), 'forget' expires the slip from Deja recall (no undo; the raw local SQLite row remains). Use 'used' when a memory materially helped; two successful uses promote a kept memory to high trust. Use 'wrong' when misleading. Use 'forget' only when you're sure the slip is wrong, not merely outdated.",
       inputSchema: {
         type: "object",
         properties: {

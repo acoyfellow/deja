@@ -2,7 +2,7 @@
 
 ## Supported surface
 
-The supported production surface in v0.1.0 is local Deja: one SQLite database used by one operating-system user.
+The only supported daily-dogfood surface in this release candidate is local Deja: one SQLite database used by one operating-system user. It is not a public-production approval.
 
 Shared Deja is preview-only. Do not expose or deploy `shared-server` until the blocking review in [`docs/shared-security-review.md`](docs/shared-security-review.md) is complete.
 
@@ -17,7 +17,9 @@ Do not store:
 - regulated or highly sensitive personal data;
 - content that is not permitted on the local machine.
 
-Repository scope is a retrieval boundary, not an operating-system security boundary. Processes that can read the database file can inspect all local memory rows.
+Repository scope is a retrieval boundary, not an operating-system security boundary. Direct Deja/CLI inspection and mutation enforce the current exact repository scope; processes that can read the database file can still inspect all rows outside Deja.
+
+`forget` expires a slip from Deja recall and requires `--yes` in the CLI. It does not remove the raw SQLite row. `redact` masks recall output only. Neither operation is cryptographic erasure; local hard delete and export/import are not supported.
 
 ## Reporting a vulnerability
 

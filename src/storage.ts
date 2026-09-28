@@ -74,7 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_links_to ON links(to_id);
 
 CREATE TABLE IF NOT EXISTS handoffs (
   id          TEXT PRIMARY KEY,
-  session_id  TEXT NOT NULL UNIQUE,  -- one handoff per session
+  session_id  TEXT NOT NULL,
   authored_by TEXT NOT NULL,
   scope       TEXT NOT NULL DEFAULT 'legacy:global',
   summary     TEXT NOT NULL,
@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS handoffs (
   status      TEXT NOT NULL DEFAULT 'active',
   automatic   INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL,
-  resolved_at INTEGER
+  resolved_at INTEGER,
+  UNIQUE (session_id, scope)  -- one handoff per session in each repository scope
 );
 
 CREATE TABLE IF NOT EXISTS recall_traces (
@@ -302,6 +303,7 @@ export class Storage {
     this.db.exec("PRAGMA foreign_keys = ON;");
     this.db.exec(SCHEMA);
     this.ensureScopeColumns();
+    this.ensureHandoffScopeUniqueness();
     this.ensureEpisodeColumns();
   }
 
@@ -342,6 +344,41 @@ export class Storage {
     }
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_slips_scope_state ON slips(scope, state)`);
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_handoffs_scope_created ON handoffs(scope, created_at)`);
+  }
+
+  private ensureHandoffScopeUniqueness(): void {
+    const row = this.db.prepare(
+      `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'handoffs'`,
+    ).get() as { sql: string } | null;
+    if (!row || !/session_id\s+TEXT\s+NOT\s+NULL\s+UNIQUE/i.test(row.sql)) return;
+
+    const migrate = this.db.transaction(() => {
+      this.db.exec(`
+        CREATE TABLE handoffs_scoped (
+          id          TEXT PRIMARY KEY,
+          session_id  TEXT NOT NULL,
+          authored_by TEXT NOT NULL,
+          scope       TEXT NOT NULL DEFAULT 'legacy:global',
+          summary     TEXT NOT NULL,
+          kept        TEXT NOT NULL DEFAULT '[]',
+          next        TEXT NOT NULL DEFAULT '[]',
+          status      TEXT NOT NULL DEFAULT 'active',
+          automatic   INTEGER NOT NULL DEFAULT 0,
+          created_at  INTEGER NOT NULL,
+          resolved_at INTEGER,
+          UNIQUE (session_id, scope)
+        );
+        INSERT INTO handoffs_scoped
+          (id, session_id, authored_by, scope, summary, kept, next, status, automatic, created_at, resolved_at)
+        SELECT
+          id, session_id, authored_by, scope, summary, kept, next, status, automatic, created_at, resolved_at
+        FROM handoffs;
+        DROP TABLE handoffs;
+        ALTER TABLE handoffs_scoped RENAME TO handoffs;
+        CREATE INDEX IF NOT EXISTS idx_handoffs_scope_created ON handoffs(scope, created_at);
+      `);
+    });
+    migrate();
   }
 
   private ensureEpisodeColumns(): void {
@@ -389,41 +426,44 @@ export class Storage {
       );
   }
 
-  getSlip(id: string): Slip | null {
-    const r = this.db
-      .prepare(`SELECT * FROM slips WHERE id = ?`)
-      .get(id) as SlipRow | null;
+  getSlip(id: string, scope?: string): Slip | null {
+    const r = scope
+      ? this.db.prepare(`SELECT * FROM slips WHERE id = ? AND scope = ?`).get(id, scope) as SlipRow | null
+      : this.db.prepare(`SELECT * FROM slips WHERE id = ?`).get(id) as SlipRow | null;
     return r ? rowToSlip(r) : null;
   }
 
-  setState(id: string, state: SlipState, at: number): boolean {
+  setState(id: string, state: SlipState, at: number, scope?: string): boolean {
+    const scoped = scope ? ` AND scope = ?` : "";
     const stmt =
       state === "kept"
-        ? `UPDATE slips SET state = 'kept',    kept_at    = ? WHERE id = ?`
+        ? `UPDATE slips SET state = 'kept', kept_at = ? WHERE id = ?${scoped}`
         : state === "expired"
-          ? `UPDATE slips SET state = 'expired', expired_at = ? WHERE id = ?`
-          : `UPDATE slips SET state = 'draft' WHERE id = ?`;
-    const args = state === "draft" ? [id] : [at, id];
+          ? `UPDATE slips SET state = 'expired', expired_at = ? WHERE id = ?${scoped}`
+          : `UPDATE slips SET state = 'draft' WHERE id = ?${scoped}`;
+    const args = state === "draft" ? [id, ...(scope ? [scope] : [])] : [at, id, ...(scope ? [scope] : [])];
     const res = this.db.prepare(stmt).run(...args);
     return res.changes > 0;
   }
 
-  bumpUsed(id: string): void {
-    this.db
-      .prepare(`UPDATE slips SET used_count = used_count + 1 WHERE id = ?`)
-      .run(id);
-  }
-
-  bumpWrong(id: string): void {
-    this.db
-      .prepare(`UPDATE slips SET wrong_count = wrong_count + 1 WHERE id = ?`)
-      .run(id);
-  }
-
-  redactSlip(id: string, at: number): boolean {
+  bumpUsed(id: string, scope?: string): boolean {
     const result = this.db
-      .prepare(`UPDATE slips SET redacted = 1, wrong_count = wrong_count + 1 WHERE id = ? AND redacted = 0`)
-      .run(id);
+      .prepare(`UPDATE slips SET used_count = used_count + 1 WHERE id = ?${scope ? " AND scope = ?" : ""}`)
+      .run(id, ...(scope ? [scope] : []));
+    return result.changes > 0;
+  }
+
+  bumpWrong(id: string, scope?: string): boolean {
+    const result = this.db
+      .prepare(`UPDATE slips SET wrong_count = wrong_count + 1 WHERE id = ?${scope ? " AND scope = ?" : ""}`)
+      .run(id, ...(scope ? [scope] : []));
+    return result.changes > 0;
+  }
+
+  redactSlip(id: string, scope?: string): boolean {
+    const result = this.db
+      .prepare(`UPDATE slips SET redacted = 1, wrong_count = wrong_count + 1 WHERE id = ? AND redacted = 0${scope ? " AND scope = ?" : ""}`)
+      .run(id, ...(scope ? [scope] : []));
     return result.changes > 0;
   }
 
@@ -631,10 +671,10 @@ export class Storage {
     transaction();
   }
 
-  resolveHandoff(id: string, status: Exclude<HandoffStatus, "active">, at: number): boolean {
+  resolveHandoff(id: string, status: Exclude<HandoffStatus, "active">, at: number, scope?: string): boolean {
     const result = this.db
-      .prepare(`UPDATE handoffs SET status = ?, resolved_at = ? WHERE id = ? AND status = 'active'`)
-      .run(status, at, id);
+      .prepare(`UPDATE handoffs SET status = ?, resolved_at = ? WHERE id = ? AND status = 'active'${scope ? " AND scope = ?" : ""}`)
+      .run(status, at, id, ...(scope ? [scope] : []));
     return result.changes > 0;
   }
 
@@ -795,8 +835,10 @@ export class Storage {
       );
   }
 
-  getEpisode(id: string): Episode | null {
-    const r = this.db.prepare(`SELECT * FROM episodes WHERE id = ?`).get(id) as EpisodeRow | null;
+  getEpisode(id: string, scope?: string): Episode | null {
+    const r = scope
+      ? this.db.prepare(`SELECT * FROM episodes WHERE id = ? AND scope = ?`).get(id, scope) as EpisodeRow | null
+      : this.db.prepare(`SELECT * FROM episodes WHERE id = ?`).get(id) as EpisodeRow | null;
     return r ? rowToEpisode(r) : null;
   }
 
@@ -807,13 +849,13 @@ export class Storage {
     return rows.map(rowToEpisode);
   }
 
-  addEpisodeEvaluation(episodeId: string, evaluation: EpisodeEvaluation): boolean {
-    const existing = this.getEpisode(episodeId);
+  addEpisodeEvaluation(episodeId: string, evaluation: EpisodeEvaluation, scope?: string): boolean {
+    const existing = this.getEpisode(episodeId, scope);
     if (!existing) return false;
     const updated = [...existing.evaluations, evaluation];
     const result = this.db
-      .prepare(`UPDATE episodes SET evaluations = ? WHERE id = ?`)
-      .run(JSON.stringify(updated), episodeId);
+      .prepare(`UPDATE episodes SET evaluations = ? WHERE id = ?${scope ? " AND scope = ?" : ""}`)
+      .run(JSON.stringify(updated), episodeId, ...(scope ? [scope] : []));
     return result.changes > 0;
   }
 

@@ -13,7 +13,7 @@ Deja succeeds when a fresh agent continues correctly with less re-reading, fewer
 Every release must satisfy all of these:
 
 - [x] Repository scope prevents unrelated-project recall.
-- [x] Existing databases migrate additively without rewriting memory text.
+- [x] Existing databases migrate safely without rewriting memory text.
 - [x] Relevance and evidence trust are separate concepts.
 - [x] Recall output is bounded and carries provenance.
 - [x] Completed handoffs stop directing agents.

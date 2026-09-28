@@ -19,13 +19,13 @@ interface Env {
   /** Backward-compatible local proof token, routed to the `local` space. */
   DEJA_SHARED_TOKEN?: string;
   /**
-   * Optional maximum lifetime (in seconds) for an authenticated SSE stream.
-   * A bounded stream lifetime gives token rotation and revocation an
-   * enforceable boundary because callers must reconnect with current
-   * credentials before exceeding the cap. Defaults to 15 minutes. Set to
-   * "unbounded" to opt out (not recommended for any real deployment).
+   * Maximum lifetime (in seconds) for an authenticated SSE stream. A bounded
+   * stream lifetime gives token rotation and revocation an enforceable
+   * boundary because callers must reconnect with current credentials before
+   * exceeding the cap. Defaults to 15 minutes and is capped at one hour.
    */
   DEJA_SHARED_STREAM_TTL_SECONDS?: string;
+  DEJA_SHARED_MAX_STREAMS?: string;
 }
 
 type EventType = "remember" | "handoff" | "signal" | "delete";
@@ -54,14 +54,29 @@ type AuthenticatedSpace = { space: string; mode: "mapped-token" | "legacy-local-
 const ENCODER = new TextEncoder();
 const SAFE_SPACE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 const DEFAULT_STREAM_TTL_SECONDS = 15 * 60;
+const MAX_STREAM_TTL_SECONDS = 60 * 60;
+const MAX_REQUEST_BYTES = 64 * 1024;
+const MAX_MEMORY_TEXT_BYTES = 48 * 1024;
+const MAX_EVENT_PAGE_SIZE = 200;
+const DEFAULT_MAX_ACTIVE_STREAMS = 32;
+const MAX_LIST_ITEMS = 32;
+const MAX_ID_BYTES = 256;
+const MAX_LIST_ITEM_BYTES = 1024;
 
-function streamTtlSeconds(env: Env): number | null {
+class BadRequest extends Error {}
+
+function streamTtlSeconds(env: Env): number {
   const raw = (env.DEJA_SHARED_STREAM_TTL_SECONDS ?? "").trim();
   if (raw === "") return DEFAULT_STREAM_TTL_SECONDS;
-  if (raw.toLowerCase() === "unbounded") return null;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_STREAM_TTL_SECONDS;
-  return Math.floor(parsed);
+  return Math.min(Math.floor(parsed), MAX_STREAM_TTL_SECONDS);
+}
+
+export function maxActiveStreams(env: Env): number {
+  const parsed = Number((env.DEJA_SHARED_MAX_STREAMS ?? "").trim());
+  if (!Number.isInteger(parsed) || parsed < 1) return DEFAULT_MAX_ACTIVE_STREAMS;
+  return Math.min(parsed, DEFAULT_MAX_ACTIVE_STREAMS);
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -109,6 +124,128 @@ function notFound(): Response {
   return jsonResponse({ ok: false, error: "not found" }, 404);
 }
 
+function requestFailure(error: unknown): Response {
+  if (error instanceof BadRequest) return jsonResponse({ ok: false, error: error.message }, 400);
+  return jsonResponse({ ok: false, error: "internal server error" }, 500);
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new BadRequest("JSON body must be an object");
+  return value as Record<string, unknown>;
+}
+
+function byteLength(value: string): number {
+  return ENCODER.encode(value).byteLength;
+}
+
+function requiredString(body: Record<string, unknown>, field: string, maxBytes = MAX_ID_BYTES): string {
+  const value = body[field];
+  if (typeof value !== "string" || value.trim().length === 0) throw new BadRequest(`${field} is required`);
+  const normalized = value.trim();
+  if (byteLength(normalized) > maxBytes) throw new BadRequest(`${field} exceeds ${maxBytes} bytes`);
+  return normalized;
+}
+
+function optionalStringList(
+  body: Record<string, unknown>,
+  field: string,
+  itemMaxBytes = MAX_LIST_ITEM_BYTES,
+): string[] {
+  const value = body[field];
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_LIST_ITEMS) {
+    throw new BadRequest(`${field} must be an array of at most ${MAX_LIST_ITEMS} strings`);
+  }
+  return value.map((item) => {
+    if (typeof item !== "string" || item.trim().length === 0) throw new BadRequest(`${field} must contain non-empty strings`);
+    const normalized = item.trim();
+    if (byteLength(normalized) > itemMaxBytes) throw new BadRequest(`${field} item exceeds ${itemMaxBytes} bytes`);
+    return normalized;
+  });
+}
+
+async function readJsonBody(request: Request): Promise<Record<string, unknown>> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    throw new BadRequest("content-type must be application/json");
+  }
+  const advertisedLength = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(advertisedLength) && advertisedLength > MAX_REQUEST_BYTES) {
+    throw new BadRequest(`request exceeds ${MAX_REQUEST_BYTES} bytes`);
+  }
+  const raw = await request.text();
+  if (byteLength(raw) > MAX_REQUEST_BYTES) throw new BadRequest(`request exceeds ${MAX_REQUEST_BYTES} bytes`);
+  try {
+    return asObject(JSON.parse(raw));
+  } catch (error) {
+    if (error instanceof BadRequest) throw error;
+    throw new BadRequest("request body must be valid JSON");
+  }
+}
+
+function cursor(url: URL): number {
+  const raw = url.searchParams.get("since");
+  if (raw === null) return 0;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0) throw new BadRequest("since must be a non-negative integer");
+  return value;
+}
+
+function pageLimit(url: URL): number {
+  const raw = url.searchParams.get("limit");
+  if (raw === null) return MAX_EVENT_PAGE_SIZE;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 1 || value > MAX_EVENT_PAGE_SIZE) {
+    throw new BadRequest(`limit must be an integer from 1 to ${MAX_EVENT_PAGE_SIZE}`);
+  }
+  return value;
+}
+
+function rememberPayload(body: Record<string, unknown>) {
+  return {
+    slipId: requiredString(body, "slipId"),
+    text: requiredString(body, "text", MAX_MEMORY_TEXT_BYTES),
+    tags: optionalStringList(body, "tags", MAX_LIST_ITEM_BYTES),
+    authoredBy: requiredString(body, "authoredBy"),
+    sessionId: requiredString(body, "sessionId"),
+    state: "kept",
+  };
+}
+
+function handoffPayload(body: Record<string, unknown>) {
+  return {
+    handoffId: requiredString(body, "handoffId"),
+    summary: requiredString(body, "summary", MAX_MEMORY_TEXT_BYTES),
+    next: optionalStringList(body, "next"),
+    authoredBy: requiredString(body, "authoredBy"),
+    sessionId: requiredString(body, "sessionId"),
+    kept: optionalStringList(body, "kept", MAX_ID_BYTES),
+  };
+}
+
+function signalPayload(body: Record<string, unknown>) {
+  const action = requiredString(body, "action", 16);
+  if (action !== "used" && action !== "wrong" && action !== "forget") {
+    throw new BadRequest("action must be used, wrong, or forget");
+  }
+  return {
+    signalId: requiredString(body, "signalId"),
+    slipId: requiredString(body, "slipId"),
+    action,
+    authoredBy: requiredString(body, "authoredBy"),
+    sessionId: requiredString(body, "sessionId"),
+  };
+}
+
+function deletePayload(body: Record<string, unknown>): DeletePayload {
+  return {
+    deleteId: requiredString(body, "deleteId"),
+    slipId: requiredString(body, "slipId"),
+    authoredBy: requiredString(body, "authoredBy"),
+    sessionId: requiredString(body, "sessionId"),
+  };
+}
+
 function sseFrame(event: ChangeEvent): Uint8Array {
   const lines =
     `id: ${event.revision}\n` +
@@ -130,7 +267,7 @@ export default {
     const forwarded = new Request(request);
     forwarded.headers.set("x-deja-space", authenticated.space);
     const ttl = streamTtlSeconds(env);
-    if (ttl !== null) forwarded.headers.set("x-deja-stream-ttl-seconds", String(ttl));
+    forwarded.headers.set("x-deja-stream-ttl-seconds", String(ttl));
     return env.MEMORY.get(spaceId).fetch(forwarded);
   },
 };
@@ -139,9 +276,11 @@ export class MemoryServer {
   private readonly sql: SqlStorage;
   private schemaReady = false;
   private readonly streamWriters = new Set<WritableStreamDefaultWriter<Uint8Array>>();
+  private readonly streamLimit: number;
 
-  constructor(ctx: DurableObjectState, _env: Env) {
+  constructor(ctx: DurableObjectState, env: Env) {
     this.sql = (ctx.storage as unknown as { sql: SqlStorage }).sql;
+    this.streamLimit = maxActiveStreams(env);
   }
 
   private ensureSchema(): void {
@@ -259,11 +398,14 @@ export class MemoryServer {
     }
   }
 
-  private openStream(space: string, since: number, ttlSeconds: number | null): Response {
+  private openStream(space: string, since: number, ttlSeconds: number): Response {
+    if (this.streamWriters.size >= this.streamLimit) {
+      return jsonResponse({ ok: false, error: "too many active streams" }, 429);
+    }
     const channel = new TransformStream<Uint8Array, Uint8Array>();
     const writer = channel.writable.getWriter();
     void writer.write(helloFrame(space, this.headRevision()));
-    for (const event of this.listChangesSince(space, since, 1000)) {
+    for (const event of this.listChangesSince(space, since, MAX_EVENT_PAGE_SIZE)) {
       void writer.write(sseFrame(event));
     }
     this.streamWriters.add(writer);
@@ -271,96 +413,93 @@ export class MemoryServer {
       this.streamWriters.delete(writer);
       void writer.close().catch(() => {});
     };
-    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-    if (ttlSeconds !== null) {
-      const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
-      void writer.write(
-        ENCODER.encode(
-          `event: expires\ndata: ${JSON.stringify({
-            reason: "stream-ttl",
-            ttlSeconds,
-            expiresAt,
-          })}\n\n`
-        )
-      );
-      timeoutHandle = setTimeout(() => {
-        if (!this.streamWriters.has(writer)) return;
-        void writer
-          .write(
-            ENCODER.encode(
-              `event: closed\ndata: ${JSON.stringify({ reason: "stream-ttl" })}\n\n`
-            )
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+    void writer.write(
+      ENCODER.encode(
+        `event: expires\ndata: ${JSON.stringify({
+          reason: "stream-ttl",
+          ttlSeconds,
+          expiresAt,
+        })}\n\n`
+      )
+    );
+    setTimeout(() => {
+      if (!this.streamWriters.has(writer)) return;
+      void writer
+        .write(
+          ENCODER.encode(
+            `event: closed\ndata: ${JSON.stringify({ reason: "stream-ttl" })}\n\n`
           )
-          .catch(() => {})
-          .finally(() => closeStream());
-      }, ttlSeconds * 1000);
-    }
+        )
+        .catch(() => {})
+        .finally(() => closeStream());
+    }, ttlSeconds * 1000);
     const headers: Record<string, string> = {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-cache, no-store",
+      "x-deja-stream-ttl-seconds": String(ttlSeconds),
     };
-    if (ttlSeconds !== null) headers["x-deja-stream-ttl-seconds"] = String(ttlSeconds);
     return new Response(channel.readable, { headers });
   }
 
   async fetch(request: Request): Promise<Response> {
     this.ensureSchema();
-    const space = this.space(request);
-    const url = new URL(request.url);
-    const path = url.pathname;
-    const method = request.method;
+    try {
+      const space = this.space(request);
+      const url = new URL(request.url);
+      const path = url.pathname;
+      const method = request.method;
 
-    if (method === "GET" && path === "/v1/shared/status") {
-      return jsonResponse({
-        ok: true,
-        authority: space,
-        headRevision: this.headRevision(),
-      });
+      if (method === "GET" && path === "/v1/shared/status") {
+        return jsonResponse({
+          ok: true,
+          authority: space,
+          headRevision: this.headRevision(),
+        });
+      }
+
+      if (method === "GET" && path === "/v1/shared/events") {
+        return jsonResponse({
+          ok: true,
+          authority: space,
+          headRevision: this.headRevision(),
+          events: this.listChangesSince(space, cursor(url), pageLimit(url)),
+        });
+      }
+
+      if (method === "GET" && path === "/v1/shared/stream") {
+        const ttl = Number(request.headers.get("x-deja-stream-ttl-seconds"));
+        const ttlSeconds = Number.isFinite(ttl) && ttl > 0
+          ? Math.min(MAX_STREAM_TTL_SECONDS, Math.max(1, Math.floor(ttl)))
+          : DEFAULT_STREAM_TTL_SECONDS;
+        return this.openStream(space, cursor(url), ttlSeconds);
+      }
+
+      if (method === "POST" && path === "/v1/shared/remember") {
+        const payload = rememberPayload(await readJsonBody(request));
+        return jsonResponse(this.recordChange(space, "remember", payload.slipId, payload));
+      }
+
+      if (method === "POST" && path === "/v1/shared/handoff") {
+        const payload = handoffPayload(await readJsonBody(request));
+        return jsonResponse(this.recordChange(space, "handoff", payload.handoffId, payload));
+      }
+
+      if (method === "POST" && path === "/v1/shared/signal") {
+        const payload = signalPayload(await readJsonBody(request));
+        return jsonResponse(this.recordChange(space, "signal", payload.signalId, payload));
+      }
+
+      if (method === "POST" && path === "/v1/shared/delete") {
+        const payload = deletePayload(await readJsonBody(request));
+        const receipt = this.recordChange(space, "delete", payload.slipId, payload);
+        this.purgeRememberPayload(payload.slipId);
+        return jsonResponse(receipt);
+      }
+
+      return notFound();
+    } catch (error) {
+      return requestFailure(error);
     }
-
-    if (method === "GET" && path === "/v1/shared/events") {
-      const since = Number(url.searchParams.get("since") ?? 0);
-      const limit = Number(url.searchParams.get("limit") ?? 200);
-      return jsonResponse({
-        ok: true,
-        authority: space,
-        headRevision: this.headRevision(),
-        events: this.listChangesSince(space, since, limit),
-      });
-    }
-
-    if (method === "GET" && path === "/v1/shared/stream") {
-      const since = Number(url.searchParams.get("since") ?? 0);
-      const ttl = request.headers.get("x-deja-stream-ttl-seconds");
-      const ttlSeconds = ttl === null ? null : Math.max(1, Math.floor(Number(ttl)));
-      return this.openStream(space, since, ttlSeconds);
-    }
-
-    if (method === "POST" && path === "/v1/shared/remember") {
-      const payload = (await request.json()) as { slipId: string };
-      return jsonResponse(this.recordChange(space, "remember", payload.slipId, payload));
-    }
-
-    if (method === "POST" && path === "/v1/shared/handoff") {
-      const payload = (await request.json()) as { handoffId: string };
-      return jsonResponse(this.recordChange(space, "handoff", payload.handoffId, payload));
-    }
-
-    if (method === "POST" && path === "/v1/shared/signal") {
-      const payload = (await request.json()) as { signalId: string };
-      return jsonResponse(this.recordChange(space, "signal", payload.signalId, payload));
-    }
-
-    if (method === "POST" && path === "/v1/shared/delete") {
-      const payload = (await request.json()) as DeletePayload;
-      // Commit the deletion first, then redact earlier remembered content in
-      // server history. Offline clients replay a redacted remember plus this
-      // delete tombstone and finish without the deleted content locally.
-      const receipt = this.recordChange(space, "delete", payload.slipId, payload);
-      this.purgeRememberPayload(payload.slipId);
-      return jsonResponse(receipt);
-    }
-
-    return notFound();
   }
 }

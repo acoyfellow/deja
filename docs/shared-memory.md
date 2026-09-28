@@ -89,7 +89,7 @@ Hard delete does **not** promise erasure from external logs, future backups, or 
 
 ## Bounded stream lifetime
 
-Each authenticated `/v1/shared/stream` connection is closed by the server after a bounded TTL (default 900 seconds; configurable via `DEJA_SHARED_STREAM_TTL_SECONDS`; `unbounded` opts out and is not for deploys).
+Each authenticated `/v1/shared/stream` connection is closed by the server after a bounded TTL (default 900 seconds; configurable with a positive `DEJA_SHARED_STREAM_TTL_SECONDS` value and capped at 3600 seconds). There is no unbounded-stream mode.
 
 The server sends:
 

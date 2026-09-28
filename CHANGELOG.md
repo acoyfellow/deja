@@ -2,6 +2,21 @@
 
 All notable changes to Deja are documented here.
 
+## Unreleased — ship-readiness repair
+
+### Fixed
+
+- Enforced current repository scope for direct slip inspection, signals, redaction, expiration, links, episode access, and handoff resolution.
+- Migrated handoff uniqueness from global `session_id` to `(session_id, scope)`, preserving existing stored content so a shared harness session can hand off independently in multiple repositories.
+- Added confirmation-gated `deja forget <id> --yes`; it explicitly reports expiration rather than pretending to erase raw SQLite history.
+- Rejected malformed/incomplete shared-preview writes and out-of-range event pages with explicit `400` responses; bounded request and stream lifetimes.
+
+### Added
+
+- Clean temporary-repository CLI/MCP smoke path: `bun run smoke:local`.
+- Shared Worker typecheck and serial Worker/CLI integration proof in `bun run test:shared-server`, both included in `bun run check`.
+- [`SHIP-READINESS.md`](SHIP-READINESS.md) as the executable readiness ledger and blocker record.
+
 ## 0.1.0 — release candidate
 
 ### Added

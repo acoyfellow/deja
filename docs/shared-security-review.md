@@ -20,7 +20,7 @@ This stops accidental global sharing in local dogfood. It is **not** deployed id
 
 ### Bounded SSE stream lifetime
 
-The server closes each authenticated `/v1/shared/stream` after a bounded TTL (default 900 s; configurable via `DEJA_SHARED_STREAM_TTL_SECONDS`; `unbounded` opts out and is not for deploys).
+The server closes each authenticated `/v1/shared/stream` after a bounded TTL (default 900 s; configurable with a positive `DEJA_SHARED_STREAM_TTL_SECONDS` value and capped at 3600 s). There is no unbounded-stream mode.
 
 ```text
 event: expires
@@ -42,6 +42,22 @@ This bounds how long an existing authenticated stream can deliver new memories w
 - rewrites prior `remember` payloads for that slip on the server to `{ slipId, purged: true }`, preserving the revision slot without text, tags, author, or session id.
 
 A new local copy catching up across purged history records the redacted revision without materializing content. Hard delete is **not** erasure from observability logs or future backups.
+
+### Bounded malformed-input failure (local)
+
+Authenticated write endpoints require JSON and validate the implemented payload
+fields before committing. Bodies are capped at 64 KiB, remembered text at 48
+KiB, list fields at 32 items, and `/events` pages at 200 changes. Invalid
+payloads and out-of-range cursors/pages return an explicit `400`; they do not
+become malformed durable events or unbounded replay responses. The local
+server integration test covers these failures.
+
+SSE is also capped at 32 active streams per memory space, each with a bounded
+200-change replay window. The normal client catches up through paged `/events`
+before subscribing, so the stream is not its unbounded history-transfer path.
+
+These are abuse guards, **not** a quota, content-policy, or tenant authorization
+solution.
 
 ## What is missing
 
@@ -79,6 +95,7 @@ Already done:
 - [x] Local token-to-space isolation with cross-space access tests.
 - [x] Bounded SSE TTL with `expires` / `closed` lifecycle events and client auto-reconnect tests.
 - [x] Hard `delete` separates from legacy `forget`; purges local copies and redacts server replay history.
+- [x] Local preview worker rejects malformed/oversized writes and unbounded event pages with explicit errors.
 
 Open:
 
