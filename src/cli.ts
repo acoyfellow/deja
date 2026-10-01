@@ -34,6 +34,7 @@ Usage:
   deja verify                Check schema, SQLite integrity, and FTS coverage
   deja recall [query] [--tokens=N] [--kind=decision,pitfall]
   deja remember <text> [--keep] [--kind=decision]
+  deja keep <id...>          Promote drafts so they survive the 24h draft expiry
   deja handoff <summary>     Leave one active handoff for this session
   deja resolve <id> [completed|abandoned]
   deja link <from> <supersedes|contradicts|related> <to>
@@ -191,6 +192,15 @@ function cmdRemember(args: string[]): void {
   const slip = d.remember(text, { kind: kindArg });
   if (keep) d.keep([slip.id]);
   console.log(`${keep ? "kept" : "drafted"} ${slip.kind} ${slip.id} in ${slip.scope}`);
+  d.close();
+}
+
+function cmdKeep(ids: string[]): void {
+  if (ids.length === 0) throw new Error("usage: deja keep <id...>");
+  const d = new Deja({ path: dbPath(), skipGc: true });
+  const promoted = d.keep(ids, { noChainRollup: true });
+  const promotedIds = new Set(promoted.map((slip) => slip.id));
+  for (const id of ids) console.log(`${promotedIds.has(id) ? "kept" : "unchanged"} ${id}`);
   d.close();
 }
 
@@ -505,6 +515,9 @@ switch (cmd) {
     break;
   case "remember":
     cmdRemember(rest);
+    break;
+  case "keep":
+    cmdKeep(rest);
     break;
   case "handoff":
     cmdWriteHandoff(rest);
