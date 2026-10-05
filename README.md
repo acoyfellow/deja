@@ -81,13 +81,19 @@ handoff({ summary: "Implemented scoped auth", next: ["run the remote smoke test"
 
 ## What local dogfood supports
 
-### Repository isolation by default
+### One memory bank, every note labelled with its origin
 
-Deja derives a stable scope from the nearest Git repository and its normalized `origin`. Two checkouts of the same repository share a scope; unrelated repositories do not leak slips or handoffs into each other.
+Deja derives a stable scope from the nearest Git repository and its normalized `origin`. Two checkouts of the same repository share a scope. Every slip records that origin.
+
+Recall reads the whole bank by default. Hits from the current repository rank first, and each hit shows `from: <origin>`, so a note written in another repository is visible and clearly labelled. Set `DEJA_RECALL_REACH=scope` to read only the current repository, for shared demos or sensitive work.
+
+Writes stay local: handoffs, `keep`, `forget`, `purge`, `used`, `wrong`, `redact` and links only act on slips from the current origin.
 
 Use `DEJA_SCOPE=global` deliberately for a cross-project preference. Global slips may match any repository query, but global handoffs never direct repository work.
 
 Databases created before scoping migrate safely to `legacy:global`. Those rows are excluded unless `DEJA_INCLUDE_LEGACY=1` is explicitly set during migration.
+
+`deja purge <id> --yes` hard-deletes one slip from the current origin: its links, its references in handoffs, episodes and recall receipts, every recall receipt that found it or quoted it, and then rebuilds the search index and vacuums the file so the text is gone from disk.
 
 ### Typed memory without filing work
 

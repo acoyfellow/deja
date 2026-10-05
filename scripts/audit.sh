@@ -39,12 +39,14 @@ check "plugin keeps with --from-other-session" 'grep -q "\"--from-other-session\
 check "deja keep honours --from-other-session" 'grep -q "fromOtherSession" "$DEJA_REPO/src/cli.ts"'
 SAME_SESSION_PROBE=$(
   TMP=$(mktemp -d); export DEJA_DB="$TMP/p.db"
+  NO_SESSION_OUT=$(env -u DEJA_SESSION bun "$DEJA_REPO/src/cli.ts" keep 01M00000000000000000000000 --from-other-session 2>&1)
+  NO_SESSION=$(grep -c "error: --from-other-session needs DEJA_SESSION" <<<"$NO_SESSION_OUT")
   ID=$(DEJA_SESSION=s1 bun "$DEJA_REPO/src/cli.ts" remember "audit same-session probe" | awk '{print $3}')
   A=$(DEJA_SESSION=s1 bun "$DEJA_REPO/src/cli.ts" keep "$ID" --from-other-session)
   B=$(DEJA_SESSION=s2 bun "$DEJA_REPO/src/cli.ts" keep "$ID" --from-other-session)
-  rm -rf "$TMP"; printf '%s|%s' "${A%% *}" "${B%% *}"
+  rm -rf "$TMP"; printf '%s|%s|%s' "${A%% *}" "${B%% *}" "$NO_SESSION"
 )
-check "same session refused, other session kept ($SAME_SESSION_PROBE)" '[ "$SAME_SESSION_PROBE" = "unchanged|kept" ]'
+check "same session refused, other session kept ($SAME_SESSION_PROBE)" '[ "$SAME_SESSION_PROBE" = "unchanged|kept|1" ]'
 
 echo "== 3. auto-memory lookups leave no recall traces"
 check "plugin recalls with --no-trace" 'grep -q "\"--no-trace\"" "$PLUGIN_REPO/src/hooks/deja-auto-memory.ts"'
@@ -66,7 +68,20 @@ REACH_PROBE=$(
 )
 check "recall from another origin finds the note" 'grep -q "reach probe marker from alpha" <<<"$REACH_PROBE"'
 check "recalled note shows where it came from" 'grep -q "from: alpha" <<<"$REACH_PROBE"'
-check "legacy rows stay out of default recall" 'grep -q "s.scope != '"'"'legacy:global'"'"'" "$DEJA_REPO/src/storage.ts"'
+LEGACY_PROBE=$(
+  TMP=$(mktemp -d); export DEJA_DB="$TMP/l.db"
+  ( cd "$TMP" && DEJA_SCOPE=legacy:global bun "$DEJA_REPO/src/cli.ts" remember "legacyprobe marker" --keep | grep -oE '[0-9A-Z]{26}' > "$TMP/id" )
+  OUT=$(cd "$TMP" && DEJA_SCOPE=repo:beta bun "$DEJA_REPO/src/cli.ts" recall "legacyprobe marker" --no-trace)
+  ID=$(cat "$TMP/id"); rm -rf "$TMP"; [ -n "$ID" ] && grep -qF "$ID" <<<"$OUT" && echo found || echo absent
+)
+check "legacy rows stay out of default recall ($LEGACY_PROBE)" '[ "$LEGACY_PROBE" = absent ]'
+SCOPE_ONLY_PROBE=$(
+  TMP=$(mktemp -d); export DEJA_DB="$TMP/s.db"
+  ( cd "$TMP" && DEJA_SCOPE=repo:alpha bun "$DEJA_REPO/src/cli.ts" remember "scopeprobe marker" --keep | grep -oE '[0-9A-Z]{26}' > "$TMP/id" )
+  OUT=$(cd "$TMP" && DEJA_RECALL_REACH=scope DEJA_SCOPE=repo:beta bun "$DEJA_REPO/src/cli.ts" recall "scopeprobe marker" --no-trace)
+  ID=$(cat "$TMP/id"); rm -rf "$TMP"; [ -n "$ID" ] && grep -qF "$ID" <<<"$OUT" && echo found || echo absent
+)
+check "DEJA_RECALL_REACH=scope keeps other origins out ($SCOPE_ONLY_PROBE)" '[ "$SCOPE_ONLY_PROBE" = absent ]'
 
 echo "== 5. stale handoffs"
 check "only human-pending or <7d handoffs remain active" \

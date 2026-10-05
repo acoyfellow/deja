@@ -474,15 +474,28 @@ export class Storage {
       const scopeArgs = scope ? [scope] : [];
       const row = this.db.prepare(`SELECT text FROM slips WHERE id = ?${scoped}`).get(id, ...scopeArgs) as { text: string } | null;
       if (!row) return false;
-      this.db.prepare(`DELETE FROM recall_traces WHERE instr(query, ?) > 0 OR instr(?, query) > 0 AND length(query) >= 24`).run(row.text, row.text);
+      this.db
+        .prepare(
+          `DELETE FROM recall_traces
+           WHERE instr(query, ?) > 0
+              OR (instr(?, query) > 0 AND length(query) >= 24)
+              OR EXISTS (SELECT 1 FROM json_each(recall_traces.hit_ids) WHERE value = ?)`,
+        )
+        .run(row.text, row.text, id);
       this.db.prepare(`DELETE FROM links WHERE from_id = ? OR to_id = ?`).run(id, id);
       this.db
         .prepare(
           `UPDATE recall_traces SET hit_ids = COALESCE(
              (SELECT json_group_array(value) FROM json_each(recall_traces.hit_ids) WHERE value != ?), '[]')
-           WHERE hit_ids LIKE ?`,
+           WHERE instr(hit_ids, ?) > 0`,
         )
-        .run(id, `%${id}%`);
+        .run(id, id);
+      const withoutId = (column: string) =>
+        `${column} = COALESCE((SELECT json_group_array(value) FROM json_each(${column}) WHERE value != ?), '[]')`;
+      this.db.prepare(`UPDATE handoffs SET ${withoutId("kept")} WHERE instr(kept, ?) > 0`).run(id, id);
+      this.db
+        .prepare(`UPDATE episodes SET ${withoutId("failure_slip_ids")}, ${withoutId("repair_slip_ids")} WHERE instr(failure_slip_ids, ?) > 0 OR instr(repair_slip_ids, ?) > 0`)
+        .run(id, id, id, id);
       this.db.prepare(`DELETE FROM slips WHERE id = ?${scoped}`).run(id, ...scopeArgs);
       return true;
     });

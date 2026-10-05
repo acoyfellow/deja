@@ -2,6 +2,19 @@
 
 All notable changes to Deja are documented here.
 
+## Unreleased — memory health
+
+### Changed
+
+- Recall reads every origin by default and labels each hit `from: <origin>`; the current repository ranks first. `DEJA_RECALL_REACH=scope` restores repository-only recall. Writes and direct-id mutations stay scoped.
+
+### Added
+
+- `deja purge <id> --yes`: hard delete with reference cleanup, secure delete, index rebuild and vacuum.
+- `deja keep --from-other-session`: refuses to promote drafts written by the calling `DEJA_SESSION`; requires `DEJA_SESSION`.
+- `deja recall --no-trace`: lookups that do not write recall receipts.
+- `scripts/audit.sh` and `scripts/resolve-stale-handoffs.ts`.
+
 ## Unreleased — ship-readiness repair
 
 ### Fixed

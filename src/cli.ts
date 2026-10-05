@@ -206,6 +206,7 @@ function cmdKeep(args: string[]): void {
   const ids = args.filter((arg) => arg !== "--from-other-session");
   if (ids.length === 0) throw new Error("usage: deja keep <id...> [--from-other-session]");
   const d = new Deja({ path: dbPath(), skipGc: true });
+  if (fromOtherSession && !process.env.DEJA_SESSION) throw new Error("--from-other-session needs DEJA_SESSION so the calling session is known");
   const sessionId = currentSessionId();
   const eligible = fromOtherSession ? ids.filter((id) => d.get(id)?.sessionId !== sessionId) : ids;
   const promoted = d.keep(eligible, { noChainRollup: true });

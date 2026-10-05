@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Deja, memory } from "../src/index.ts";
@@ -858,6 +858,28 @@ describe("Episodes", () => {
   });
 });
 
+describe("recall across origins", () => {
+  test("a note superseded in its own origin is replaced when recalled from another origin", () => {
+    const dir = mkdtempSync(join(tmpdir(), "deja-supersede-"));
+    const path = join(dir, "memory.db");
+    const alpha = new Deja({ path, skipGc: true, scope: "repo:alpha" });
+    const beta = new Deja({ path, skipGc: true, scope: "repo:beta" });
+    try {
+      const old = alpha.remember("deploymarker uses wrangler v3");
+      const fresh = alpha.remember("deploymarker uses wrangler v4", { links: [{ toId: old.id, kind: "supersedes" }] });
+      alpha.keep([old.id, fresh.id], { noChainRollup: true });
+
+      const ids = beta.recall("deploymarker wrangler").hits.map((hit) => hit.slip.id);
+      expect(ids).toContain(fresh.id);
+      expect(ids).not.toContain(old.id);
+    } finally {
+      alpha.close();
+      beta.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("purge", () => {
   test("hard-deletes a scoped slip, its links and trace references, and stays scoped", () => {
     const dir = mkdtempSync(join(tmpdir(), "deja-purge-"));
@@ -868,21 +890,28 @@ describe("purge", () => {
       const target = alpha.remember("purge-marker sensitive detail");
       const other = alpha.remember("purge-marker neighbour", { links: [{ toId: target.id, kind: "related" }] });
       alpha.keep([target.id, other.id], { noChainRollup: true });
+      alpha.handoff({ summary: "purge-marker handoff" });
+      expect(alpha.storage["db"].prepare("SELECT kept FROM handoffs").all().some((row: any) => row.kept.includes(target.id))).toBe(true);
       alpha.recall("purge-marker");
       alpha.recall("purge-marker sensitive detail");
+      alpha.recall("sensitive");
 
       expect(beta.purge(target.id)).toBe(false);
       expect(alpha.purge(target.id)).toBe(true);
       expect(alpha.purge(target.id)).toBe(false);
 
       expect(alpha.get(target.id)).toBeNull();
+      expect(alpha.storage.searchFts("sensitive", 10, "repo:alpha")).toEqual([]);
       expect(alpha.storage.linksTo(target.id)).toEqual([]);
-      expect(alpha.recall("sensitive").hits).toEqual([]);
       const traces = alpha.storage["db"].prepare("SELECT hit_ids FROM recall_traces").all() as Array<{ hit_ids: string }>;
       expect(traces.some((row) => row.hit_ids.includes(target.id))).toBe(false);
       const queries = alpha.storage["db"].prepare("SELECT query FROM recall_traces").all() as Array<{ query: string }>;
       expect(queries.some((row) => row.query.includes("sensitive detail"))).toBe(false);
       expect(alpha.get(other.id)?.state).toBe("kept");
+      const handoffKept = alpha.storage["db"].prepare("SELECT kept FROM handoffs").all() as Array<{ kept: string }>;
+      expect(handoffKept.some((row) => row.kept.includes(target.id))).toBe(false);
+      alpha.storage.checkpointAndVacuum();
+      expect(readFileSync(path).includes(Buffer.from("sensitive"))).toBe(false);
     } finally {
       alpha.close();
       beta.close();
