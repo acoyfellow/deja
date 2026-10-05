@@ -119,11 +119,14 @@ export interface NextAgentHit extends RecallHit {
   nextAgent: NextAgentHint;
 }
 
+export type RecallReach = "all" | "scope";
+
 export interface RecallOptions {
   limit?: number;
   /** Approximate output budget. Retrieval stops before exceeding it. */
   maxTokens?: number;
   kinds?: MemoryKind[];
+  reach?: RecallReach;
 }
 
 export interface RecallResult {

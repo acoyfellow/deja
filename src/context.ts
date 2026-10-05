@@ -26,6 +26,14 @@ export interface MemoryContext {
  * The hash prevents absolute paths or private remotes from leaking into recall
  * output while keeping the readable repository name useful for provenance.
  */
+export function originLabel(scope: string): string {
+  if (scope === GLOBAL_SCOPE) return "global";
+  if (scope === LEGACY_SCOPE) return "legacy (before origin tracking)";
+  const [kind, name] = scope.split(":");
+  if (!name) return scope;
+  return kind === "cwd" ? `${name} (folder)` : name;
+}
+
 export function currentMemoryContext(cwd = process.cwd()): MemoryContext {
   const explicit = process.env.DEJA_SCOPE?.trim();
   if (explicit) {

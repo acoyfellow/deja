@@ -23,6 +23,7 @@ import { dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { Deja, SharedDeja, defaultDbPath } from "./index.ts";
 import { currentSessionId } from "./lifecycle.ts";
+import { originLabel } from "./context.ts";
 
 function usage(): never {
   console.log(`deja — local-first agent memory
@@ -32,9 +33,9 @@ Usage:
   deja init                  Create the DB + print MCP wiring snippet
   deja mcp                   Run the MCP server (stdio — for agent clients)
   deja verify                Check schema, SQLite integrity, and FTS coverage
-  deja recall [query] [--tokens=N] [--kind=decision,pitfall]
+  deja recall [query] [--tokens=N] [--kind=decision,pitfall] [--no-trace]
   deja remember <text> [--keep] [--kind=decision]
-  deja keep <id...>          Promote drafts so they survive the 24h draft expiry
+  deja keep <id...> [--from-other-session]  Promote drafts past the 24h expiry; optionally only drafts another session wrote
   deja handoff <summary>     Leave one active handoff for this session
   deja resolve <id> [completed|abandoned]
   deja link <from> <supersedes|contradicts|related> <to>
@@ -42,6 +43,7 @@ deja assess <trace> <useful|wrong|missed|no_memory_needed> [note]
    deja eval                  Show scoped recall-quality evidence
    deja redact <id>           Mask a slip in recall output; raw text stays local
    deja forget <id> --yes     Expire one scoped slip; does not erase raw SQLite text
+   deja purge <id> --yes      Hard-delete one scoped slip, its links and trace references, then vacuum
    deja forget-session <id> --yes  Expire a session's scoped slips
   deja ls [--session]        List kept slips (or current session's slips)
   deja show <id>             Show a slip + its links
@@ -84,7 +86,7 @@ function fmtSlip(s: ReturnType<Deja["get"]> & object): string {
   const tags = s.tags.length > 0 ? ` [${s.tags.join(", ")}]` : "";
   const state = s.state.padEnd(7);
   const date = new Date(s.createdAt).toISOString().slice(0, 19);
-  return `${s.id}  ${state}  ${date}  ${s.authoredBy}${tags}\n  scope: ${s.scope}\n  ${s.text.replace(/\n/g, "\n  ")}`;
+  return `${s.id}  ${state}  ${date}  ${s.authoredBy}${tags}\n  from: ${originLabel(s.scope)} · scope: ${s.scope}\n  ${s.text.replace(/\n/g, "\n  ")}`;
 }
 
 async function cmdInit(): Promise<void> {
@@ -159,10 +161,14 @@ function cmdRecall(args: string[]): void {
   const maxTokens = Number(args.find((arg) => arg.startsWith("--tokens="))?.split("=")[1] ?? 1200);
   const kindArg = args.find((arg) => arg.startsWith("--kind="))?.split("=")[1];
   const kinds = kindArg ? kindArg.split(",") as import("./types.ts").MemoryKind[] : undefined;
-  const query = args.filter((arg) => !arg.startsWith("--tokens=") && !arg.startsWith("--kind=")).join(" ").trim();
-  const d = new Deja({ path: dbPath(), skipGc: true });
+  const recordRecallTraces = !args.includes("--no-trace");
+  const query = args
+    .filter((arg) => !arg.startsWith("--tokens=") && !arg.startsWith("--kind=") && arg !== "--no-trace")
+    .join(" ")
+    .trim();
+  const d = new Deja({ path: dbPath(), skipGc: true, recordRecallTraces });
   const r = d.recall(query, { limit: 10, maxTokens, kinds });
-  console.log(`receipt: ${r.traceId}`);
+  if (r.traceId) console.log(`receipt: ${r.traceId}`);
   if (r.activeHandoff) {
     console.log(`-- active handoff (${r.activeHandoff.scope}) --`);
     console.log(`  ${r.activeHandoff.summary}`);
@@ -195,12 +201,19 @@ function cmdRemember(args: string[]): void {
   d.close();
 }
 
-function cmdKeep(ids: string[]): void {
-  if (ids.length === 0) throw new Error("usage: deja keep <id...>");
+function cmdKeep(args: string[]): void {
+  const fromOtherSession = args.includes("--from-other-session");
+  const ids = args.filter((arg) => arg !== "--from-other-session");
+  if (ids.length === 0) throw new Error("usage: deja keep <id...> [--from-other-session]");
   const d = new Deja({ path: dbPath(), skipGc: true });
-  const promoted = d.keep(ids, { noChainRollup: true });
+  const sessionId = currentSessionId();
+  const eligible = fromOtherSession ? ids.filter((id) => d.get(id)?.sessionId !== sessionId) : ids;
+  const promoted = d.keep(eligible, { noChainRollup: true });
   const promotedIds = new Set(promoted.map((slip) => slip.id));
-  for (const id of ids) console.log(`${promotedIds.has(id) ? "kept" : "unchanged"} ${id}`);
+  for (const id of ids) {
+    const reason = promotedIds.has(id) ? "kept" : eligible.includes(id) ? "unchanged" : "unchanged (same session)";
+    console.log(`${reason} ${id}`);
+  }
   d.close();
 }
 
@@ -271,6 +284,16 @@ function cmdForget(args: string[]): void {
   const d = new Deja({ path: dbPath(), skipGc: true });
   if (!d.forget(id)) throw new Error(`active slip ${id} not found in ${d.scope}`);
   console.log(`expired ${id} in ${d.scope}; raw text remains in local SQLite`);
+  d.close();
+}
+
+function cmdPurge(args: string[]): void {
+  const id = args.find((arg) => arg !== "--yes");
+  if (!id || !args.includes("--yes")) throw new Error("usage: deja purge <id> --yes");
+  const d = new Deja({ path: dbPath(), skipGc: true });
+  if (!d.purge(id)) throw new Error(`slip ${id} not found in ${d.scope}`);
+  d.storage.checkpointAndVacuum();
+  console.log(`purged ${id} from ${d.scope}: row, links, and trace references deleted; database vacuumed`);
   d.close();
 }
 
@@ -539,6 +562,9 @@ switch (cmd) {
     break;
   case "forget":
     cmdForget(rest);
+    break;
+  case "purge":
+    cmdPurge(rest);
     break;
   case "forget-session":
     cmdForgetSession(rest);

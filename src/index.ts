@@ -93,6 +93,7 @@ export interface DejaOptions extends StorageOptions {
   scope?: string;
   /** Include pre-scope rows imported as legacy:global. Default: false. */
   includeLegacy?: boolean;
+  recallReach?: import("./types.ts").RecallReach;
   /** Experimental reasons/penalties ranker. Off until real-session evals pass. */
   experimentalNextAgentRanking?: boolean;
   /** Record query + returned ids (never memory text) for real recall evals. Default: true. */
@@ -125,6 +126,12 @@ export interface KeepOptions {
   noChainRollup?: boolean;
 }
 
+function preferScope<T extends { slip: Slip }>(candidates: T[], scope: string): T[] {
+  const local = candidates.filter((candidate) => candidate.slip.scope === scope);
+  const elsewhere = candidates.filter((candidate) => candidate.slip.scope !== scope);
+  return [...local, ...elsewhere];
+}
+
 export class Deja {
   readonly storage: Storage;
   readonly options: DejaOptions;
@@ -137,6 +144,7 @@ export class Deja {
       ...opts,
       includeLegacy: opts.includeLegacy ?? process.env.DEJA_INCLUDE_LEGACY === "1",
       rawMemoryLocal: opts.rawMemoryLocal ?? true,
+      recallReach: opts.recallReach ?? (process.env.DEJA_RECALL_REACH === "scope" ? "scope" : "all"),
     };
     const derived = currentMemoryContext();
     this.context = opts.scope ? { ...derived, scope: opts.scope, source: "env" } : derived;
@@ -165,20 +173,23 @@ export class Deja {
       : limitOrOptions;
     const limit = options.limit ?? 8;
     const sessionId = currentSessionId();
-    const raw = query.trim()
+    const reachAll = (options.reach ?? this.options.recallReach) === "all";
+    const readScope = reachAll ? undefined : this.scope;
+    const candidates = query.trim()
       ? this.storage.searchFts(
           query,
-          Math.max(limit, limit * 2),
-          this.scope,
+          Math.max(limit, limit * 2) * (reachAll ? 2 : 1),
+          readScope,
           this.options.includeLegacy,
           options.kinds,
         )
       : this.storage
-          .listKept(Math.max(limit, limit * 2), this.scope, this.options.includeLegacy, options.kinds)
+          .listKept(Math.max(limit, limit * 2) * (reachAll ? 2 : 1), readScope, this.options.includeLegacy, options.kinds)
           .map((slip) => ({ slip: this.maskSlip(slip), score: 0 }));
+    const raw = reachAll ? preferScope(candidates, this.scope) : candidates;
     const seen = new Set<string>();
     const hits = raw.flatMap((candidate) => {
-      const slip = this.maskSlip(this.storage.activeSuperseder(candidate.slip.id, this.scope) ?? candidate.slip);
+      const slip = this.maskSlip(this.storage.activeSuperseder(candidate.slip.id, candidate.slip.scope) ?? candidate.slip);
       if (seen.has(slip.id)) return [];
       seen.add(slip.id);
       return [{ slip, score: candidate.score, trust: trustForSlip(slip) }];
@@ -423,6 +434,10 @@ export class Deja {
   // ---------- signals ----------
 
   /** Expire a slip regardless of state. Returns true if anything changed. */
+  purge(id: string): boolean {
+    return this.storage.purgeSlip(id, this.scope);
+  }
+
   forget(id: string): boolean {
     const s = this.storage.getSlip(id, this.scope);
     if (!s || s.state === "expired") return false;

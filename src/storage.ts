@@ -301,6 +301,7 @@ export class Storage {
     this.db = new Database(this.path, { create: true });
     this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec("PRAGMA foreign_keys = ON;");
+    this.db.exec("PRAGMA secure_delete = ON;");
     this.db.exec(SCHEMA);
     this.ensureScopeColumns();
     this.ensureHandoffScopeUniqueness();
@@ -467,6 +468,36 @@ export class Storage {
     return result.changes > 0;
   }
 
+  purgeSlip(id: string, scope?: string): boolean {
+    const purge = this.db.transaction(() => {
+      const scoped = scope ? " AND scope = ?" : "";
+      const scopeArgs = scope ? [scope] : [];
+      const row = this.db.prepare(`SELECT text FROM slips WHERE id = ?${scoped}`).get(id, ...scopeArgs) as { text: string } | null;
+      if (!row) return false;
+      this.db.prepare(`DELETE FROM recall_traces WHERE instr(query, ?) > 0 OR instr(?, query) > 0 AND length(query) >= 24`).run(row.text, row.text);
+      this.db.prepare(`DELETE FROM links WHERE from_id = ? OR to_id = ?`).run(id, id);
+      this.db
+        .prepare(
+          `UPDATE recall_traces SET hit_ids = COALESCE(
+             (SELECT json_group_array(value) FROM json_each(recall_traces.hit_ids) WHERE value != ?), '[]')
+           WHERE hit_ids LIKE ?`,
+        )
+        .run(id, `%${id}%`);
+      this.db.prepare(`DELETE FROM slips WHERE id = ?${scoped}`).run(id, ...scopeArgs);
+      return true;
+    });
+    return purge() as boolean;
+  }
+
+  checkpointAndVacuum(): void {
+    this.db.exec("PRAGMA secure_delete = ON;");
+    this.db.exec("INSERT INTO slips_fts(slips_fts) VALUES ('rebuild');");
+    this.db.exec("INSERT INTO slips_fts(slips_fts) VALUES ('optimize');");
+    this.db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+    this.db.exec("VACUUM;");
+    this.db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+  }
+
   /** Expire all drafts older than `cutoff` ms. Returns count. */
   gcDrafts(cutoff: number, now: number): number {
     const res = this.db
@@ -500,8 +531,13 @@ export class Storage {
           )
           .all(scope, includeLegacy ? 1 : 0, JSON.stringify(kinds ?? []), JSON.stringify(kinds ?? []), limit) as SlipRow[]
       : this.db
-          .prepare(`SELECT * FROM slips WHERE state = 'kept' ORDER BY kept_at DESC LIMIT ?`)
-          .all(limit) as SlipRow[];
+          .prepare(
+            `SELECT * FROM slips
+             WHERE state = 'kept' AND (? OR scope != 'legacy:global')
+               AND (? = '[]' OR kind IN (SELECT value FROM json_each(?)))
+             ORDER BY kept_at DESC LIMIT ?`,
+          )
+          .all(includeLegacy ? 1 : 0, JSON.stringify(kinds ?? []), JSON.stringify(kinds ?? []), limit) as SlipRow[];
     return rows.map(rowToSlip);
   }
 
@@ -545,9 +581,11 @@ export class Storage {
              FROM slips_fts
              JOIN slips s ON s.rowid = slips_fts.rowid
              WHERE slips_fts MATCH ? AND s.state != 'expired'
+               AND (? OR s.scope != 'legacy:global')
+               AND (? = '[]' OR s.kind IN (SELECT value FROM json_each(?)))
              ORDER BY score ASC LIMIT ?`,
           )
-          .all(sanitized, limit) as Array<SlipRow & { score: number }>;
+          .all(sanitized, includeLegacy ? 1 : 0, JSON.stringify(kinds ?? []), JSON.stringify(kinds ?? []), limit) as Array<SlipRow & { score: number }>;
 
     return rows.map((r) => ({
       slip: rowToSlip(r),

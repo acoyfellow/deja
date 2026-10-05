@@ -48,18 +48,42 @@ describe("Deja API", () => {
     d.close();
   });
 
-  test("recall excludes slips and handoffs from another repository scope", () => {
+  test("recall reads one memory bank, ranks the current origin first, and keeps handoffs local", () => {
     const d = new Deja({ path: ":memory:", skipGc: true, scope: "repo:alpha" });
-    const ours = d.remember("shared marker belongs to alpha");
-    d.keep([ours.id], { noChainRollup: true });
     const theirs = d.remember("shared marker belongs to beta", { scope: "repo:beta" });
     d.keep([theirs.id], { noChainRollup: true });
+    const ours = d.remember("shared marker belongs to alpha");
+    d.keep([ours.id], { noChainRollup: true });
     d.handoff({ sessionId: "beta-session", scope: "repo:beta", summary: "beta-only handoff" });
 
     const recalled = d.recall("shared marker");
-    expect(recalled.hits.map((hit) => hit.slip.text)).toEqual(["shared marker belongs to alpha"]);
+    expect(recalled.hits.map((hit) => hit.slip.text)).toEqual([
+      "shared marker belongs to alpha",
+      "shared marker belongs to beta",
+    ]);
+    expect(recalled.hits.map((hit) => hit.slip.scope)).toEqual(["repo:alpha", "repo:beta"]);
     expect(recalled.activeHandoff).toBeNull();
+
+    const scoped = d.recall("shared marker", { reach: "scope" });
+    expect(scoped.hits.map((hit) => hit.slip.text)).toEqual(["shared marker belongs to alpha"]);
     d.close();
+  });
+
+  test("DEJA_RECALL_REACH=scope restores per-origin isolation and legacy rows stay excluded", () => {
+    const previous = process.env.DEJA_RECALL_REACH;
+    process.env.DEJA_RECALL_REACH = "scope";
+    const d = new Deja({ path: ":memory:", skipGc: true, scope: "repo:alpha" });
+    try {
+      const theirs = d.remember("isolated marker beta", { scope: "repo:beta" });
+      const legacy = d.remember("isolated marker legacy", { scope: "legacy:global" });
+      d.keep([theirs.id, legacy.id], { noChainRollup: true });
+      expect(d.recall("isolated marker").hits).toEqual([]);
+      expect(d.recall("isolated marker", { reach: "all" }).hits.map((hit) => hit.slip.text)).toEqual(["isolated marker beta"]);
+    } finally {
+      if (previous === undefined) delete process.env.DEJA_RECALL_REACH;
+      else process.env.DEJA_RECALL_REACH = previous;
+      d.close();
+    }
   });
 
   test("direct inspection and mutation cannot cross repository scope", () => {
@@ -831,5 +855,38 @@ describe("Episodes", () => {
     expect(ep.exportPolicy).toBe("redacted");
     expect(ep.redactionPolicy).toBe("strip");
     d.close();
+  });
+});
+
+describe("purge", () => {
+  test("hard-deletes a scoped slip, its links and trace references, and stays scoped", () => {
+    const dir = mkdtempSync(join(tmpdir(), "deja-purge-"));
+    const path = join(dir, "memory.db");
+    const alpha = new Deja({ path, skipGc: true, scope: "repo:alpha" });
+    const beta = new Deja({ path, skipGc: true, scope: "repo:beta" });
+    try {
+      const target = alpha.remember("purge-marker sensitive detail");
+      const other = alpha.remember("purge-marker neighbour", { links: [{ toId: target.id, kind: "related" }] });
+      alpha.keep([target.id, other.id], { noChainRollup: true });
+      alpha.recall("purge-marker");
+      alpha.recall("purge-marker sensitive detail");
+
+      expect(beta.purge(target.id)).toBe(false);
+      expect(alpha.purge(target.id)).toBe(true);
+      expect(alpha.purge(target.id)).toBe(false);
+
+      expect(alpha.get(target.id)).toBeNull();
+      expect(alpha.storage.linksTo(target.id)).toEqual([]);
+      expect(alpha.recall("sensitive").hits).toEqual([]);
+      const traces = alpha.storage["db"].prepare("SELECT hit_ids FROM recall_traces").all() as Array<{ hit_ids: string }>;
+      expect(traces.some((row) => row.hit_ids.includes(target.id))).toBe(false);
+      const queries = alpha.storage["db"].prepare("SELECT query FROM recall_traces").all() as Array<{ query: string }>;
+      expect(queries.some((row) => row.query.includes("sensitive detail"))).toBe(false);
+      expect(alpha.get(other.id)?.state).toBe("kept");
+    } finally {
+      alpha.close();
+      beta.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

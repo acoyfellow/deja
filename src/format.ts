@@ -1,3 +1,4 @@
+import { originLabel } from "./context.ts";
 import type { Handoff, Link, RecallResult, Slip } from "./types.ts";
 
 export interface RecallLinkProvider {
@@ -114,7 +115,7 @@ function formatAge(createdAt: number): string {
 
 function formatProvenance(slip: Slip): string {
   const created = new Date(slip.createdAt).toISOString();
-  return `source: ${slip.authoredBy} · scope: ${slip.scope} · session: ${slip.sessionId} · created: ${created} · used/wrong: ${slip.usedCount}/${slip.wrongCount}`;
+  return `from: ${originLabel(slip.scope)} · source: ${slip.authoredBy} · scope: ${slip.scope} · session: ${slip.sessionId} · created: ${created} · used/wrong: ${slip.usedCount}/${slip.wrongCount}`;
 }
 
 function formatLinkSafety(id: string, links?: RecallLinkProvider): string {
