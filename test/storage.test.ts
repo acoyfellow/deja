@@ -3,7 +3,7 @@ import { Database } from "bun:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Storage } from "../src/storage.ts";
+import { searchTerms, Storage } from "../src/storage.ts";
 import { ulid } from "../src/ulid.ts";
 import type { Slip } from "../src/types.ts";
 
@@ -245,5 +245,15 @@ describe("Storage", () => {
     expect(incoming[0]!.kind).toBe("supersedes");
     expect(incoming[0]!.fromId).toBe(b.id);
     s.close();
+  });
+});
+
+describe("searchTerms", () => {
+  test("drops conversational filler and splits hostnames and paths", () => {
+    expect(searchTerms("Why does glance.coey.dev download document.txt after login?")).toEqual(["glance", "coey", "dev", "download", "document", "txt", "after", "login"]);
+  });
+
+  test("keeps the original words when everything is filler", () => {
+    expect(searchTerms("what is this")).toEqual(["what", "is", "this"]);
   });
 });

@@ -567,11 +567,7 @@ export class Storage {
     // Tokenize on whitespace, strip non-word chars per token, drop empties.
     // Bare tokens let FTS5's porter tokenizer stem ("prefers" matches "preferred").
     // We OR them so any subset match still ranks; longest match wins via BM25.
-    const sanitized = query
-      .split(/\s+/)
-      .map((t) => t.replace(/[^a-zA-Z0-9]/g, ""))
-      .filter((t) => t.length > 0)
-      .join(" OR ");
+    const sanitized = searchTerms(query).join(" OR ");
     if (!sanitized) return [];
 
     const rows = scope
@@ -946,4 +942,22 @@ export class Storage {
     ).n;
     return { slips: total, kept, drafts, handoffs, messages, pending };
   }
+}
+
+const QUERY_FILLER_WORDS = new Set(
+  (
+    "a an and any are as at be been but by can could did do does doing for from had has have how i if in into is it its " +
+    "me my no not of on or our please say should so some tell than that the their them then there these they this to " +
+    "us use using was we were what when where which who why will with without would you your " +
+    "answer bullets explain find give help know let look make need run running short show tools want"
+  ).split(" "),
+);
+
+export function searchTerms(query: string): string[] {
+  const tokens = query
+    .split(/[\s./:]+/)
+    .map((token) => token.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter((token) => token.length > 0);
+  const meaningful = tokens.filter((token) => !QUERY_FILLER_WORDS.has(token.toLowerCase()));
+  return meaningful.length > 0 ? meaningful : tokens;
 }
