@@ -126,10 +126,11 @@ export interface KeepOptions {
   noChainRollup?: boolean;
 }
 
-function preferScope<T extends { slip: Slip }>(candidates: T[], scope: string): T[] {
-  const local = candidates.filter((candidate) => candidate.slip.scope === scope);
-  const elsewhere = candidates.filter((candidate) => candidate.slip.scope !== scope);
-  return [...local, ...elsewhere];
+const LOCAL_ORIGIN_SCORE_BOOST = 0.75;
+
+function preferScope<T extends { slip: Slip; score: number }>(candidates: T[], scope: string): T[] {
+  const boosted = (candidate: T) => (candidate.slip.scope === scope ? candidate.score * (1 + LOCAL_ORIGIN_SCORE_BOOST) : candidate.score);
+  return [...candidates].sort((a, b) => boosted(a) - boosted(b));
 }
 
 export class Deja {

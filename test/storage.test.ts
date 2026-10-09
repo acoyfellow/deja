@@ -257,3 +257,9 @@ describe("searchTerms", () => {
     expect(searchTerms("what is this")).toEqual(["what", "is", "this"]);
   });
 });
+
+describe("searchTerms identifiers", () => {
+  test("splits ticket ids so their parts match the index", () => {
+    expect(searchTerms("what's the status of SUPSEAL-810?")).toEqual(["SUPSEAL", "810"]);
+  });
+});
