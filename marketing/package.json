@@ -7,7 +7,9 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "test": "bun test ./src/pwa.test.ts"
+    "test": "bun test ./src/pwa.test.ts",
+    "healthcheck": "./healthcheck.sh",
+    "deploy": "bun run test && bun run build && wrangler deploy && sleep 5 && EXPECT_COMMIT=$(git rev-parse HEAD) ./healthcheck.sh"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.2",
