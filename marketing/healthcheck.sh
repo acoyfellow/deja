@@ -13,7 +13,8 @@ for path in / /manifest.json /sw.js /robots.txt; do
 done
 code=$(status /definitely-not-a-page)
 [ "$code" = 404 ] && pass "unknown path returns 404" || fail "unknown path returns $code"
-curl -s --max-time 10 "$BASE/" | grep -qi '<title>[^<]*deja' && pass "home page title mentions deja" || fail "home page title missing deja"
+HOME_HTML=$(curl -s --max-time 10 "$BASE/")
+grep -qi '<title>[^<]*deja' <<<"$HOME_HTML" && pass "home page title mentions deja" || fail "home page title missing deja"
 
 HEALTH=$(curl -s --max-time 10 -H 'cache-control: no-cache' "$BASE/health.json?ts=$(date +%s)")
 [ "$(jq -r .ok <<<"$HEALTH" 2>/dev/null)" = true ] && pass "/health.json ok:true" || fail "/health.json not ok: ${HEALTH:0:120}"
