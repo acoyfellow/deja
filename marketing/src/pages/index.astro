@@ -4,6 +4,7 @@ import Feature from "../components/Feature.astro";
 import CodeCard from "../components/CodeCard.astro";
 import Tool from "../components/Tool.astro";
 import Metric from "../components/Metric.astro";
+import TandemDiagram from "../components/TandemDiagram.astro";
 ---
 
 <Base
@@ -36,6 +37,15 @@ import Metric from "../components/Metric.astro";
     </div>
   </section>
 
+  <section class="py-14" id="how-it-fits">
+    <div class="mb-10">
+      <div class="eyebrow mb-3">the 10,000 ft view</div>
+      <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3 text-text">Memory across time, hands across machines.</h2>
+      <p class="text-muted max-w-2xl m-0">Deja remembers what earlier sessions learned. <a class="text-orange" href="https://terrarium.coey.dev">Terrarium</a> runs agent tasks on Cloudflare and hands back a receipt. Your agent sits between them: it starts with memory, sends work out, and leaves a handoff for whoever comes next.</p>
+    </div>
+    <TandemDiagram />
+  </section>
+
   <section class="py-14">
     <div class="mb-10">
       <div class="eyebrow mb-3">why memory fails</div>
@@ -45,7 +55,7 @@ import Metric from "../components/Metric.astro";
       </p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <Feature eyebrow="scope" title="Kept per project" body="Memory is tied to the Git repository you are actually working in. Two checkouts of the same project can share notes; unrelated projects never leak." />
+      <Feature eyebrow="origin" title="One bank, labelled" body="Every note records the Git repository it came from. Recall reads the whole bank, ranks the current project first, and labels each hit with its origin. Set DEJA_RECALL_REACH=scope to stay inside one project." />
       <Feature eyebrow="budget" title="Keeps it short" body="Recall accepts a limit on how much to return and what kind of memory you want. It sends the smallest useful packet, not the whole history." />
       <Feature eyebrow="truth" title="Old versions stay visible" body="When a note gets corrected, the old version stays in the file so you can see what changed. Recall follows the current version while keeping the evidence inspectable." />
     </div>
@@ -73,7 +83,6 @@ d.handoff({
   kinds: ["decision", "pitfall", "wip"],
 });
 
-// hits are scoped to this project
 // one active catch-up note
 // provenance + trust score
 // a receipt to evaluate later
@@ -90,7 +99,7 @@ d.assessRecall(context.traceId, "useful");`} />
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Feature eyebrow="typed memory" title="Seven useful kinds" body="Decision, preference, procedure, pitfall, fact, work-in-progress, and note. Your assistant can classify explicitly; the fallback is conservative." />
       <Feature eyebrow="evidence trust" title="Relevance is not truth" body="BM25 finds matching text. Draft-versus-kept state and used-versus-wrong outcomes determine trust. High means repeatedly useful, not magically authoritative." />
-      <Feature eyebrow="handoff lifecycle" title="Old work stops directing" body="Catch-up notes are active, completed, or abandoned. Only active notes from the current project reach a fresh assistant." />
+      <Feature eyebrow="handoff lifecycle" title="Old work stops directing" body="Catch-up notes are active, completed, or abandoned. Only the active note from the current project reaches a fresh assistant." />
       <Feature eyebrow="feedback" title="Recall can be evaluated" body="Every retrieval has a content-free receipt. Mark it useful, wrong, missed, or unnecessary, then inspect real quality with deja eval." />
       <Feature eyebrow="correction" title="Changes are explicit" body="Link a new note to an old one as a replacement, contradiction, or related. Old matches resolve to the current note without deleting history." />
       <Feature eyebrow="inspection" title="One file, ordinary tools" body="Open ~/.deja/deja.db with SQLite. Use the library, MCP tools, or CLI. No daemon, account, hidden model call, or remote ingestion path." />

@@ -1,0 +1,202 @@
+---
+const steps = [
+  { at: "start", text: "First prompt arrives. Deja recalls matching notes from every repo and hands the agent the few that fit, each labelled with where it came from." },
+  { at: "work", text: "The agent hands bounded jobs to Terrarium. Each job runs on Cloudflare and comes back with a run ID and a verified receipt." },
+  { at: "learn", text: "As the context fills, auto-memory drafts what is worth keeping. Drafts expire in a day unless another session finds them again." },
+  { at: "end", text: "A handoff records where the work stopped. The next session, here or in a cloud sandbox, starts from it instead of from zero." },
+];
+---
+
+<div class="tandem">
+  <div class="tandem-grid">
+    <div class="node node-deja">
+      <div class="node-eyebrow">memory across time</div>
+      <div class="node-title">Deja</div>
+      <ul>
+        <li>kept notes, drafts, handoffs</li>
+        <li>one bank, every note labelled with its origin</li>
+        <li>one SQLite file on your machine</li>
+      </ul>
+    </div>
+
+    <div class="wire wire-left" aria-hidden="true">
+      <span class="wire-label wire-label-top">recall at start</span>
+      <span class="wire-line"><span class="arrow arrow-right"></span></span>
+      <span class="wire-line"><span class="arrow arrow-left"></span></span>
+      <span class="wire-label">remember · keep · handoff</span>
+    </div>
+
+    <div class="node node-session">
+      <div class="node-eyebrow">where you work</div>
+      <div class="node-title">Your agent session</div>
+      <ul>
+        <li>Pi, OpenCode, or any MCP client</li>
+        <li>you ask, the agent plans and acts</li>
+        <li>checks memory against live state</li>
+      </ul>
+    </div>
+
+    <div class="wire wire-right" aria-hidden="true">
+      <span class="wire-label wire-label-top">spawn a task</span>
+      <span class="wire-line"><span class="arrow arrow-right"></span></span>
+      <span class="wire-line"><span class="arrow arrow-left"></span></span>
+      <span class="wire-label">answer + receipt</span>
+    </div>
+
+    <a class="node node-terrarium" href="https://terrarium.coey.dev">
+      <div class="node-eyebrow">hands across machines</div>
+      <div class="node-title">Terrarium <span class="ext">↗</span></div>
+      <ul>
+        <li>runs agent tasks on Cloudflare</li>
+        <li>run ID, task fingerprint, proof</li>
+        <li>children can recall Deja too</li>
+      </ul>
+    </a>
+  </div>
+
+  <div class="loopback" aria-hidden="true">
+    <span>next session starts further ahead</span>
+  </div>
+
+  <ol class="tandem-steps">
+    {steps.map((step) => (
+      <li>
+        <span class="step-at">{step.at}</span>
+        <span class="step-text">{step.text}</span>
+      </li>
+    ))}
+  </ol>
+</div>
+
+<style>
+  .tandem {
+    border: 1px solid var(--color-border);
+    border-radius: 18px;
+    background: linear-gradient(180deg, var(--color-layer), var(--color-ink));
+    padding: 28px;
+  }
+  .tandem-grid {
+    display: grid;
+    grid-template-columns: 1fr 120px 1.1fr 120px 1fr;
+    align-items: stretch;
+  }
+  .node {
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: var(--color-layer-2);
+    padding: 18px;
+    color: var(--color-text);
+    text-decoration: none;
+    display: block;
+  }
+  .node-deja { border-color: rgba(246, 130, 31, 0.55); }
+  .node-session { border-color: rgba(113, 184, 216, 0.55); }
+  .node-terrarium { border-color: rgba(99, 213, 162, 0.55); transition: transform 0.15s ease, border-color 0.15s ease; }
+  .node-terrarium:hover { transform: translateY(-2px); border-color: var(--color-green); }
+  .node-eyebrow {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 6px;
+  }
+  .node-deja .node-eyebrow { color: var(--color-orange); }
+  .node-session .node-eyebrow { color: var(--color-blue-light); }
+  .node-terrarium .node-eyebrow { color: var(--color-green); }
+  .node-title { font-size: 20px; font-weight: 600; margin-bottom: 10px; }
+  .ext { font-size: 14px; color: var(--color-green); }
+  .node ul { margin: 0; padding-left: 18px; color: var(--color-muted); font-size: 14px; line-height: 1.6; }
+  .wire {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 8px;
+  }
+  .wire-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    color: var(--color-muted);
+    text-align: center;
+    line-height: 1.3;
+  }
+  .wire-line {
+    position: relative;
+    height: 2px;
+    background: var(--color-border);
+  }
+  .wire-left .wire-line { background: linear-gradient(90deg, rgba(246, 130, 31, 0.7), rgba(113, 184, 216, 0.7)); }
+  .wire-right .wire-line { background: linear-gradient(90deg, rgba(113, 184, 216, 0.7), rgba(99, 213, 162, 0.7)); }
+  .arrow {
+    position: absolute;
+    top: -4px;
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+  }
+  .arrow-right { right: -1px; border-left: 7px solid var(--color-text); }
+  .arrow-left { left: -1px; border-right: 7px solid var(--color-text); }
+  .loopback {
+    margin: 18px 12% 0;
+    height: 30px;
+    border: 2px dashed rgba(246, 130, 31, 0.45);
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+    position: relative;
+  }
+  .loopback span {
+    position: absolute;
+    left: 50%;
+    bottom: -10px;
+    transform: translateX(-50%);
+    background: var(--color-ink);
+    padding: 0 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--color-orange);
+    white-space: nowrap;
+  }
+  .tandem-steps {
+    list-style: none;
+    margin: 34px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .tandem-steps li {
+    border-top: 1px solid var(--color-border);
+    padding-top: 12px;
+  }
+  .step-at {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-amber);
+    margin-bottom: 6px;
+  }
+  .step-text { color: var(--color-muted); font-size: 14px; line-height: 1.55; }
+  @media (max-width: 960px) {
+    .tandem { padding: 18px; }
+    .tandem-grid { grid-template-columns: 1fr; gap: 0; }
+    .wire { flex-direction: row; align-items: center; justify-content: center; padding: 10px 0; gap: 10px; }
+    .wire-line { width: 2px; height: 34px; }
+    .wire-left .wire-line { background: linear-gradient(180deg, rgba(246, 130, 31, 0.7), rgba(113, 184, 216, 0.7)); }
+    .wire-right .wire-line { background: linear-gradient(180deg, rgba(113, 184, 216, 0.7), rgba(99, 213, 162, 0.7)); }
+    .arrow { left: -4px; right: auto; top: auto; border-left: 5px solid transparent; border-right: 5px solid transparent; }
+    .arrow-right { bottom: -1px; border-top: 7px solid var(--color-text); border-bottom: none; }
+    .arrow-left { top: -1px; border-bottom: 7px solid var(--color-text); border-top: none; }
+    .wire-label { flex: 1; }
+    .wire-label-top { text-align: right; }
+    .wire-label:not(.wire-label-top) { text-align: left; }
+    .loopback { margin: 18px 6% 0; }
+    .tandem-steps { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 560px) {
+    .tandem-steps { grid-template-columns: 1fr; }
+  }
+</style>
