@@ -55,7 +55,31 @@ describe("formatRecall", () => {
       createdAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
       resolvedAt: null,
     };
-    expect(formatRecall(r)).toContain("stale handoff · 4d old · verify before acting");
+    const text = formatRecall(r);
+    expect(text).toContain("stale handoff · 4d old · handoff · deploy immediately");
+    expect(text).toContain("Not expanded. Resolve it with resolve_handoff");
+  });
+
+  test("stale handoffs collapse to one preview line instead of the full body", () => {
+    const r = result("memory", "old work");
+    const longSummary = "x".repeat(900);
+    r.activeHandoff = {
+      id: "old-handoff",
+      sessionId: "old",
+      authoredBy: "test",
+      scope: "repo:test",
+      summary: longSummary,
+      kept: [],
+      next: ["step one"],
+      status: "active",
+      automatic: false,
+      createdAt: Date.now() - 23 * 24 * 60 * 60 * 1000,
+      resolvedAt: null,
+    };
+    const text = formatRecall(r);
+    expect(text).not.toContain(longSummary);
+    expect(text).not.toContain("step one");
+    expect(text).toContain(`${"x".repeat(100)}…`);
   });
 
   test("surfaces outgoing supersedes and contradicts links", () => {

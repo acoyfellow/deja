@@ -13,12 +13,7 @@ export function formatRecall(
   const parts: string[] = [];
   if (r.traceId) parts.push(`# recall receipt ${r.traceId}`);
   if (r.activeHandoff) {
-    parts.push(
-      `# ${handoffHeading(r.activeHandoff)}\n${r.activeHandoff.summary}` +
-        (r.activeHandoff.next.length > 0
-          ? `\n\nnext:\n${r.activeHandoff.next.map((n) => `- ${n}`).join("\n")}`
-          : ""),
-    );
+    parts.push(formatHandoff(r.activeHandoff));
   }
 
   if ((r.readFirst ?? []).length > 0) {
@@ -74,12 +69,7 @@ export function formatRecents(
   const parts: string[] = [];
   if (traceId) parts.push(`# recall receipt ${traceId}`);
   if (activeHandoff) {
-    parts.push(
-      `# ${handoffHeading(activeHandoff)}\n${activeHandoff.summary}` +
-        (activeHandoff.next.length > 0
-          ? `\n\nnext:\n${activeHandoff.next.map((n) => `- ${n}`).join("\n")}`
-          : ""),
-    );
+    parts.push(formatHandoff(activeHandoff));
   }
   if (recent.length === 0) {
     parts.push(
@@ -95,12 +85,25 @@ export function formatRecents(
   return parts.join("\n\n");
 }
 
-function handoffHeading(handoff: Handoff): string {
-  const ageMs = Math.max(0, Date.now() - handoff.createdAt);
+const STALE_HANDOFF_MS = 3 * 24 * 60 * 60 * 1000;
+const STALE_HANDOFF_PREVIEW_CHARS = 100;
+
+function formatHandoff(handoff: Handoff): string {
   const age = formatAge(handoff.createdAt);
-  return ageMs >= 3 * 24 * 60 * 60 * 1000
-    ? `stale handoff · ${age} old · verify before acting`
-    : `active handoff · ${age} old`;
+  if (Date.now() - handoff.createdAt >= STALE_HANDOFF_MS) {
+    return `# stale handoff · ${age} old · ${handoff.id} · ${previewLine(handoff.summary)}\nNot expanded. Resolve it with resolve_handoff, or recall its id to read it.`;
+  }
+  const next = handoff.next.length > 0
+    ? `\n\nnext:\n${handoff.next.map((n) => `- ${n}`).join("\n")}`
+    : "";
+  return `# active handoff · ${age} old\n${handoff.summary}${next}`;
+}
+
+function previewLine(text: string): string {
+  const line = text.replace(/\s+/g, " ").trim();
+  return line.length > STALE_HANDOFF_PREVIEW_CHARS
+    ? `${line.slice(0, STALE_HANDOFF_PREVIEW_CHARS)}…`
+    : line;
 }
 
 function formatAge(createdAt: number): string {
