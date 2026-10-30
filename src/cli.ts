@@ -33,7 +33,8 @@ Usage:
   deja init                  Create the DB + print MCP wiring snippet
   deja mcp                   Run the MCP server (stdio — for agent clients)
   deja verify                Check schema, SQLite integrity, and FTS coverage
-  deja recall [query] [--tokens=N] [--kind=decision,pitfall] [--no-trace]
+  deja recall [query] [--tokens=N] [--kind=decision,pitfall] [--no-trace] [--json]
+  deja signal <id> <used|wrong>  Grade a recalled note
   deja remember <text> [--keep] [--kind=decision]
   deja keep <id...> [--from-other-session]  Promote drafts past the 24h expiry; optionally only drafts another session wrote
   deja handoff <summary>     Leave one active handoff for this session
@@ -162,12 +163,21 @@ function cmdRecall(args: string[]): void {
   const kindArg = args.find((arg) => arg.startsWith("--kind="))?.split("=")[1];
   const kinds = kindArg ? kindArg.split(",") as import("./types.ts").MemoryKind[] : undefined;
   const recordRecallTraces = !args.includes("--no-trace");
+  const asJson = args.includes("--json");
   const query = args
-    .filter((arg) => !arg.startsWith("--tokens=") && !arg.startsWith("--kind=") && arg !== "--no-trace")
+    .filter((arg) => !arg.startsWith("--tokens=") && !arg.startsWith("--kind=") && arg !== "--no-trace" && arg !== "--json")
     .join(" ")
     .trim();
   const d = new Deja({ path: dbPath(), skipGc: true, recordRecallTraces });
   const r = d.recall(query, { limit: 10, maxTokens, kinds });
+  if (asJson) {
+    console.log(JSON.stringify({
+      traceId: r.traceId,
+      hits: r.hits.map((h) => ({ id: h.slip.id, score: h.score, trust: h.trust, from: originLabel(h.slip.scope), text: h.slip.text, formatted: `[${h.trust}] ${fmtSlip(h.slip)}` })),
+    }));
+    d.close();
+    return;
+  }
   if (r.traceId) console.log(`receipt: ${r.traceId}`);
   if (r.activeHandoff) {
     console.log(`-- active handoff (${r.activeHandoff.scope}) --`);
@@ -277,6 +287,17 @@ function cmdEval(): void {
   const actionable = report.useful + report.wrong + report.missed;
   if (actionable > 0) console.log(`useful share of actionable recalls: ${((report.useful / actionable) * 100).toFixed(1)}%`);
   d.close();
+}
+
+function cmdSignal(args: string[]): void {
+  const [id, action] = args;
+  if (!id || (action !== "used" && action !== "wrong")) throw new Error("usage: deja signal <id> <used|wrong>");
+  const d = new Deja({ path: dbPath(), skipGc: true });
+  const slip = d.get(id);
+  const ok = slip !== null && d.storage[action === "used" ? "bumpUsed" : "bumpWrong"](id);
+  d.close();
+  if (!ok) throw new Error(`slip ${id} not found`);
+  console.log(`${action} ${id}`);
 }
 
 function cmdForget(args: string[]): void {
@@ -560,6 +581,9 @@ switch (cmd) {
     break;
   case "redact":
     cmdRedact(rest);
+    break;
+  case "signal":
+    cmdSignal(rest);
     break;
   case "forget":
     cmdForget(rest);
