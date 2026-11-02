@@ -51,7 +51,11 @@ const targets = {
   noisyNotes: { value: String(noisy.length), pass: noisy.length === 0 },
 };
 
-const staleRows = db.prepare(`SELECT id, created_at, text FROM slips WHERE state = 'kept' AND used_count = 0 AND created_at < ? ORDER BY created_at ASC LIMIT 25`).all(nowMs - 60 * DAY_MS) as { id: string; created_at: number; text: string }[];
+const keepPath = join(import.meta.dir, "..", ".tmp", "keep-ids.txt");
+const keepIds = new Set(existsSync(keepPath) ? readFileSync(keepPath, "utf8").split("\n").map((line) => line.trim()).filter(Boolean) : []);
+const staleRows = (db.prepare(`SELECT id, created_at, text FROM slips WHERE state = 'kept' AND used_count = 0 AND created_at < ? ORDER BY created_at ASC LIMIT 200`).all(nowMs - 60 * DAY_MS) as { id: string; created_at: number; text: string }[])
+  .filter((note) => !keepIds.has(note.id))
+  .slice(0, 25);
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({
     at: new Date(nowMs).toISOString(),
