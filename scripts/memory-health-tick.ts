@@ -38,7 +38,7 @@ for (const trace of db.prepare(`SELECT authored_by, query, hit_ids FROM recall_t
 }
 const noisy = [...humanHits]
   .filter(([, shown]) => shown >= 20)
-  .map(([id, shown]) => ({ id, shown, ...(db.prepare(`SELECT text, used_count FROM slips WHERE id = ? AND state = 'kept'`).get(id) as { text: string; used_count: number } | undefined ?? { text: "", used_count: -1 }) }))
+  .map(([id, shown]) => ({ id, shown, ...(db.prepare(`SELECT text, used_count FROM slips WHERE id = ? AND state = 'kept' AND NOT EXISTS (SELECT 1 FROM links WHERE to_id = slips.id AND kind = 'supersedes')`).get(id) as { text: string; used_count: number } | undefined ?? { text: "", used_count: -1 }) }))
   .filter((note) => note.used_count === 0)
   .sort((a, b) => b.shown - a.shown);
 const staleShare = report.bank.kept === 0 ? 0 : report.bank.keptStale / report.bank.kept;
