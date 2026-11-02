@@ -51,6 +51,25 @@ const targets = {
   noisyNotes: { value: String(noisy.length), pass: noisy.length === 0 },
 };
 
+const staleRows = db.prepare(`SELECT id, created_at, text FROM slips WHERE state = 'kept' AND used_count = 0 AND created_at < ? ORDER BY created_at ASC LIMIT 25`).all(nowMs - 60 * DAY_MS) as { id: string; created_at: number; text: string }[];
+if (process.argv.includes("--json")) {
+  console.log(JSON.stringify({
+    at: new Date(nowMs).toISOString(),
+    allPass: Object.values(targets).every((target) => target.pass),
+    targets: {
+      usedShare: { ...targets.usedShare, used, injected, goal: ">= 30%" },
+      botRecalls1h: { ...targets.botRecalls1h, goal: "0" },
+      staleKept: { ...targets.staleKept, stale: report.bank.keptStale, kept: report.bank.kept, goal: "< 20%" },
+      noisyNotes: { ...targets.noisyNotes, goal: "0" },
+    },
+    bank: report.bank,
+    recalls14d: report.recalls,
+    noisy: noisy.slice(0, 5).map((note) => ({ id: note.id, recalled: note.shown, text: note.text.replace(/\s+/g, " ").slice(0, 100) })),
+    nextStale: staleRows.slice(0, 5).map((note) => ({ id: note.id, date: new Date(note.created_at).toISOString().slice(0, 10), text: note.text.replace(/\s+/g, " ").slice(0, 100) })),
+  }));
+  db.close();
+  process.exit(0);
+}
 console.log(`memory-health ${new Date(nowMs).toISOString()}`);
 for (const [name, target] of Object.entries(targets)) console.log(`${target.pass ? "PASS" : "FAIL"} ${name.padEnd(14)} ${target.value}`);
 console.log(`ALL ${Object.values(targets).every((target) => target.pass) ? "PASS" : "FAIL"}`);
