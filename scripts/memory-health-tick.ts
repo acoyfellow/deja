@@ -3,6 +3,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { buildReport, DEFAULT_AUTOMATED_PREFIXES } from "../src/report.ts";
+import { DEFAULT_PRIMER_OPTIONS, primerSkipReason } from "../../pi-fresh-session-handoff/src/hooks/deja-session-primer.ts";
+
+function isBotPrompt(query: string): boolean {
+  return primerSkipReason(query, DEFAULT_PRIMER_OPTIONS) === "automated";
+}
 
 const DAY_MS = 86_400_000;
 const nowMs = Date.now();
@@ -28,12 +33,11 @@ const used = rows.reduce((sum, row) => sum + (row.memoryUsed ?? 0), 0);
 
 const primerSince = Number(process.env.BOT_SINCE_MS ?? nowMs - 3_600_000);
 const botRecalls = (db.prepare(`SELECT query FROM recall_traces WHERE authored_by = 'pi/session-primer' AND created_at >= ?`).all(primerSince) as { query: string }[])
-  .filter((row) => DEFAULT_AUTOMATED_PREFIXES.some((prefix) => row.query.trimStart().toLowerCase().startsWith(prefix.toLowerCase())) || /^<file name="[^"]*(?:\/var\/folders\/|\/reviews\/recipe\/|\/evals?\/|\/results\/|\/fixtures\/|\/experiments\/)/.test(row.query) || /^(?:Run this bash command:|Finish this small feature and ship it\.)/.test(row.query) || /^Run '[^']*test/.test(row.query)).length;
+  .filter((row) => isBotPrompt(row.query)).length;
 
-const botQuery = /^(?:<file name="[^"]*(?:\/var\/folders\/|\/reviews\/recipe\/|\/evals?\/|\/results\/|\/fixtures\/|\/experiments\/)|Run this bash command:|Run '[^']*test|READ-ONLY|You are a Terrarium child|Reply with exactly|Do nothing|From the coordinator|Finish this small feature and ship it\.)/i;
 const humanHits = new Map<string, number>();
 for (const trace of db.prepare(`SELECT authored_by, query, hit_ids FROM recall_traces WHERE created_at >= ?`).all(nowMs - 14 * DAY_MS) as { authored_by: string; query: string; hit_ids: string }[]) {
-  if (trace.authored_by.includes("replay") || botQuery.test(trace.query.trimStart())) continue;
+  if (trace.authored_by.includes("replay") || isBotPrompt(trace.query)) continue;
   for (const id of JSON.parse(trace.hit_ids) as string[]) humanHits.set(id, (humanHits.get(id) ?? 0) + 1);
 }
 const noisy = [...humanHits]
