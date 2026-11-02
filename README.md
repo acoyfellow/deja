@@ -187,6 +187,8 @@ Assessments are:
 
 The trace stores query, scope, returned IDs, handoff ID, session, author, and timestamp. It does **not** duplicate memory text or transcripts. `deja eval` reports scoped evidence so retrieval changes can be evaluated against real use.
 
+`deja report` turns that evidence into a health check: how many recalls found anything, how many came from bots, which notes come up often but never help, and how much of the bank is stale. See [docs/monitoring.md](docs/monitoring.md).
+
 ## Agent API
 
 ```ts
@@ -307,7 +309,9 @@ deja resolve <handoff-id> completed
 
 deja link <new-id> supersedes <old-id>
 deja assess <trace-id> useful "saved a repository scan"
+deja signal <slip-id> used          # or wrong
 deja eval
+deja report --days=14 --html=deja-report.html
 
 deja ls
 deja show <slip-id>

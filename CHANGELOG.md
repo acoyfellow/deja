@@ -4,6 +4,11 @@ All notable changes to Deja are documented here.
 
 ## Unreleased — memory health
 
+### Added
+
+- `deja report`: memory health check from the local database (recalls, bot share, grading, noisiest unused notes, stale bank), as text, HTML or JSON. Query text hidden unless `--show-queries`. See docs/monitoring.md.
+- `deja recall --json` and `deja signal <id> used|wrong` for hooks that filter and grade memory.
+
 ### Changed
 
 - Recall reads every origin by default and labels each hit `from: <origin>`; the current repository ranks first. `DEJA_RECALL_REACH=scope` restores repository-only recall. Writes and direct-id mutations stay scoped.

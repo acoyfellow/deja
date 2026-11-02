@@ -24,6 +24,8 @@ import { existsSync } from "node:fs";
 import { Deja, SharedDeja, defaultDbPath } from "./index.ts";
 import { currentSessionId } from "./lifecycle.ts";
 import { originLabel } from "./context.ts";
+import { writeFileSync } from "node:fs";
+import { buildReport, DEFAULT_AUTOMATED_PREFIXES, reportHtml, reportText } from "./report.ts";
 
 function usage(): never {
   console.log(`deja — local-first agent memory
@@ -35,6 +37,7 @@ Usage:
   deja verify                Check schema, SQLite integrity, and FTS coverage
   deja recall [query] [--tokens=N] [--kind=decision,pitfall] [--no-trace] [--json]
   deja signal <id> <used|wrong>  Grade a recalled note
+  deja report [--days=14] [--html=FILE] [--json] [--show-queries]  How your memory is being used
   deja remember <text> [--keep] [--kind=decision]
   deja keep <id...> [--from-other-session]  Promote drafts past the 24h expiry; optionally only drafts another session wrote
   deja handoff <summary>     Leave one active handoff for this session
@@ -287,6 +290,23 @@ function cmdEval(): void {
   const actionable = report.useful + report.wrong + report.missed;
   if (actionable > 0) console.log(`useful share of actionable recalls: ${((report.useful / actionable) * 100).toFixed(1)}%`);
   d.close();
+}
+
+function cmdReport(args: string[]): void {
+  const value = (name: string) => args.find((arg) => arg.startsWith(`--${name}=`))?.split("=").slice(1).join("=");
+  const days = Number(value("days") ?? 14);
+  if (!Number.isFinite(days) || days <= 0) throw new Error("usage: deja report [--days=14] [--html=report.html] [--json] [--show-queries]");
+  const nowMs = Date.now();
+  const d = new Deja({ path: dbPath(), skipGc: true, recordRecallTraces: false });
+  const report = buildReport(d.storage.db, { sinceMs: nowMs - days * 86_400_000, nowMs, showQueries: args.includes("--show-queries"), automatedPrefixes: DEFAULT_AUTOMATED_PREFIXES });
+  d.close();
+  const htmlPath = value("html");
+  if (htmlPath) {
+    writeFileSync(htmlPath, reportHtml(report));
+    console.log(`wrote ${htmlPath}`);
+  }
+  if (args.includes("--json")) console.log(JSON.stringify(report, null, 2));
+  else if (!htmlPath) console.log(reportText(report));
 }
 
 function cmdSignal(args: string[]): void {
@@ -581,6 +601,9 @@ switch (cmd) {
     break;
   case "redact":
     cmdRedact(rest);
+    break;
+  case "report":
+    cmdReport(rest);
     break;
   case "signal":
     cmdSignal(rest);
