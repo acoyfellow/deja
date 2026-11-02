@@ -14,6 +14,7 @@ export const DEFAULT_AUTOMATED_PREFIXES = [
   "Do nothing",
   "From the coordinator",
   "<file name=\"/var/folders/",
+  "Finish this small feature and ship it.",
 ];
 
 export interface AuthorRow {
