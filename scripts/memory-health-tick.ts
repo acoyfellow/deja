@@ -48,6 +48,11 @@ const noisy = [...humanHits]
 const staleShare = report.bank.kept === 0 ? 0 : report.bank.keptStale / report.bank.kept;
 const usedShare = injected === 0 ? 0 : used / injected;
 
+const installedPrimer = join(homedir(), ".pi", "agent", "extensions", "fresh-session-handoff", "src", "hooks", "deja-session-primer.ts");
+const repoPrimer = join(import.meta.dir, "..", "..", "pi-fresh-session-handoff", "src", "hooks", "deja-session-primer.ts");
+const primerInstalled = existsSync(installedPrimer) && existsSync(repoPrimer) && readFileSync(installedPrimer, "utf8") === readFileSync(repoPrimer, "utf8");
+if (!primerInstalled) console.log("WARN installed primer differs from repo: run `npm run install:extension` in pi-fresh-session-handoff, then /reload");
+
 const targets = {
   usedShare: { value: `${used}/${injected} = ${(usedShare * 100).toFixed(0)}%`, pass: injected > 0 && usedShare >= 0.3 },
   botRecalls1h: { value: String(botRecalls), pass: botRecalls === 0 },
@@ -64,6 +69,7 @@ if (process.argv.includes("--json")) {
   console.log(JSON.stringify({
     at: new Date(nowMs).toISOString(),
     allPass: Object.values(targets).every((target) => target.pass),
+    primerInstalled,
     targets: {
       usedShare: { ...targets.usedShare, used, injected, goal: ">= 30%" },
       botRecalls1h: { ...targets.botRecalls1h, goal: "0" },
