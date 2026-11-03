@@ -1,8 +1,20 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { memory } from "../src/index.ts";
 import { dispatch, newDispatchState } from "../src/mcp.ts";
 
 describe("mailbox", () => {
+  // The MCP reply is addressed to the sender, whose identity comes from DEJA_AUTHOR.
+  // Set it here instead of relying on test/mcp.test.ts having run first.
+  let prevAuthor: string | undefined;
+  beforeEach(() => {
+    prevAuthor = process.env.DEJA_AUTHOR;
+    process.env.DEJA_AUTHOR = "mcp-test-agent";
+  });
+  afterEach(() => {
+    if (prevAuthor === undefined) delete process.env.DEJA_AUTHOR;
+    else process.env.DEJA_AUTHOR = prevAuthor;
+  });
+
   test("send, inbox, read, reply", () => {
     const d = memory();
     const m = d.send({ from: "pi", to: "opencode", body: "review diff" });
