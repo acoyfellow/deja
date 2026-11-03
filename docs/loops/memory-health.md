@@ -28,3 +28,4 @@ note recalled 20+ times in 14 days by real prompts while never used.
 | 2026-11-03 00:09 | 53% ✅ | 0 ✅ | 21% ❌ | 0 ✅ | 0 | Waiting on Jordan (stale target vs standing rules). No change. |
 | 2026-11-03 02:02 | 52% ✅ | 0 ✅ | 21% ❌ | 0 ✅ | 0 | Third run with no movement (unstuck rule). The only way forward without hiding rules is a contract change only Jordan can make; waiting, not hiding rules. 01:00 run did not fire. |
 | 2026-11-03 02:18 | — | — | 21% ❌ | — | 0 | Still waiting on Jordan. No change. |
+| 2026-11-03 02:18 | 53% ✅ | 0 ✅ | 21% ❌ | 0 ✅ | 0 | **Driver stopped** after several blocked runs (stale target needs a decision from Jordan; extra checks were wasting turns). Gate not met. Restart once Jordan picks: count recently-recalled rules as not stale, hide unused rules, or accept 21%. |
