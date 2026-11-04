@@ -48,3 +48,9 @@ describe("deja report", () => {
     d.close();
   });
 });
+
+test("formatCount groups thousands for legibility", async () => {
+  const { formatCount } = await import("../src/report.ts");
+  expect(formatCount(1234567)).toBe("1,234,567");
+  expect(formatCount(42)).toBe("42");
+});

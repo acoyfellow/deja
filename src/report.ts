@@ -141,6 +141,10 @@ function parseIds(raw: string): string[] {
   }
 }
 
+export function formatCount(value: number): string {
+  return value.toLocaleString("en-US");
+}
+
 function percent(part: number, whole: number): string {
   return whole === 0 ? "0%" : `${Math.round((100 * part) / whole)}%`;
 }
@@ -190,10 +194,10 @@ export function reportText(report: MemoryReport): string {
 
 export function reportHtml(report: MemoryReport): string {
   const { recalls, grading, bank } = report;
-  const card = (value: string | number, label: string, tone = "") => `<div class="fs"><b class="${tone}">${value}</b><small>${escapeHtml(label)}</small></div>`;
-  const noteRows = (rows: NoteRow[]) => rows.map((row) => `<tr><td class="m">${row.id.slice(0, 10)}</td><td>${escapeHtml(row.text.replace(/\s+/g, " ").slice(0, 110))}</td><td class="r">${row.shown}</td><td class="r">${row.used}</td></tr>`).join("");
-  const authorRows = report.byAuthor.slice(0, 12).map((row) => `<tr><td>${escapeHtml(row.author)}</td><td class="r">${row.recalls}</td><td class="r">${percent(row.withHits, row.recalls)}</td></tr>`).join("");
-  const queryRows = report.sampleQueries.map((row) => `<tr><td>${escapeHtml(row.query)}</td><td class="r">${row.hits}</td></tr>`).join("");
+  const card = (value: string | number, label: string, tone = "") => `<div class="fs"><b class="${tone}">${typeof value === "number" ? formatCount(value) : value}</b><small>${escapeHtml(label)}</small></div>`;
+  const noteRows = (rows: NoteRow[]) => rows.map((row) => `<tr><td class="m">${row.id.slice(0, 10)}</td><td>${escapeHtml(row.text.replace(/\s+/g, " ").slice(0, 110))}</td><td class="r">${formatCount(row.shown)}</td><td class="r">${formatCount(row.used)}</td></tr>`).join("");
+  const authorRows = report.byAuthor.slice(0, 12).map((row) => `<tr><td>${escapeHtml(row.author)}</td><td class="r">${formatCount(row.recalls)}</td><td class="r">${percent(row.withHits, row.recalls)}</td></tr>`).join("");
+  const queryRows = report.sampleQueries.map((row) => `<tr><td>${escapeHtml(row.query)}</td><td class="r">${formatCount(row.hits)}</td></tr>`).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><title>Deja memory report</title><style>
 body{margin:0;background:#0b1118;color:#f7f9fb;font:15px/1.5 system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:32px 24px 60px}
 h1{font-size:28px;margin:0 0 4px}h2{font-size:19px;margin:28px 0 10px}.sub{color:#9baaba;margin:0 0 20px}
@@ -215,8 +219,8 @@ ${card(recalls.automated, "recalls from bots or tests", recalls.automated / Math
 <div class="grid">
 <div class="card"><h2 style="margin-top:0">Who recalls</h2><table><tr><th>author</th><th class="r">recalls</th><th class="r">found notes</th></tr>${authorRows}</table></div>
 <div class="card"><h2 style="margin-top:0">The bank</h2><table>
-<tr><td>kept notes</td><td class="r">${bank.kept}</td></tr><tr><td>drafts (expire in 24h unless kept)</td><td class="r">${bank.drafts}</td></tr>
-<tr><td>kept, never used</td><td class="r">${bank.keptNeverUsed}</td></tr><tr><td>kept, never used, over ${bank.staleDays} days old</td><td class="r">${bank.keptStale}</td></tr></table></div>
+<tr><td>kept notes</td><td class="r">${formatCount(bank.kept)}</td></tr><tr><td>drafts (expire in 24h unless kept)</td><td class="r">${formatCount(bank.drafts)}</td></tr>
+<tr><td>kept, never used</td><td class="r">${formatCount(bank.keptNeverUsed)}</td></tr><tr><td>kept, never used, over ${bank.staleDays} days old</td><td class="r">${formatCount(bank.keptStale)}</td></tr></table></div>
 </div>
 <h2>Recalled most, never used</h2><div class="card"><table><tr><th>id</th><th>note</th><th class="r">recalled</th><th class="r">used</th></tr>${noteRows(report.mostShownNeverUsed)}</table></div>
 <h2>Most used</h2><div class="card"><table><tr><th>id</th><th>note</th><th class="r">recalled</th><th class="r">used</th></tr>${noteRows(report.mostUsed)}</table></div>
