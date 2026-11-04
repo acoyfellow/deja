@@ -31,7 +31,7 @@ interface ArmTotals {
 
 const DAY_MS = 86_400_000;
 const outPath = process.argv[2] ?? "/private/tmp/deja-report.html";
-const abSince = process.env.BRAIN_AB_SINCE ?? "2026-11-03T18:00";
+const abSince = process.env.BRAIN_AB_SINCE ?? "2026-11-04T20:22";
 const frugalDir = process.env.PI_FRUGAL_DIR ?? join(homedir(), ".pi", "agent", "frugal");
 const nowMs = Date.now();
 
@@ -97,7 +97,7 @@ const off = armTotals("off");
 const perTurn = (totals: ArmTotals) => (totals.turns ? totals.cost / totals.turns : 0);
 const enough = on.sessions >= 20 && off.sessions >= 20 && on.turns >= 500 && off.turns >= 500;
 const saving = perTurn(off) ? (perTurn(off) - perTurn(on)) / perTurn(off) : 0;
-const verdict = !enough ? "collecting" : saving > 0 && on.errors / on.turns <= off.errors / off.turns ? "spill wins" : "spill loses";
+const verdict = !enough ? "collecting" : saving > 0 && on.errors / on.turns <= off.errors / off.turns ? "on wins" : "on loses";
 
 const abRow = (label: string, totals: ArmTotals) =>
   `<tr><td>${label}</td><td class="r">${formatCount(totals.sessions)}</td><td class="r">${formatCount(totals.turns)}</td><td class="r">${money(totals.cost)}</td><td class="r">${money(perTurn(totals), 3)}</td><td class="r">${pct(totals.cacheRead, totals.cacheRead + totals.cacheWrite)}</td><td class="r">${formatCount(totals.spills)}</td><td class="r">${totals.turns ? (totals.errors / totals.turns).toLocaleString("en-US", { maximumFractionDigits: 3 }) : "–"}</td></tr>`;
@@ -113,8 +113,8 @@ const memory = reportHtml(buildReport(db, { sinceMs: nowMs - 14 * DAY_MS, nowMs,
 db.close();
 
 const brainSection = `<h1>Brain loop</h1>
-<p class="sub">Updated ${new Date(nowMs).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })} · spill A/B since ${escapeHtml(abSince)} · verdict: <b class="${verdict === "spill wins" ? "ok" : verdict === "spill loses" ? "bad" : "warn"}">${verdict}</b>${enough ? ` (${Math.round(saving * 100).toLocaleString("en-US")}% per turn)` : " (needs 20 sessions and 500 turns per arm)"}</p>
-<h2>Spill A/B</h2><div class="card"><table><tr><th>arm</th><th class="r">sessions</th><th class="r">turns</th><th class="r">cost</th><th class="r">per turn</th><th class="r">cache hit</th><th class="r">spills</th><th class="r">errors/turn</th></tr>${abRow("on", on)}${abRow("off", off)}</table></div>
+<p class="sub">Updated ${new Date(nowMs).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })} · compact-at-200k A/B since ${escapeHtml(abSince)} · verdict: <b class="${verdict === "on wins" ? "ok" : verdict === "on loses" ? "bad" : "warn"}">${verdict}</b>${enough ? ` (${Math.round(saving * 100).toLocaleString("en-US")}% per turn)` : " (needs 20 sessions and 500 turns per arm)"}</p>
+<h2>Compact at 200k A/B (spill on for all)</h2><div class="card"><table><tr><th>arm</th><th class="r">sessions</th><th class="r">turns</th><th class="r">cost</th><th class="r">per turn</th><th class="r">cache hit</th><th class="r">spills</th><th class="r">errors/turn</th></tr>${abRow("on", on)}${abRow("off", off)}</table></div>
 <h2>Spend, last 7 days</h2><div class="card"><table><tr><th>day</th><th class="r">cost</th><th class="r">turns</th><th class="r">per turn</th><th class="r">turns over 200k</th></tr>${spendRows}</table></div>
 <h2>Top sessions today</h2><div class="card"><table><tr><th>session</th><th class="r">cost</th></tr>${topRows}</table></div>
 <h1 style="margin-top:40px">Memory</h1>`;
