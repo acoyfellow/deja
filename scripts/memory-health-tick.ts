@@ -45,7 +45,15 @@ const noisy = [...humanHits]
   .map(([id, shown]) => ({ id, shown, ...(db.prepare(`SELECT text, used_count FROM slips WHERE id = ? AND state = 'kept' AND NOT EXISTS (SELECT 1 FROM links WHERE to_id = slips.id AND kind = 'supersedes')`).get(id) as { text: string; used_count: number } | undefined ?? { text: "", used_count: -1 }) }))
   .filter((note) => note.used_count === 0)
   .sort((a, b) => b.shown - a.shown);
-const staleShare = report.bank.kept === 0 ? 0 : report.bank.keptStale / report.bank.kept;
+const recalledIn30d = new Set<string>();
+for (const trace of db.prepare(`SELECT hit_ids FROM recall_traces WHERE created_at >= ?`).all(nowMs - 30 * DAY_MS) as { hit_ids: string }[]) {
+  for (const id of JSON.parse(trace.hit_ids) as string[]) recalledIn30d.add(id);
+}
+const staleIds = (db.prepare(`SELECT id FROM slips WHERE state = 'kept' AND used_count = 0 AND created_at < ?`).all(nowMs - 60 * DAY_MS) as { id: string }[])
+  .map((note) => note.id)
+  .filter((id) => !recalledIn30d.has(id));
+const keptStale = staleIds.length;
+const staleShare = report.bank.kept === 0 ? 0 : keptStale / report.bank.kept;
 const usedShare = injected === 0 ? 0 : used / injected;
 
 const installedPrimer = join(homedir(), ".pi", "agent", "extensions", "fresh-session-handoff", "src", "hooks", "deja-session-primer.ts");
@@ -56,7 +64,7 @@ if (!primerInstalled) console.log("WARN installed primer differs from repo: run 
 const targets = {
   usedShare: { value: `${used}/${injected} = ${(usedShare * 100).toFixed(0)}%`, pass: injected > 0 && usedShare >= 0.3 },
   botRecalls1h: { value: String(botRecalls), pass: botRecalls === 0 },
-  staleKept: { value: `${report.bank.keptStale}/${report.bank.kept} = ${(staleShare * 100).toFixed(0)}%`, pass: staleShare < 0.2 },
+  staleKept: { value: `${keptStale}/${report.bank.kept} = ${(staleShare * 100).toFixed(0)}%`, pass: staleShare < 0.2 },
   noisyNotes: { value: String(noisy.length), pass: noisy.length === 0 },
 };
 
@@ -73,7 +81,7 @@ if (process.argv.includes("--json")) {
     targets: {
       usedShare: { ...targets.usedShare, used, injected, goal: ">= 30%" },
       botRecalls1h: { ...targets.botRecalls1h, goal: "0" },
-      staleKept: { ...targets.staleKept, stale: report.bank.keptStale, kept: report.bank.kept, goal: "< 20%" },
+      staleKept: { ...targets.staleKept, stale: keptStale, kept: report.bank.kept, goal: "< 20%" },
       noisyNotes: { ...targets.noisyNotes, goal: "0" },
     },
     bank: report.bank,
