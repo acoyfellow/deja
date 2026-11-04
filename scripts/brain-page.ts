@@ -8,6 +8,7 @@ interface MetricsRow {
   sessionId: string;
   endedAt: string;
   arm?: string;
+  compactArm?: string;
   turns: number;
   cost: number;
   cacheRead: number;
@@ -31,7 +32,9 @@ interface ArmTotals {
 
 const DAY_MS = 86_400_000;
 const outPath = process.argv[2] ?? "/private/tmp/deja-report.html";
-const abSince = process.env.BRAIN_AB_SINCE ?? "2026-11-04T20:22";
+const jsonPath = process.argv[3];
+const abSince = process.env.BRAIN_AB_SINCE ?? "2026-11-04T22:16";
+const abField = (process.env.BRAIN_AB_FIELD ?? "compactArm") as "arm" | "compactArm";
 const frugalDir = process.env.PI_FRUGAL_DIR ?? join(homedir(), ".pi", "agent", "frugal");
 const nowMs = Date.now();
 
@@ -59,7 +62,7 @@ function escapeHtml(value: string): string {
 }
 
 function armTotals(arm: string): ArmTotals {
-  const armRows = rows.filter((row) => row.arm === arm && row.endedAt >= abSince && row.turns > 0);
+  const armRows = rows.filter((row) => row[abField] === arm && row.endedAt >= abSince && row.turns > 0);
   return {
     sessions: new Set(armRows.map((row) => row.sessionId)).size,
     turns: armRows.reduce((sum, row) => sum + row.turns, 0),
@@ -125,3 +128,39 @@ const page = memory
 const tmp = `${outPath}.tmp`;
 writeFileSync(tmp, page);
 renameSync(tmp, outPath);
+
+interface BrainSnapshot {
+  at: string;
+  experiment: { name: string; since: string; verdict: string; on: ArmTotals; off: ArmTotals; enough: boolean; savingPct: number };
+  spendToday: number;
+  spendYesterday: number;
+  topSessions: { sessionId: string; cost: number }[];
+  memory: { usedPct: number; stalePct: number; noisy: number; bots1h: number };
+  previous: { name: string; result: string }[];
+}
+
+function writeSnapshot(path: string): void {
+  const day = (offset: number) => new Date(nowMs - offset * DAY_MS).toISOString().slice(0, 10);
+  const spendOn = (date: string) => rows.filter((row) => row.endedAt.startsWith(date)).reduce((sum, row) => sum + row.cost, 0);
+  const health = JSON.parse(String(Bun.spawnSync(["bash", join(import.meta.dir, "memory-health-tick.sh"), "--json"]).stdout)) as {
+    targets: { usedShare: { used: number; injected: number }; staleKept: { stale: number; kept: number }; noisyNotes: { value: string }; botRecalls1h: { value: string } };
+  };
+  const snapshot: BrainSnapshot = {
+    at: new Date(nowMs).toISOString(),
+    experiment: { name: "Compact at 200k", since: abSince, verdict, on, off, enough, savingPct: Math.round(saving * 100) },
+    spendToday: spendOn(day(0)),
+    spendYesterday: spendOn(day(1)),
+    topSessions: topSessionsToday().slice(0, 3),
+    memory: {
+      usedPct: health.targets.usedShare.injected ? Math.round((100 * health.targets.usedShare.used) / health.targets.usedShare.injected) : 0,
+      stalePct: health.targets.staleKept.kept ? Math.round((100 * health.targets.staleKept.stale) / health.targets.staleKept.kept) : 0,
+      noisy: Number(health.targets.noisyNotes.value),
+      bots1h: Number(health.targets.botRecalls1h.value),
+    },
+    previous: [{ name: "Spill 10k", result: "not proven: looked 27% cheaper, but p=0.09 and the median session was no cheaper. Left on; tool errors were lower." }],
+  };
+  writeFileSync(`${path}.tmp`, JSON.stringify(snapshot));
+  renameSync(`${path}.tmp`, path);
+}
+
+if (jsonPath) writeSnapshot(jsonPath);
