@@ -23,9 +23,9 @@ describe("deja report", () => {
     expect(report.recalls.empty).toBe(1);
     expect(report.grading.notesShown).toBe(2);
     expect(report.grading.notesUsed).toBe(1);
-    expect(report.mostUsed[0].id).toBe(deploy.id);
-    expect(report.mostShownNeverUsed[0].id).toBe(noise.id);
-    expect(report.mostShownNeverUsed[0].shown).toBe(7);
+    expect(report.mostUsed[0]!.id).toBe(deploy.id);
+    expect(report.mostShownNeverUsed[0]!.id).toBe(noise.id);
+    expect(report.mostShownNeverUsed[0]!.shown).toBe(7);
     expect(findings(report).some((line) => line.includes(noise.id))).toBe(true);
     d.close();
   });

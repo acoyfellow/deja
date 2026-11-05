@@ -14,7 +14,7 @@ describe("cli recall --json and signal", () => {
   test("recall --json returns ids, scores and formatted text; signal grades a note", () => {
     const db = join(mkdtempSync(join(tmpdir(), "deja-json-")), "deja.db");
     const remembered = runCli(db, ["remember", "Marketing deploy runs deploy.sh and checks health.json", "--keep"]);
-    const id = remembered.stdout.split(" ")[2];
+    const id = remembered.stdout.split(" ")[2]!;
     const out = runCli(db, ["recall", "marketing deploy", "--json", "--no-trace"]);
     const parsed = JSON.parse(out.stdout);
     expect(parsed.hits[0].id).toBe(id);
