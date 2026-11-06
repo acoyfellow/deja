@@ -37,3 +37,4 @@ Hourly terraloop over Deja memory, pi-frugal and the session primer. Goal: lower
 | 2026-11-06 02:14 | compact A/B, interactive: $0.115 vs $0.095 (6 vs 16 sessions), p=0.70 | 0.028 vs 0.045 | 67% | 0 | 8% | 2 (kept rules) | No change. Overnight, on side flat for 5 hours. Waiting on Jordan. |
 | 2026-11-06 03:14 | compact A/B, interactive: $0.115 vs $0.095 (6 vs 16 sessions), p=0.69 | 0.028 vs 0.045 | 67% | 0 | 8% | 2 (kept rules) | No change. Overnight, on side flat for 6 hours. Waiting on Jordan. |
 | 2026-11-06 04:14 | compact A/B, interactive: $0.115 vs $0.096 (6 vs 16 sessions), p=0.69 | 0.028 vs 0.045 | 67% | 0 | 8% | 2 (kept rules) | No change. Overnight, on side flat for 7 hours. Waiting on Jordan. |
+| 2026-11-06 06:26 | compact A/B, interactive: $0.115 vs $0.096 (6 vs 16 sessions), p=0.68 | 0.028 vs 0.045 | 67% | 0 | 8% | 2 (kept rules) | No change. Two hourly runs queued; ran once. On side flat for 9 hours. Waiting on Jordan. |
