@@ -46,7 +46,7 @@ function savedSessionIds(): Set<string> {
     if (!folder.isDirectory()) continue;
     for (const file of readdirSync(join(sessionsDir, folder.name))) {
       const match = /_([0-9a-f-]{36})\.jsonl$/.exec(file);
-      if (match) ids.add(match[1]);
+      if (match?.[1]) ids.add(match[1]);
     }
   }
   return ids;
@@ -150,7 +150,7 @@ function dailySpend(days: number): DayScore[] {
     };
   });
   const sortedCosts = unscored.map((day) => day.costPerTurn).sort((a, b) => a - b);
-  const median = sortedCosts.length ? sortedCosts[Math.floor(sortedCosts.length / 2)] : 0;
+  const median = sortedCosts.length ? (sortedCosts[Math.floor(sortedCosts.length / 2)] ?? 0) : 0;
   return unscored.map((day) => ({ ...day, score: scoreDay(day, median) }));
 }
 
