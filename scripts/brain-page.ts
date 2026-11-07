@@ -14,6 +14,7 @@ interface MetricsRow {
   cacheRead: number;
   cacheWrite: number;
   turnsOver200k?: number;
+  breaks?: number;
   spills?: number;
   toolErrors?: number;
   memoryInjections?: number;
@@ -74,22 +75,68 @@ function armTotals(arm: string): ArmTotals {
   };
 }
 
-type DaySpend = { cost: number; turns: number; over200k: number; cacheRead: number; cacheWrite: number };
+type DaySpend = { cost: number; turns: number; over200k: number; cacheRead: number; cacheWrite: number; errors: number; breaks: number; sessionCost: Map<string, number> };
 
-function dailySpend(days: number): ({ day: string } & DaySpend)[] {
+export type DayScore = {
+  day: string;
+  cost: number;
+  turns: number;
+  sessions: number;
+  costPerTurn: number;
+  cacheHitPct: number;
+  errorsPerTurn: number;
+  over200kPct: number;
+  topSessionPct: number;
+  cacheBreaks: number;
+  score: number;
+};
+
+function clampUnit(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function scoreDay(day: Omit<DayScore, "score">, medianCostPerTurn: number): number {
+  const cache = clampUnit((day.cacheHitPct - 90) / 7);
+  const cost = day.costPerTurn ? clampUnit(medianCostPerTurn / day.costPerTurn) : 1;
+  const errors = clampUnit(1 - day.errorsPerTurn / 0.05);
+  const longContext = clampUnit(1 - day.over200kPct / 50);
+  return Math.round(30 * cache + 30 * cost + 20 * errors + 20 * longContext);
+}
+
+function dailySpend(days: number): DayScore[] {
   const byDay = new Map<string, DaySpend>();
   for (const row of rows) {
     const day = row.endedAt.slice(0, 10);
     if (day <= new Date(nowMs - days * DAY_MS).toISOString().slice(0, 10)) continue;
-    const entry = byDay.get(day) ?? { cost: 0, turns: 0, over200k: 0, cacheRead: 0, cacheWrite: 0 };
+    const entry = byDay.get(day) ?? { cost: 0, turns: 0, over200k: 0, cacheRead: 0, cacheWrite: 0, errors: 0, breaks: 0, sessionCost: new Map<string, number>() };
     entry.cost += row.cost;
-    entry.cacheRead += row.cacheRead;
-    entry.cacheWrite += row.cacheWrite;
     entry.turns += row.turns;
     entry.over200k += row.turnsOver200k ?? 0;
+    entry.cacheRead += row.cacheRead;
+    entry.cacheWrite += row.cacheWrite;
+    entry.errors += row.toolErrors ?? 0;
+    entry.breaks += row.breaks ?? 0;
+    entry.sessionCost.set(row.sessionId, (entry.sessionCost.get(row.sessionId) ?? 0) + row.cost);
     byDay.set(day, entry);
   }
-  return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, entry]) => ({ day, ...entry }));
+  const unscored = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, entry]) => {
+    const share = (part: number, whole: number) => (whole ? Math.round((1000 * part) / whole) / 10 : 0);
+    return {
+      day,
+      cost: entry.cost,
+      turns: entry.turns,
+      sessions: entry.sessionCost.size,
+      costPerTurn: entry.turns ? entry.cost / entry.turns : 0,
+      cacheHitPct: share(entry.cacheRead, entry.cacheRead + entry.cacheWrite),
+      errorsPerTurn: entry.turns ? entry.errors / entry.turns : 0,
+      over200kPct: share(entry.over200k, entry.turns),
+      topSessionPct: share(Math.max(0, ...entry.sessionCost.values()), entry.cost),
+      cacheBreaks: entry.breaks,
+    };
+  });
+  const sortedCosts = unscored.map((day) => day.costPerTurn).sort((a, b) => a - b);
+  const median = sortedCosts.length ? sortedCosts[Math.floor(sortedCosts.length / 2)] : 0;
+  return unscored.map((day) => ({ ...day, score: scoreDay(day, median) }));
 }
 
 function topSessionsToday(): { sessionId: string; cost: number }[] {
@@ -109,7 +156,7 @@ const verdict = !enough ? "collecting" : saving > 0 && on.errors / on.turns <= o
 const abRow = (label: string, totals: ArmTotals) =>
   `<tr><td>${label}</td><td class="r">${formatCount(totals.sessions)}</td><td class="r">${formatCount(totals.turns)}</td><td class="r">${money(totals.cost)}</td><td class="r">${money(perTurn(totals), 3)}</td><td class="r">${pct(totals.cacheRead, totals.cacheRead + totals.cacheWrite)}</td><td class="r">${formatCount(totals.spills)}</td><td class="r">${totals.turns ? (totals.errors / totals.turns).toLocaleString("en-US", { maximumFractionDigits: 3 }) : "–"}</td></tr>`;
 const spendRows = dailySpend(7)
-  .map((day) => `<tr><td>${day.day}</td><td class="r">${money(day.cost)}</td><td class="r">${formatCount(day.turns)}</td><td class="r">${money(day.turns ? day.cost / day.turns : 0, 3)}</td><td class="r">${pct(day.cacheRead, day.cacheRead + day.cacheWrite)}</td><td class="r">${pct(day.over200k, day.turns)}</td></tr>`)
+  .map((day) => `<tr><td>${day.day}</td><td class="r">${money(day.cost)}</td><td class="r">${formatCount(day.turns)}</td><td class="r">${money(day.turns ? day.cost / day.turns : 0, 3)}</td><td class="r">${day.cacheHitPct}%</td><td class="r">${day.over200kPct}%</td><td class="r">${day.score}</td></tr>`)
   .join("");
 const topRows = topSessionsToday()
   .map((row) => `<tr><td class="m">${escapeHtml(row.sessionId.slice(0, 13))}</td><td class="r">${money(row.cost)}</td></tr>`)
@@ -122,7 +169,7 @@ db.close();
 const brainSection = `<h1>Brain loop</h1>
 <p class="sub">Updated ${new Date(nowMs).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })} · compact-at-200k A/B since ${escapeHtml(abSince)} · verdict: <b class="${verdict === "on wins" ? "ok" : verdict === "on loses" ? "bad" : "warn"}">${verdict}</b>${enough ? ` (${Math.round(saving * 100).toLocaleString("en-US")}% per turn)` : " (needs 20 sessions and 500 turns per arm)"}</p>
 <h2>Compact at 200k A/B (spill on for all)</h2><div class="card"><table><tr><th>arm</th><th class="r">sessions</th><th class="r">turns</th><th class="r">cost</th><th class="r">per turn</th><th class="r">cache hit</th><th class="r">spills</th><th class="r">errors/turn</th></tr>${abRow("on", on)}${abRow("off", off)}</table></div>
-<h2>Spend, last 7 days</h2><div class="card"><table><tr><th>day</th><th class="r">cost</th><th class="r">turns</th><th class="r">per turn</th><th class="r">cache hit</th><th class="r">turns over 200k</th></tr>${spendRows}</table></div>
+<h2>Spend, last 7 days</h2><div class="card"><table><tr><th>day</th><th class="r">cost</th><th class="r">turns</th><th class="r">per turn</th><th class="r">cache hit</th><th class="r">turns over 200k</th><th class="r">score</th></tr>${spendRows}</table></div>
 <h2>Top sessions today</h2><div class="card"><table><tr><th>session</th><th class="r">cost</th></tr>${topRows}</table></div>
 <h1 style="margin-top:40px">Memory</h1>`;
 
@@ -138,7 +185,7 @@ interface BrainSnapshot {
   experiment: { name: string; since: string; verdict: string; on: ArmTotals; off: ArmTotals; enough: boolean; savingPct: number };
   spendToday: number;
   spendYesterday: number;
-  week: { day: string; cost: number; turns: number; cacheHitPct: number }[];
+  week: DayScore[];
   topSessions: { sessionId: string; cost: number }[];
   memory: { usedPct: number; stalePct: number; noisy: number; bots1h: number };
   previous: { name: string; result: string }[];
@@ -155,12 +202,7 @@ function writeSnapshot(path: string): void {
     experiment: { name: "Compact at 200k", since: abSince, verdict, on, off, enough, savingPct: Math.round(saving * 100) },
     spendToday: spendOn(day(0)),
     spendYesterday: spendOn(day(1)),
-    week: dailySpend(7).map((entry) => ({
-      day: entry.day,
-      cost: entry.cost,
-      turns: entry.turns,
-      cacheHitPct: entry.cacheRead + entry.cacheWrite ? Math.round((1000 * entry.cacheRead) / (entry.cacheRead + entry.cacheWrite)) / 10 : 0,
-    })),
+    week: dailySpend(7),
     topSessions: topSessionsToday().slice(0, 3),
     memory: {
       usedPct: health.targets.usedShare.injected ? Math.round((100 * health.targets.usedShare.used) / health.targets.usedShare.injected) : 0,
