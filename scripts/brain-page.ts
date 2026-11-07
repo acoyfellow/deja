@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { buildReport, DEFAULT_AUTOMATED_PREFIXES, formatCount, reportHtml } from "../src/report.ts";
@@ -38,6 +38,21 @@ const abSince = process.env.BRAIN_AB_SINCE ?? "2026-11-04T22:16";
 const abField = (process.env.BRAIN_AB_FIELD ?? "compactArm") as "arm" | "compactArm";
 const frugalDir = process.env.PI_FRUGAL_DIR ?? join(homedir(), ".pi", "agent", "frugal");
 const nowMs = Date.now();
+const sessionsDir = process.env.PI_SESSIONS_DIR ?? join(homedir(), ".pi", "agent", "sessions");
+
+function savedSessionIds(): Set<string> {
+  const ids = new Set<string>();
+  for (const folder of readdirSync(sessionsDir, { withFileTypes: true })) {
+    if (!folder.isDirectory()) continue;
+    for (const file of readdirSync(join(sessionsDir, folder.name))) {
+      const match = /_([0-9a-f-]{36})\.jsonl$/.exec(file);
+      if (match) ids.add(match[1]);
+    }
+  }
+  return ids;
+}
+
+const interactiveIds = savedSessionIds();
 
 const rows: MetricsRow[] = readFileSync(join(frugalDir, "metrics.jsonl"), "utf8")
   .split("\n")
@@ -63,7 +78,7 @@ function escapeHtml(value: string): string {
 }
 
 function armTotals(arm: string): ArmTotals {
-  const armRows = rows.filter((row) => row[abField] === arm && row.endedAt >= abSince && row.turns > 0);
+  const armRows = rows.filter((row) => row[abField] === arm && row.endedAt >= abSince && row.turns > 0 && interactiveIds.has(row.sessionId));
   return {
     sessions: new Set(armRows.map((row) => row.sessionId)).size,
     turns: armRows.reduce((sum, row) => sum + row.turns, 0),
