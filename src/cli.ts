@@ -439,7 +439,8 @@ function cmdRead(args: string[]): void {
     process.exit(1);
   }
   const d = new Deja({ path: dbPath(), skipGc: true });
-  console.log(d.read(id) ? `read ${id}` : `message ${id} not found`);
+  const existing = d.read(id) ? null : d.message(id);
+  console.log(d.message(id)?.state === "read" ? `read ${id}` : existing ? `message ${id} is already ${existing.state}` : `message ${id} not found`);
   d.close();
 }
 

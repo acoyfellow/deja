@@ -10,6 +10,7 @@
  */
 
 import { Database } from "bun:sqlite";
+import { MESSAGE_TRANSITIONS, SLIP_TRANSITIONS, sourcesFor } from "./fsm.ts";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { mkdirSync } from "node:fs";
@@ -435,15 +436,15 @@ export class Storage {
   }
 
   setState(id: string, state: SlipState, at: number, scope?: string): boolean {
+    const from = sourcesFor(SLIP_TRANSITIONS, state);
+    if (from.length === 0) return false;
     const scoped = scope ? ` AND scope = ?` : "";
+    const guard = ` AND state IN (${from.map(() => "?").join(", ")})`;
     const stmt =
       state === "kept"
-        ? `UPDATE slips SET state = 'kept', kept_at = ? WHERE id = ?${scoped}`
-        : state === "expired"
-          ? `UPDATE slips SET state = 'expired', expired_at = ? WHERE id = ?${scoped}`
-          : `UPDATE slips SET state = 'draft' WHERE id = ?${scoped}`;
-    const args = state === "draft" ? [id, ...(scope ? [scope] : [])] : [at, id, ...(scope ? [scope] : [])];
-    const res = this.db.prepare(stmt).run(...args);
+        ? `UPDATE slips SET state = 'kept', kept_at = ? WHERE id = ?${scoped}${guard}`
+        : `UPDATE slips SET state = 'expired', expired_at = ? WHERE id = ?${scoped}${guard}`;
+    const res = this.db.prepare(stmt).run(at, id, ...(scope ? [scope] : []), ...from);
     return res.changes > 0;
   }
 
@@ -756,11 +757,18 @@ export class Storage {
   }
 
   markMessage(id: string, state: MessageState, now: number): boolean {
+    const from = sourcesFor(MESSAGE_TRANSITIONS, state);
+    if (from.length === 0) return false;
     const readAt = state === "read" ? now : null;
     const res = this.db
-      .prepare(`UPDATE messages SET state = ?, read_at = COALESCE(read_at, ?) WHERE id = ?`)
-      .run(state, readAt, id);
+      .prepare(`UPDATE messages SET state = ?, read_at = COALESCE(read_at, ?) WHERE id = ? AND state IN (${from.map(() => "?").join(", ")})`)
+      .run(state, readAt, id, ...from);
     return res.changes > 0;
+  }
+
+  getMessage(id: string): AgentMessage | null {
+    const row = this.db.prepare(`SELECT * FROM messages WHERE id = ?`).get(id) as MessageRow | null;
+    return row ? rowToMessage(row) : null;
   }
 
   // ----- recall evidence -----

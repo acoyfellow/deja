@@ -1,14 +1,3 @@
-/**
- * Lifecycle helpers — session derivation, GC, trust bucketing.
- *
- * State machine:
- *   draft  -> kept     (via keep())
- *   draft  -> expired  (via forget() or 24h GC)
- *   kept   -> expired  (via forget() — explicit only)
- *
- * No state transitions back. Slips are append-only.
- */
-
 import { ulid } from "./ulid.ts";
 import type { MemoryKind, Slip, Trust } from "./types.ts";
 

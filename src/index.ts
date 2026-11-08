@@ -73,6 +73,7 @@ export type {
 
 export { defaultDbPath } from "./storage.ts";
 export { VERSION } from "./version.ts";
+export { HANDOFF_TRANSITIONS, MESSAGE_TRANSITIONS, SLIP_TRANSITIONS, canTransition } from "./fsm.ts";
 export { SharedDeja } from "./shared-client/index.ts";
 export type { SharedDejaOptions, SharedRememberOptions, SharedHandoffOptions } from "./shared-client/index.ts";
 export type {
@@ -706,7 +707,12 @@ export class Deja {
   }
 
   read(id: string): boolean {
-    return this.storage.markMessage(id, "read", Date.now());
+    if (this.storage.markMessage(id, "read", Date.now())) return true;
+    return this.storage.getMessage(id)?.state === "read";
+  }
+
+  message(id: string): AgentMessage | null {
+    return this.storage.getMessage(id);
   }
 
   archive(id: string): boolean {

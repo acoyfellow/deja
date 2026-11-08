@@ -229,7 +229,9 @@ export function dispatch(
         const id = String(args.id ?? "");
         if (!id) return { text: "error: id is required", isError: true };
         const ok = deja.read(id);
-        return { text: ok ? `read ${id}` : `message ${id} not found`, ...(ok ? {} : { isError: true }) };
+        if (ok) return { text: `read ${id}` };
+        const existing = deja.message(id);
+        return { text: existing ? `message ${id} is already ${existing.state}` : `message ${id} not found`, isError: !existing };
       }
       case "reply": {
         const id = String(args.id ?? "");

@@ -227,6 +227,19 @@ d.handoff({ summary, next? })
 d.resolveHandoff(id, "completed" | "abandoned")
 ```
 
+Every record moves one way. Storage refuses any other move, so a stale
+agent cannot revive forgotten memory or un-archive a message. The tables
+live in `src/fsm.ts`.
+
+| Record | Moves | Final |
+|---|---|---|
+| Note | draft → kept, draft → expired, kept → expired | expired |
+| Message | pending → read, pending → archived, read → archived | archived |
+| Handoff | active → completed, active → abandoned | completed, abandoned |
+
+A refused move returns `false` and changes nothing. Reading a message that
+is already read still returns `true`.
+
 ### Evidence and correction
 
 ```ts
