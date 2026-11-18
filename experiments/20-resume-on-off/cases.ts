@@ -97,4 +97,44 @@ export const CASES: ResumeCase[] = [
     prompt: "explain the difference between an inner join and a left join with a short example",
     needed: [], forbidden: ["a-runner", "a-goal", "a-flaky", "a-migr-new", "b-deploy", "b-cache", "b-runner", "b-auth", "c-style", "c-sync", "c-new-db", "x-shell"],
   },
+  {
+    id: "cross-atlas-from-notes", split: "heldout", family: "reuse", scope: "proj-notes",
+    prompt: "from the notes app I need to call the atlas admin API, how do I authenticate to it locally",
+    needed: ["b-auth"], forbidden: [],
+  },
+  {
+    id: "cross-ledger-from-atlas", split: "heldout", family: "reuse", scope: "proj-atlas",
+    prompt: "the ledger invoice rounding test fails in CI for me, what was the known cause",
+    needed: ["a-flaky"], forbidden: [],
+  },
+  {
+    id: "fresh-notes-runner", split: "fresh", family: "reject", scope: "proj-notes",
+    prompt: "which command runs the unit tests in the notes app",
+    needed: [], forbidden: ["a-runner", "b-runner"],
+  },
+  {
+    id: "fresh-ledger-deploy", split: "fresh", family: "reject", scope: "proj-ledger",
+    prompt: "how do we deploy ledger to staging",
+    needed: [], forbidden: ["b-deploy"],
+  },
+  {
+    id: "fresh-atlas-from-ledger", split: "fresh", family: "reuse", scope: "proj-ledger",
+    prompt: "atlas map tiles look stale after a style change, what fixed that before",
+    needed: ["b-cache"], forbidden: [],
+  },
+  {
+    id: "fresh-none-css", split: "fresh", family: "none", scope: "proj-notes",
+    prompt: "center a div horizontally and vertically with css grid",
+    needed: [], forbidden: ["a-runner", "a-goal", "a-flaky", "a-migr-new", "b-deploy", "b-cache", "b-runner", "b-auth", "c-style", "c-sync", "c-new-db", "x-shell"],
+  },
+  {
+    id: "fresh-ledger-columns", split: "fresh", family: "resume", scope: "proj-ledger",
+    prompt: "can I add a refund_reason column to the refund export",
+    needed: ["a-goal"], forbidden: [],
+  },
+  {
+    id: "fresh-notes-quota", split: "fresh", family: "reuse", scope: "proj-notes",
+    prompt: "users hit a storage quota error when they have many notes, did we see this before",
+    needed: ["c-new-db"], forbidden: ["c-old-db"],
+  },
 ];

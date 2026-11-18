@@ -1,11 +1,17 @@
 import { Deja } from "../../src/index.ts";
 import { CASES, NOTES, type ResumeCase } from "./cases.ts";
+import { DEFAULT_PRIMER_OPTIONS, selectRelevant, type RecallNote } from "../../../pi-fresh-session-handoff/src/hooks/deja-session-primer.ts";
+import { createClefJudge, wranglerCredentials } from "../../../pi-fresh-session-handoff/src/hooks/clef.ts";
+
+const WITH_CLEF = process.argv.includes("--clef");
+const judge = WITH_CLEF ? createClefJudge(DEFAULT_PRIMER_OPTIONS.clefModel, 10_000, wranglerCredentials()) : undefined;
 
 const MAX_NOTES = 3;
 const MAX_TOKENS = 1200;
 
 type Delivery = { ids: string[]; chars: number; handoff: boolean };
-type Scored = { id: string; split: string; family: string; arm: "off" | "on"; pass: boolean; neededHit: number; neededTotal: number; forbiddenHit: number; chars: number; handoff: boolean };
+type Arm = "off" | "on" | "primer";
+type Scored = { id: string; split: string; family: string; arm: Arm; pass: boolean; neededHit: number; neededTotal: number; forbiddenHit: number; chars: number; handoff: boolean };
 
 function seededDeja(c: ResumeCase): { deja: Deja; keyOf: Map<string, string> } {
   const deja = new Deja({ path: ":memory:", skipGc: true, scope: c.scope, recallReach: "all", recordRecallTraces: false });
@@ -26,10 +32,15 @@ function seededDeja(c: ResumeCase): { deja: Deja; keyOf: Map<string, string> } {
   return { deja, keyOf };
 }
 
-function deliverOn(c: ResumeCase): Delivery {
+async function deliver(c: ResumeCase, arm: "on" | "primer"): Promise<Delivery> {
   const { deja, keyOf } = seededDeja(c);
-  const result = deja.recall(c.prompt, { limit: MAX_NOTES, maxTokens: MAX_TOKENS });
-  const hits = result.hits.slice(0, MAX_NOTES);
+  const result = deja.recall(c.prompt, { limit: arm === "primer" ? 10 : MAX_NOTES, maxTokens: MAX_TOKENS });
+  let hits = result.hits.slice(0, MAX_NOTES);
+  if (arm === "primer") {
+    const notes: RecallNote[] = result.hits.map((hit) => ({ id: hit.slip.id, score: hit.score, text: hit.slip.text, formatted: hit.slip.text }));
+    const chosen = new Set((await selectRelevant(c.prompt, notes, DEFAULT_PRIMER_OPTIONS, judge)).map((note) => note.id));
+    hits = result.hits.filter((hit) => chosen.has(hit.slip.id));
+  }
   const handoffText = result.activeHandoff && result.activeHandoff.scope === c.scope ? `${result.activeHandoff.summary} ${result.activeHandoff.next.join(" ")}` : "";
   const chars = hits.reduce((sum, hit) => sum + hit.slip.text.length, 0) + handoffText.length;
   const ids = hits.map((hit) => keyOf.get(hit.slip.id) ?? hit.slip.id);
@@ -37,7 +48,7 @@ function deliverOn(c: ResumeCase): Delivery {
   return { ids, chars, handoff: handoffText.length > 0 };
 }
 
-function score(c: ResumeCase, arm: "off" | "on", delivery: Delivery): Scored {
+function score(c: ResumeCase, arm: Arm, delivery: Delivery): Scored {
   const neededHit = c.needed.filter((key) => delivery.ids.includes(key)).length;
   const forbiddenHit = c.forbidden.filter((key) => delivery.ids.includes(key)).length;
   const pass = neededHit === c.needed.length && forbiddenHit === 0;
@@ -47,10 +58,11 @@ function score(c: ResumeCase, arm: "off" | "on", delivery: Delivery): Scored {
 const rows: Scored[] = [];
 for (const c of CASES) {
   rows.push(score(c, "off", { ids: [], chars: 0, handoff: false }));
-  rows.push(score(c, "on", deliverOn(c)));
+  rows.push(score(c, "on", await deliver(c, "on")));
+  if (WITH_CLEF) rows.push(score(c, "primer", await deliver(c, "primer")));
 }
 
-function summary(split: string, arm: "off" | "on") {
+function summary(split: string, arm: Arm) {
   const subset = rows.filter((row) => row.split === split && row.arm === arm);
   const passed = subset.filter((row) => row.pass).length;
   const needed = subset.reduce((sum, row) => sum + row.neededTotal, 0);
@@ -60,13 +72,13 @@ function summary(split: string, arm: "off" | "on") {
   return { split, arm, cases: subset.length, passed, neededRecall: needed === 0 ? 1 : neededHit / needed, forbiddenInjected: forbidden, avgChars: Math.round(chars / Math.max(subset.length, 1)) };
 }
 
-const table = ["dev", "heldout"].flatMap((split) => (["off", "on"] as const).map((arm) => summary(split, arm)));
+const table = ["dev", "heldout", "fresh"].flatMap((split) => (WITH_CLEF ? (["off", "on", "primer"] as const) : (["off", "on"] as const)).map((arm) => summary(split, arm)));
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ table, rows }, null, 2));
 } else {
   console.log("split    arm  pass   needed-recall  forbidden  avg-chars");
   for (const row of table) console.log(`${row.split.padEnd(8)} ${row.arm.padEnd(4)} ${`${row.passed}/${row.cases}`.padEnd(6)} ${row.neededRecall.toFixed(2).padEnd(14)} ${String(row.forbiddenInjected).padEnd(10)} ${row.avgChars}`);
-  console.log("\nfailures (arm on):");
-  for (const row of rows.filter((r) => r.arm === "on" && !r.pass)) console.log(`  ${row.split} ${row.id} [${row.family}] needed ${row.neededHit}/${row.neededTotal} forbidden ${row.forbiddenHit}`);
+  console.log("\nfailures:");
+  for (const row of rows.filter((r) => r.arm !== "off" && !r.pass)) console.log(`  ${row.arm} ${row.split} ${row.id} [${row.family}] needed ${row.neededHit}/${row.neededTotal} forbidden ${row.forbiddenHit}`);
 }
