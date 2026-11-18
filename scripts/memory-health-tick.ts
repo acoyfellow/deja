@@ -35,13 +35,16 @@ const primerSince = Number(process.env.BOT_SINCE_MS ?? nowMs - 3_600_000);
 const botRecalls = (db.prepare(`SELECT query FROM recall_traces WHERE authored_by = 'pi/session-primer' AND created_at >= ?`).all(primerSince) as { query: string }[])
   .filter((row) => isBotPrompt(row.query)).length;
 
+const keepPath = process.env.DEJA_KEEP_IDS ?? join(homedir(), ".deja", "keep-ids.txt");
+const keepIds = new Set(existsSync(keepPath) ? readFileSync(keepPath, "utf8").split("\n").map((line) => line.trim().split(/\s/)[0] ?? "").filter(Boolean) : []);
+
 const humanHits = new Map<string, number>();
 for (const trace of db.prepare(`SELECT authored_by, query, hit_ids FROM recall_traces WHERE created_at >= ?`).all(nowMs - 14 * DAY_MS) as { authored_by: string; query: string; hit_ids: string }[]) {
   if (trace.authored_by.includes("replay") || isBotPrompt(trace.query)) continue;
   for (const id of JSON.parse(trace.hit_ids) as string[]) humanHits.set(id, (humanHits.get(id) ?? 0) + 1);
 }
 const noisy = [...humanHits]
-  .filter(([, shown]) => shown >= 20)
+  .filter(([id, shown]) => shown >= 20 && !keepIds.has(id))
   .map(([id, shown]) => ({ id, shown, ...(db.prepare(`SELECT text, used_count FROM slips WHERE id = ? AND state = 'kept' AND NOT EXISTS (SELECT 1 FROM links WHERE to_id = slips.id AND kind = 'supersedes')`).get(id) as { text: string; used_count: number } | undefined ?? { text: "", used_count: -1 }) }))
   .filter((note) => note.used_count === 0)
   .sort((a, b) => b.shown - a.shown);
@@ -68,8 +71,6 @@ const targets = {
   noisyNotes: { value: String(noisy.length), pass: noisy.length === 0 },
 };
 
-const keepPath = join(import.meta.dir, "..", ".tmp", "keep-ids.txt");
-const keepIds = new Set(existsSync(keepPath) ? readFileSync(keepPath, "utf8").split("\n").map((line) => line.trim()).filter(Boolean) : []);
 const staleRows = (db.prepare(`SELECT id, created_at, text FROM slips WHERE state = 'kept' AND used_count = 0 AND created_at < ? ORDER BY created_at ASC LIMIT 200`).all(nowMs - 60 * DAY_MS) as { id: string; created_at: number; text: string }[])
   .filter((note) => !keepIds.has(note.id))
   .slice(0, 25);
