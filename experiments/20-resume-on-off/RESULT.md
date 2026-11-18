@@ -1,7 +1,7 @@
 # 20 — Deja on/off for resumed work
 
 Label: offline result
-Verdict: inconclusive for the product question; memory delivery passes held-out 6/6, dev 4/6 with two leaks
+Verdict: inconclusive; cross-project leaks are real and not fixable in retrieval alone without breaking legitimate cross-project reuse
 
 ## Hypothesis
 
@@ -57,11 +57,31 @@ Superseded decisions were never delivered in either split: the supersede link wo
 - The live primer adds a Clef relevance check (floor 0.7) that this run does not model. It may already drop both leaks.
 - 12 cases is small. Pass rates move a lot with one case.
 
+## Fix attempt (2026-11-18), reverted
+
+Six fresh cases were frozen in a commit (`d105a56`) before any change, so a fix could not be tuned to them. Two more held-out cases test legitimate cross-project reuse (asking about another project by name).
+
+| Arm | dev | held-out | fresh | Wrong notes (dev / held-out / fresh) |
+|---|---|---|---|---|
+| off | 1/6 | 1/8 | 3/6 | 0 / 0 / 0 |
+| on (retrieval only) | 4/6 | 8/8 | 4/6 | 2 / 0 / 2 |
+| primer (retrieval plus live Clef check, floor 0.7) | 5/6 | 8/8 | 4/6 | 1 / 0 / 3 |
+| on with "drop other-project notes weaker than the best local note" | 5/6 | 8/8 | 4/6 | 1 / 0 / 2 |
+
+- The filter fixed only the dev case it was written for, did nothing on fresh cases, and broke an existing test. That is overfitting, so it was reverted.
+- The Clef check removes off-topic notes (the regex leak) but keeps other-project notes, because a vitest note does look relevant to a test-runner question.
+- The failure shape: the agent asks about a convention of project X, X has no note on it, and Deja hands over project Y's convention. Blocking that in retrieval also blocks the 2 legitimate cases where the agent asks about project Y by name.
+- The live primer labels every note with where it came from (`from: ...`). Whether an agent is misled by a labelled other-project note is a behavior question this harness cannot answer.
+
 ## Rollback
 
 Nothing changed in Deja. Nothing to roll back.
 
 ## Next step
 
-1. Model the primer's relevance check in this harness (free if run against local Clef, or skip it) and re-run on dev only.
-2. Then the paid arm: the same model resumes each task with Deja on and off, scored by hidden checks, with cost and time per passed task. Needs Jordan's approval of a quoted budget.
+The paid arm now has a sharp question: given a labelled other-project note, does the agent use the wrong convention? Run the 4 leak cases plus the 2 cross-project cases with Deja on and off, scored by whether the answer names the right command.
+
+
+
+1. Done: the Clef check is modelled (`run.ts --clef`, a few cents of Workers AI).
+2. The paid arm: the same model resumes each task with Deja on and off, scored by hidden checks, with cost and time per passed task. Needs Jordan's approval of a quoted budget.
