@@ -11,7 +11,7 @@ const MAX_TOKENS = 1200;
 
 type Delivery = { ids: string[]; chars: number; handoff: boolean };
 type Arm = "off" | "on" | "primer";
-type Scored = { id: string; split: string; family: string; arm: Arm; pass: boolean; neededHit: number; neededTotal: number; forbiddenHit: number; neededFirst: boolean; chars: number; handoff: boolean };
+type Scored = { id: string; split: string; family: string; arm: Arm; pass: boolean; neededHit: number; neededTotal: number; forbiddenHit: number; neededFirst: boolean; chars: number; handoff: boolean; ids: string[] };
 
 function seededDeja(c: ResumeCase): { deja: Deja; keyOf: Map<string, string> } {
   const deja = new Deja({ path: ":memory:", skipGc: true, scope: c.scope, recallReach: "all", recordRecallTraces: false });
@@ -53,7 +53,7 @@ function score(c: ResumeCase, arm: Arm, delivery: Delivery): Scored {
   const forbiddenHit = c.forbidden.filter((key) => delivery.ids.includes(key)).length;
   const pass = neededHit === c.needed.length && forbiddenHit === 0;
   const neededFirst = c.needed.length === 0 || delivery.ids[0] === c.needed[0];
-  return { id: c.id, split: c.split, family: c.family, arm, pass, neededHit, neededTotal: c.needed.length, forbiddenHit, neededFirst, chars: delivery.chars, handoff: delivery.handoff };
+  return { id: c.id, split: c.split, family: c.family, arm, pass, neededHit, neededTotal: c.needed.length, forbiddenHit, neededFirst, chars: delivery.chars, handoff: delivery.handoff, ids: delivery.ids };
 }
 
 const rows: Scored[] = [];
