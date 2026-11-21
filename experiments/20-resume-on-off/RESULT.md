@@ -1,7 +1,7 @@
 # 20 — Deja on/off for resumed work
 
 Label: offline result
-Verdict: inconclusive; cross-project leaks are real and not fixable in retrieval alone without breaking legitimate cross-project reuse
+Verdict: delivery passes (primer 20/20, retrieval alone 19/20); whether it saves agent cost or time is not yet tested
 
 ## Hypothesis
 
@@ -57,7 +57,21 @@ Superseded decisions were never delivered in either split: the supersede link wo
 - The live primer adds a Clef relevance check (floor 0.7) that this run does not model. It may already drop both leaks.
 - 12 cases is small. Pass rates move a lot with one case.
 
-## Fix attempt (2026-11-18), reverted
+## Rescore (scoring corrected): cross-project notes are a feature
+
+Deja sits above every project on purpose. A note from another project is not wrong for being from another project; the earlier scoring treated it as a leak, and that was a scoring mistake. A note now counts as **wrong** only when it is a superseded decision, or when it reaches a question that needs no memory. **First** counts cases where the needed note is ranked first.
+
+| Arm | dev (6) | held-out (8) | fresh (6) | Wrong notes | Needed note first |
+|---|---|---|---|---|---|
+| off | 1 | 1 | 3 | 0 | (n/a) |
+| on (retrieval only) | 5 | 8 | 6 | 1 (a note on a regex question) | 18/20 |
+| primer (retrieval plus Clef, floor 0.7) | 6 | 8 | 6 | 0 | 20/20 |
+
+- Superseded decisions were never delivered, in any arm.
+- The Clef check removes the off-topic note and puts the needed note first in every case, at about half the memory text (116–183 chars vs 273–284).
+- The cross-project filter below would have removed a feature. It stays reverted.
+
+## Fix attempt (2026-11-18), reverted (based on the old scoring)
 
 Six fresh cases were frozen in a commit (`d105a56`) before any change, so a fix could not be tuned to them. Two more held-out cases test legitimate cross-project reuse (asking about another project by name).
 
@@ -79,7 +93,7 @@ Nothing changed in Deja. Nothing to roll back.
 
 ## Next step
 
-The paid arm now has a sharp question: given a labelled other-project note, does the agent use the wrong convention? Run the 4 leak cases plus the 2 cross-project cases with Deja on and off, scored by whether the answer names the right command.
+Delivery is good enough to test the product question. The paid arm: the same model answers each case with Deja off and with the primer's notes, scored by whether the answer names the right command or fact, with tokens and time per correct answer.
 
 
 

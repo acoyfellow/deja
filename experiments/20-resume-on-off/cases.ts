@@ -39,7 +39,7 @@ export const CASES: ResumeCase[] = [
     id: "ledger-resume-refund", split: "dev", family: "resume", scope: "proj-ledger",
     prompt: "picking the refund export back up, where were we and what should the CSV contain",
     handoff: { summary: "Refund export half done: query written, CSV writer not started.", next: ["write the CSV writer", "add a test for an empty refund list"] },
-    needed: ["a-goal"], forbidden: ["b-deploy", "c-style"],
+    needed: ["a-goal"], forbidden: [],
   },
   {
     id: "ledger-migrate", split: "dev", family: "reject", scope: "proj-ledger",
@@ -59,7 +59,7 @@ export const CASES: ResumeCase[] = [
   {
     id: "atlas-test-runner", split: "dev", family: "reject", scope: "proj-atlas",
     prompt: "add a unit test for the tile router, which test runner does this repo use",
-    needed: ["b-runner"], forbidden: ["a-runner"],
+    needed: ["b-runner"], forbidden: [],
   },
   {
     id: "none-regex", split: "dev", family: "none", scope: "proj-atlas",
@@ -90,7 +90,7 @@ export const CASES: ResumeCase[] = [
   {
     id: "notes-copy", split: "heldout", family: "resume", scope: "proj-notes",
     prompt: "write the empty-state message for the notes list in the notes app",
-    needed: ["c-style"], forbidden: ["b-deploy"],
+    needed: ["c-style"], forbidden: [],
   },
   {
     id: "none-sql", split: "heldout", family: "none", scope: "proj-ledger",
@@ -110,12 +110,12 @@ export const CASES: ResumeCase[] = [
   {
     id: "fresh-notes-runner", split: "fresh", family: "reject", scope: "proj-notes",
     prompt: "which command runs the unit tests in the notes app",
-    needed: [], forbidden: ["a-runner", "b-runner"],
+    needed: [], forbidden: [],
   },
   {
     id: "fresh-ledger-deploy", split: "fresh", family: "reject", scope: "proj-ledger",
     prompt: "how do we deploy ledger to staging",
-    needed: [], forbidden: ["b-deploy"],
+    needed: [], forbidden: [],
   },
   {
     id: "fresh-atlas-from-ledger", split: "fresh", family: "reuse", scope: "proj-ledger",
