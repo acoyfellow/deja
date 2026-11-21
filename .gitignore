@@ -28,3 +28,5 @@ eval/next-agent/real/
 experiments/**/evidence/
 experiments/**/.guardrail/
 .tmp/
+experiments/20-resume-on-off/agent-runs-*.json
+experiments/20-resume-on-off/probe.jsonl

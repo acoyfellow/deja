@@ -1,7 +1,7 @@
 # 20 — Deja on/off for resumed work
 
-Label: offline result
-Verdict: delivery passes (primer 20/20, retrieval alone 19/20); whether it saves agent cost or time is not yet tested
+Label: controlled result (synthetic tasks)
+Verdict: Deja on wins: 96/100 correct vs 57/100, 21% cheaper per call, 53% cheaper per correct answer, about 1.3s faster (paired, p<0.001); synthetic tasks only, not yet shown on real work
 
 ## Hypothesis
 
@@ -57,6 +57,35 @@ Superseded decisions were never delivered in either split: the supersede link wo
 - The live primer adds a Clef relevance check (floor 0.7) that this run does not model. It may already drop both leaks.
 - 12 cases is small. Pass rates move a lot with one case.
 
+## Agent arm (2026-11-21)
+
+Same model in both arms (Opus 5.5, low thinking), same system prompt, no tools, no extensions except the model provider. The only difference: the "on" arm gets the notes the primer selected (retrieval plus Clef), plus the handoff where the case has one. 20 cases x 2 arms x 5 repeats = 200 runs. Answer checks for all 20 cases were frozen in a commit (`20cc4cb`) before the 200 runs. They are regular expressions on the answer: the right command or fact must appear, and superseded commands must not.
+
+| Arm | Correct | Total cost | Cost per correct | Median time | Seconds per correct | Input tokens | Output tokens |
+|---|---|---|---|---|---|---|---|
+| off | 57/100 | $1.02 | $0.0179 | 6.2s | 11.3 | 145 | 481 |
+| on | 96/100 | $0.80 | $0.0084 | 5.0s | 5.3 | 240 | 353 |
+
+Paired by case and repeat (permutation test, 20,000 shuffles): correct +0.39 per run, cost -$0.0022 per run, time -1.35s per run, all p<0.001.
+
+| Family | off | on |
+|---|---|---|
+| resume work | 7/20 | 20/20 |
+| reuse a finding | 20/40 | 40/40 |
+| reject bad memory | 15/25 | 21/25 |
+| no memory needed | 15/15 | 15/15 |
+
+Why "on" is also cheaper: notes add about 95 input tokens, but without them the model writes longer hedged answers (481 vs 353 output tokens), and output costs more than input.
+
+Caveats:
+- **The grader is generous to "off".** 32 of the "off" passes open with "I don't know" and then list guesses that happen to include the right term. A stricter grader would widen the gap, not close it.
+- **One grader miss against "on".** `fresh-ledger-deploy` failed 4 of 5: the answer correctly said it does not know ledger's deploy steps, but used wording ("I don't have") the frozen check did not match. The raw score is kept as is.
+- **Synthetic tasks.** Short questions, no tools, 14 notes. Real sessions have thousands of notes, tool use and long context. This proves the mechanism, not the size of the saving in real work.
+- Memory upkeep cost (writing notes, the Clef check) is not counted here; the Clef check is a few cents of Workers AI per 20 cases.
+- Raw runs are kept locally in `~/.deja/experiments/20/` (not committed: they contain model output only, but the file is large).
+
+Total spend for this experiment: about $2.15 (200 scored runs plus a 40-run dry pass).
+
 ## Rescore (scoring corrected): cross-project notes are a feature
 
 Deja sits above every project on purpose. A note from another project is not wrong for being from another project; the earlier scoring treated it as a leak, and that was a scoring mistake. A note now counts as **wrong** only when it is a superseded decision, or when it reaches a question that needs no memory. **First** counts cases where the needed note is ranked first.
@@ -93,7 +122,7 @@ Nothing changed in Deja. Nothing to roll back.
 
 ## Next step
 
-Delivery is good enough to test the product question. The paid arm: the same model answers each case with Deja off and with the primer's notes, scored by whether the answer names the right command or fact, with tokens and time per correct answer.
+The mechanism is proven on synthetic tasks. Next: real work. Replay real resumed prompts from session history (start of a session after a break), with and without the primer's notes, graded by an independent reviewer model on the same top model, plus a stricter grader for this synthetic set.
 
 
 
