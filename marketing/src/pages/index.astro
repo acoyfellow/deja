@@ -67,7 +67,7 @@ import TandemDiagram from "../components/TandemDiagram.astro";
       <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3 text-text">Write less. Recover more.</h2>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <CodeCard label="finish a session" code={`const decision = d.remember(
+      <CodeCard label="finish a session" lang="ts" code={`const decision = d.remember(
   "Decision: use Bun for repo scripts",
   { kind: "decision" }
 );
@@ -78,7 +78,7 @@ d.handoff({
   summary: "Converted scripts; tests pass.",
   next: ["update the release workflow"],
 });`} />
-      <CodeCard label="start the next one" code={`const context = d.recall("release workflow", {
+      <CodeCard label="start the next one" lang="ts" code={`const context = d.recall("release workflow", {
   maxTokens: 600,
   kinds: ["decision", "pitfall", "wip"],
 });
@@ -111,19 +111,16 @@ d.assessRecall(context.traceId, "useful");`} />
       <div class="eyebrow mb-3">install</div>
       <h2 class="font-sans text-3xl sm:text-4xl font-semibold tracking-tight m-0 mb-3 text-text">Give your assistant memory in sixty seconds.</h2>
     </div>
-    <CodeCard label="terminal" code={`bun add github:acoyfellow/deja
+    <CodeCard label="terminal" lang="bash" code={`bun add github:acoyfellow/deja
 bunx github:acoyfellow/deja init`} />
-    <div class="mt-5 border border-amber/15 rounded-sm bg-layer/30 shadow-card overflow-hidden">
-      <div class="border-b border-amber/10 px-5 py-3 bg-ink/50 font-mono text-[10px] tracking-[0.2em] uppercase text-amber">MCP configuration</div>
-      <pre class="font-mono text-[12px] leading-relaxed text-muted p-5 overflow-x-auto">{`{
+    <CodeCard label="MCP configuration" lang="json" code={`{
   "mcpServers": {
     "deja": {
       "command": "bunx",
       "args": ["github:acoyfellow/deja", "mcp"]
     }
   }
-}`}</pre>
-    </div>
+}`} />
     <p class="font-sans font-light text-sm text-muted/80 max-w-[760px] mt-5 leading-relaxed">
       Tool descriptions are the operating contract. No SKILL.md, AGENTS.md, or memory prompt pasted into every session.
     </p>
@@ -181,7 +178,7 @@ bunx github:acoyfellow/deja init`} />
         Limits: synthetic tasks, 14 notes, no tools. This shows the mechanism, not the size of the saving in real work. Memory is cheaper here because answers without it are longer and hedged. Full record: <a class="text-amber" href="https://github.com/acoyfellow/deja/tree/main/experiments/20-resume-on-off">experiments/20-resume-on-off</a>.
       </p>
     </div>
-    <CodeCard label="release gate" code={`bun run check
+    <CodeCard label="release gate" lang="bash" code={`bun run check
 # tests
 # strict TypeScript
 # lexical recall smoke bench

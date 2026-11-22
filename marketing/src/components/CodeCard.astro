@@ -1,8 +1,12 @@
 ---
-interface Props { label: string; code: string }
-const { label, code } = Astro.props;
+import { Code } from "astro:components";
+interface Props { label: string; code: string; lang: "ts" | "bash" | "json" }
+const { label, code, lang } = Astro.props;
 ---
 <div class="border border-amber/15 rounded-sm bg-layer/30 shadow-card overflow-hidden mb-5">
   <div class="border-b border-amber/10 px-5 py-3 bg-ink/50 font-mono text-[10px] tracking-[0.2em] uppercase text-amber">{label}</div>
-  <pre class="font-mono text-[12px] leading-relaxed text-muted p-5 overflow-x-auto"><code>{code}</code></pre>
+  <Code code={code} lang={lang} theme="github-dark-dimmed" class="code-card font-mono text-[12px] leading-relaxed p-5 overflow-x-auto" />
 </div>
+<style is:global>
+  .code-card { background: transparent !important; margin: 0; }
+</style>
