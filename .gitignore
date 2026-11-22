@@ -35,3 +35,4 @@ experiments/20-resume-on-off/probe.jsonl
 .pi/
 experiments/20-resume-on-off/agent-progress.log
 experiments/20-resume-on-off/deliveries.json
+marketing/.astro-dev.log

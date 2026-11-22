@@ -155,9 +155,31 @@ bunx github:acoyfellow/deja init`} />
       </p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <Metric value="local" label="SQLite recall path" />
-      <Metric value="0" label="wrong-project fixture hits" />
-      <Metric value="4" label="release-gate checks" />
+      <Metric value="96 vs 57" label="correct of 100, memory on vs off" />
+      <Metric value="-53%" label="cost per correct answer" />
+      <Metric value="-53%" label="seconds per correct answer" />
+    </div>
+    <div class="border border-amber/15 rounded-sm bg-layer/30 p-5 shadow-card mb-5">
+      <div class="eyebrow mb-3">experiment 20 · resumed work, memory on vs off</div>
+      <p class="font-sans font-light text-muted leading-relaxed m-0 mb-4">
+        The same model answered 20 tasks five times each, once with no memory and once with the notes Deja selected. The answer checks for the 15 tasks that need memory were committed before any run. Paired by task and repeat, the overall gains in correct answers, cost and time each have p&lt;0.001.
+      </p>
+      <div class="overflow-x-auto">
+        <table class="w-full font-mono text-xs text-muted">
+          <thead><tr class="text-left text-text"><th class="py-1 pr-4">task family</th><th class="py-1 pr-4">off</th><th class="py-1 pr-4">on</th></tr></thead>
+          <tbody>
+            <tr><td class="py-1 pr-4">resume work</td><td class="py-1 pr-4">7/20</td><td class="py-1 pr-4 text-amber">20/20</td></tr>
+            <tr><td class="py-1 pr-4">reuse a finding</td><td class="py-1 pr-4">20/40</td><td class="py-1 pr-4 text-amber">40/40</td></tr>
+            <tr><td class="py-1 pr-4">reject outdated memory</td><td class="py-1 pr-4">15/25</td><td class="py-1 pr-4 text-amber">21/25</td></tr>
+            <tr><td class="py-1 pr-4">no memory needed</td><td class="py-1 pr-4">15/15</td><td class="py-1 pr-4">15/15</td></tr>
+            <tr><td class="py-1 pr-4">cost per correct answer</td><td class="py-1 pr-4">$0.018</td><td class="py-1 pr-4 text-amber">$0.008</td></tr>
+            <tr><td class="py-1 pr-4">seconds per correct answer</td><td class="py-1 pr-4">11.3</td><td class="py-1 pr-4 text-amber">5.3</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="font-sans font-light text-muted/80 text-sm leading-relaxed m-0 mt-4">
+        Limits: synthetic tasks, 14 notes, no tools. This shows the mechanism, not the size of the saving in real work. Memory is cheaper here because answers without it are longer and hedged. Full record: <a class="text-amber" href="https://github.com/acoyfellow/deja/tree/main/experiments/20-resume-on-off">experiments/20-resume-on-off</a>.
+      </p>
     </div>
     <CodeCard label="release gate" code={`bun run check
 # tests
