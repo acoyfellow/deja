@@ -9,6 +9,7 @@ const MODEL = process.env.MODEL ?? "";
 if (!MODEL) throw new Error("set MODEL, e.g. MODEL=<provider>/<model>:low");
 const REPS = Number(process.env.REPS ?? 3);
 const PARALLEL = Number(process.env.PARALLEL ?? 6);
+const ARMS = (process.env.ARMS ?? "off,on").split(",") as ArmName[];
 const PROVIDER_EXTENSION = process.env.PROVIDER_EXTENSION ?? "";
 
 type Delivered = { id: string; arm: string; ids: string[] };
@@ -31,11 +32,23 @@ function memoryBlock(caseId: string): string {
   return ["Deja memory: notes from earlier sessions that match this request.", "Treat them as leads, not truth.", "", ...parts].join("\n");
 }
 
-type Run = { id: string; family: string; split: string; arm: "off" | "on"; rep: number; pass: boolean | undefined; input: number; output: number; cacheRead: number; cacheWrite: number; cost: number; ms: number; answer: string; error?: string };
+type ArmName = "off" | "on" | "notes";
+type Run = { id: string; family: string; split: string; arm: ArmName; rep: number; pass: boolean | undefined; input: number; output: number; cacheRead: number; cacheWrite: number; cost: number; ms: number; answer: string; error?: string };
 
-function runOnce(caseId: string, arm: "off" | "on", rep: number): Promise<Run> {
+const NOTES_FILE_TOKENS = 2000;
+
+function notesFileBlock(caseId: string): string {
   const c = CASES.find((entry) => entry.id === caseId)!;
-  const memory = arm === "on" ? memoryBlock(caseId) : "";
+  const lines = NOTES.filter((note) => note.scope === c.scope).map((note) => `- ${note.text}`);
+  if (c.handoff) lines.push(`- Handoff: ${c.handoff.summary} Next: ${c.handoff.next.join("; ")}.`);
+  let text = lines.join("\n");
+  while (text.length / 4 > NOTES_FILE_TOKENS) text = text.slice(text.indexOf("\n") + 1);
+  return text ? ["Project notes file (most recent last):", "", text].join("\n") : "";
+}
+
+function runOnce(caseId: string, arm: ArmName, rep: number): Promise<Run> {
+  const c = CASES.find((entry) => entry.id === caseId)!;
+  const memory = arm === "on" ? memoryBlock(caseId) : arm === "notes" ? notesFileBlock(caseId) : "";
   const prompt = `${memory ? `${memory}\n\n` : ""}Project: ${c.scope.replace("proj-", "")}\nRequest: ${c.prompt}`;
   const args = ["-p", "--no-session", "-nt", "-ne", ...(PROVIDER_EXTENSION ? ["-e", PROVIDER_EXTENSION] : []), "--no-mcp", "-ns", "-nc", "-np", "--mode", "json", "--model", MODEL, "--system-prompt", SYSTEM, prompt];
   const started = Date.now();
@@ -68,7 +81,7 @@ function runOnce(caseId: string, arm: "off" | "on", rep: number): Promise<Run> {
 }
 
 const jobs: Array<() => Promise<Run>> = [];
-for (let rep = 0; rep < REPS; rep++) for (const c of CASES) for (const arm of ["off", "on"] as const) jobs.push(() => runOnce(c.id, arm, rep));
+for (let rep = 0; rep < REPS; rep++) for (const c of CASES) for (const arm of ARMS) jobs.push(() => runOnce(c.id, arm, rep));
 
 const results: Run[] = [];
 let next = 0;
