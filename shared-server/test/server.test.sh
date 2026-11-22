@@ -46,6 +46,7 @@ server_pid=$!
 
 cleanup() {
   kill "$server_pid" 2>/dev/null || true
+  pkill -f "wrangler.* dev --local --ip 127.0.0.1 --port $PORT" 2>/dev/null || true
   for _ in 1 2 3; do
     pids="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
     [ -z "$pids" ] && break

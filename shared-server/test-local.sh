@@ -13,10 +13,11 @@ if lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   echo "FAIL: port $PORT is already in use by another process; rerun with PORT=<free port>" >&2
   exit 1
 fi
-(cd shared-server && wrangler dev --local --ip 127.0.0.1 --port "$PORT" >.tmp/server.log 2>&1) &
+(cd shared-server && exec wrangler dev --local --ip 127.0.0.1 --port "$PORT" >.tmp/server.log 2>&1) &
 pid=$!
 cleanup() {
   kill "$pid" 2>/dev/null || true
+  pkill -f "wrangler.* dev --local --ip 127.0.0.1 --port $PORT" 2>/dev/null || true
   for _ in 1 2 3; do
     pids="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
     [ -z "$pids" ] && break

@@ -30,3 +30,8 @@ experiments/**/.guardrail/
 .tmp/
 experiments/20-resume-on-off/agent-runs-*.json
 experiments/20-resume-on-off/probe.jsonl
+.npmrc
+.guardrail/
+.pi/
+experiments/20-resume-on-off/agent-progress.log
+experiments/20-resume-on-off/deliveries.json
