@@ -69,7 +69,15 @@ Held-out tasks are written in a commit with a hash published before any entrant 
 
 ## Where Deja stands today
 
-From experiment 20 (synthetic, 20 tasks, 5 repeats, Opus 5.5 low): with Deja's notes, 96/100 correct against 57/100 with no memory, 53% cheaper and 53% faster per correct answer. Not yet measured: the notes-file baseline, tasks with tools, real repositories, compaction, and the "get better over time" family.
+From experiment 20 (synthetic, 20 tasks, 5 repeats, Opus 5.5 low):
+
+| Arm | Correct | Cost per correct | Seconds per correct |
+|---|---|---|---|
+| No memory | 57/100 | $0.0179 | 11.3 |
+| Notes file | 79/100 | $0.0091 | 5.8 |
+| Deja | 96/100 | $0.0084 | 5.3 |
+
+Deja beats the notes file on reuse across projects and on superseded decisions. On resume work the notes file ties it. Per run, Deja costs more than the notes file; it is cheaper only per correct answer. Not yet measured: tasks with tools, real repositories, compaction, and the "get better over time" family.
 
 ## Roadmap
 

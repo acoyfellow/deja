@@ -128,3 +128,28 @@ The mechanism is proven on synthetic tasks. Next: real work. Replay real resumed
 
 1. Done: the Clef check is modelled (`run.ts --clef`, a few cents of Workers AI).
 2. The paid arm: the same model resumes each task with Deja on and off, scored by hidden checks, with cost and time per passed task. Needs Jordan's approval of a quoted budget.
+
+
+## Notes-file baseline (added 2026-11-22)
+
+A third arm, run later with the same model, system prompt, cases and frozen checks. It gets the project's own notes in write order, plus the handoff, cut to the last 2,000 tokens. No ranking, no notes from other projects, no superseded-note handling. This is the "plain notes file" a memory system must beat.
+
+| Family | Off | Notes file | Deja |
+|---|---|---|---|
+| resume | 7/20 | 20/20 | 20/20 |
+| reuse | 20/40 | 26/40 | 40/40 |
+| reject | 15/25 | 18/25 | 21/25 |
+| none | 15/15 | 15/15 | 15/15 |
+| **total** | 57/100 | 79/100 | 96/100 |
+| cost per correct | $0.0179 | $0.0091 | $0.0084 |
+| seconds per correct | 11.3 | 5.8 | 5.3 |
+
+Paired by case and repeat (permutation test, 20,000 shuffles):
+
+- Deja beats the notes file on correct answers: +17, p<0.001.
+- Per run, Deja costs more in total ($0.81 against $0.72 for 100 runs) and takes longer (53 s more in total), because its notes are longer. It is cheaper only per correct answer.
+- The notes file beats no memory: +22, p<0.001.
+
+Where the notes file fails: reuse across projects (the fix lives in another project's notes, 14 misses) and a superseded decision shown next to its replacement (`ledger-migrate`, 5 misses).
+
+What this means: on resume, a plain handoff is as good as Deja. Deja's measured edge is cross-project reuse and superseded decisions. The notes-file run was a separate session a day later, so time-of-day effects on the provider are not controlled.
