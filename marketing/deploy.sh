@@ -15,6 +15,8 @@ done
 if [ "$DEPLOY_EXIT" -ne 0 ]; then
   if grep -q "limit of 100 Workers custom domains" "$LOG"; then
     echo "custom domain already attached; zone is at its domain limit, continuing to healthcheck"
+  elif grep -q "already has externally managed DNS records" "$LOG" && grep -q "Uploaded deja" "$LOG"; then
+    echo "worker uploaded; custom domain is served by existing DNS records, continuing to healthcheck"
   else
     echo "deploy failed"; exit "$DEPLOY_EXIT"
   fi

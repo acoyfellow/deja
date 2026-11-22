@@ -1,9 +1,9 @@
 ---
 const steps = [
   { at: "start", text: "First prompt arrives. Deja recalls matching notes from every repo and hands the agent the few that fit, each labelled with where it came from." },
-  { at: "work", text: "The agent hands bounded jobs to Terrarium. Each job runs on Cloudflare and comes back with a run ID and a verified receipt." },
+  { at: "work", text: "The agent works with whatever tools and harness it already uses, and checks recalled notes against live state before trusting them." },
   { at: "learn", text: "As the context fills, auto-memory drafts what is worth keeping. Drafts expire in a day unless another session finds them again." },
-  { at: "end", text: "A handoff records where the work stopped. The next session, here or in a cloud sandbox, starts from it instead of from zero." },
+  { at: "end", text: "A handoff records where the work stopped. The next session, on this machine or in a sandboxed cloud run, starts from it instead of from zero." },
 ];
 ---
 
@@ -37,21 +37,21 @@ const steps = [
     </div>
 
     <div class="wire wire-right" aria-hidden="true">
-      <span class="wire-label wire-label-top">spawn a task</span>
+      <span class="wire-label wire-label-top">leaves a handoff</span>
       <span class="wire-line"><span class="arrow arrow-right"></span></span>
       <span class="wire-line"><span class="arrow arrow-left"></span></span>
-      <span class="wire-label">answer + receipt</span>
+      <span class="wire-label">picks it up from Deja</span>
     </div>
 
-    <a class="node node-terrarium" href="https://terrarium.coey.dev">
-      <div class="node-eyebrow">hands across machines</div>
-      <div class="node-title">Terrarium <span class="ext">↗</span></div>
+    <div class="node node-next">
+      <div class="node-eyebrow">memory across sessions</div>
+      <div class="node-title">The next session</div>
       <ul>
-        <li>runs agent tasks on Cloudflare</li>
-        <li>run ID, task fingerprint, proof</li>
-        <li>children can recall Deja too</li>
+        <li>same machine, another client, or a sandboxed run</li>
+        <li>starts from the handoff, not from zero</li>
+        <li>same bank, same origin labels</li>
       </ul>
-    </a>
+    </div>
   </div>
 
   <div class="loopback" aria-hidden="true">
@@ -91,8 +91,7 @@ const steps = [
   }
   .node-deja { border-color: rgba(246, 130, 31, 0.55); }
   .node-session { border-color: rgba(113, 184, 216, 0.55); }
-  .node-terrarium { border-color: rgba(99, 213, 162, 0.55); transition: transform 0.15s ease, border-color 0.15s ease; }
-  .node-terrarium:hover { transform: translateY(-2px); border-color: var(--color-green); }
+  .node-next { border-color: rgba(99, 213, 162, 0.55); }
   .node-eyebrow {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 11px;
@@ -103,7 +102,7 @@ const steps = [
   }
   .node-deja .node-eyebrow { color: var(--color-orange); }
   .node-session .node-eyebrow { color: var(--color-blue-light); }
-  .node-terrarium .node-eyebrow { color: var(--color-green); }
+  .node-next .node-eyebrow { color: var(--color-green); }
   .node-title { font-size: 20px; font-weight: 600; margin-bottom: 10px; }
   .ext { font-size: 14px; color: var(--color-green); }
   .node ul { margin: 0; padding-left: 18px; color: var(--color-muted); font-size: 14px; line-height: 1.6; }
