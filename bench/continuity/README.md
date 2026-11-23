@@ -2,6 +2,8 @@
 
 **Status: draft design. Scores below are not yet produced by this benchmark. Experiment 20 is its seed.**
 
+[ContextWeave](https://github.com/OpenMOSS/ContextWeave) ([arXiv:2608.04830](https://arxiv.org/abs/2608.04830)) already measures memory on and off across executable multi-session work, including misleading recall. Deja uses it as the outside measure. This benchmark covers what ContextWeave does not: cost and time per verified task, a plain notes-file baseline in every report, and reach across projects. See [docs/landscape.md](../../docs/landscape.md).
+
 This benchmark describes what Deja wants to be, and measures how far it is from that. It is the target we hill-climb on, in public. Any memory system can enter under the same rules, and Deja's losing rows get published too.
 
 ## The question
@@ -96,5 +98,7 @@ Deja beats the notes file on reuse across projects and on superseded decisions. 
 | Wei et al., *Evo-Memory: Benchmarking LLM Agent Test-time Learning with Self-Evolving Memory*, [arXiv:2511.20857](https://arxiv.org/abs/2511.20857) | Task streams where memory must build up and be reused | Basis for "reuse a finding" and "get better over time" |
 | Ouyang et al., *ReasoningBank: Scaling Agent Self-Evolving with Reasoning Memory*, [arXiv:2509.25140](https://arxiv.org/abs/2509.25140) | Learning from both successful and failed attempts | Reuse should include known fixes and known traps |
 | Joshi et al., *SWE-Bench-CL: Continual Learning for Coding Agents*, [arXiv:2507.00014](https://arxiv.org/abs/2507.00014) | Ordered coding tasks from real repository history | Model for the coding "get better over time" sequence |
+| *ContextWeave: A Real-World Workflow Benchmark*, [arXiv:2608.04830](https://arxiv.org/abs/2608.04830) | With-recall against without-recall on executable tasks; robustness to misleading recall | The outside measure Deja runs on. This benchmark only adds what it lacks. |
 | Maharana et al., *Evaluating Very Long-Term Conversational Memory of LLM Agents* (LoCoMo), [arXiv:2402.17753](https://arxiv.org/abs/2402.17753) | Context only | The main long-chat benchmark. We do not use its tasks, because Deja does not ingest chat. |
+| *What Moves a LoCoMo Score? Memory Context, Answer Prompts and Judges*, [arXiv:2611.19199](https://arxiv.org/abs/2611.19199) | A warning: judge and answer-prompt choice alone move scores by up to 9 points | Why every report here fixes the judge and prompt, and keeps a held-out split |
 | Nakajima, *Regimes: An Auditable, Held-Out-Gated Improvement Loop Demonstrated on LongMemEval with ActiveGraph*, [arXiv:2606.10241](https://arxiv.org/abs/2606.10241) | The method of improving in public against a held-out gate | The same discipline we use to hill-climb Deja against this benchmark |
