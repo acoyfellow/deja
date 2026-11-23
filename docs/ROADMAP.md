@@ -12,8 +12,8 @@ Deja succeeds when a fresh agent continues correctly with less re-reading, fewer
 
 | Bucket | Open items | State |
 |---|---:|---|
-| Release gates and v0.1 evaluation | 4 | Active: real-work evaluation |
-| v0.2 recall and write quality | 19 | Active, ordered by what the real-work evaluation shows |
+| Release gates and v0.1 evaluation | 2 | Active: paired real-work evaluation |
+| v0.2 recall and write quality | 18 | Active, ordered by what the real-work evaluation shows |
 | v0.4 semantic fallback, v0.5 self-improving memory | 16 | Later, behind measured evidence |
 | Scale backlog | 9 | Only when data size requires it |
 | Shared memory (v0.3) | 25 | Paused by the owner |
@@ -84,8 +84,8 @@ Status: **released** as `v0.1.0`.
 - [x] Rejected next-agent ranker remains opt-in experimental behavior.
 - [x] Eight-case lexical smoke benchmark.
 - [x] Behavioral proxy experiments retained with claim/evidence labels.
-- [ ] Collect 50 assessed real recalls across at least five repositories.
-- [ ] Publish precision, miss, false-recall, and token-overhead results.
+- [x] Collect 50 assessed real recalls across at least five repositories ([experiment 21](../experiments/21-real-primer-grading/RESULT.md): 257 graded injections, 31 projects).
+- [x] Publish precision, miss, false-recall, and token-overhead results ([experiment 21](../experiments/21-real-primer-grading/RESULT.md): 48% of notes relevant, 17% used, 3% misleading; primer p95 ~770 tokens).
 - [x] Run baseline-vs-Deja continuation tasks with fixed prompts and fixtures ([experiment 20](../experiments/20-resume-on-off/RESULT.md): no memory 57/100, notes file 79/100, Deja 96/100).
 
 ### Product surface
@@ -138,7 +138,7 @@ No item in this batch ships merely because it sounds intelligent.
 - [ ] Add configurable `mustKnow`, `activeWork`, and `hazard` packet sections.
 - [ ] Measure actual tokenizer variance against the four-character estimate.
 - [ ] Add deterministic compact summaries only for memories with preserved source links.
-- [ ] Prove default session-start packet stays below 800 tokens.
+- [x] Prove default session-start packet stays below 800 tokens (real primers: p95 ~770 tokens, experiment 21).
 
 ### Write quality
 
