@@ -1,5 +1,7 @@
 # Shared memory security review
 
+**Status: paused.** Shared memory is paused by the owner. The open items below are not in progress, and no deployment is allowed until they are closed and the pause is lifted.
+
 **Deployment paused.** Shared Deja works locally. It is not approved for any deployment until this review resolves.
 
 ## Why this matters
