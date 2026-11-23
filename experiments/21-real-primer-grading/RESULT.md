@@ -53,7 +53,26 @@ A third of injections went to requests that needed no memory, and those injectio
 - One owner's sessions. Many come from a single folder.
 - No paired run without memory on the same real prompts. This measures precision and use, not the size of the saving.
 
+## Follow-up: can the primer's settings cut unused notes?
+
+Tested on the graded notes, no new model spend beyond Clef calls (`floor.ts`).
+
+**Relevance floor.** Each graded note was re-scored with the live Clef relevance judge (490 scored). Raising the floor does not separate used notes from unused ones: the share of kept notes that get used stays at 18-20% from a floor of 0.7 to 0.95. It only loses saves:
+
+| Floor | Notes kept | Used share | Saved injections still served |
+|---|---:|---:|---:|
+| 0.7 (current) | 414 | 18% | 32/33 |
+| 0.8 | 315 | 19% | 30/33 |
+| 0.85 | 243 | 19% | 22/33 |
+| 0.9 | 137 | 19% | 14/33 |
+
+Decision: keep 0.7. Clef's relevance score does not predict use, so tuning the floor is the wrong lever.
+
+**Notes per injection.** Notes in position 3 or later were used 6 times in 80, and only 1 of 33 saved injections depended on them. Cutting the maximum from 3 to 2 would drop about 15% of injected notes for that one save. Not shipped; it is a small token saving against a real loss.
+
+**Near-duplicates.** Among 355 live notes, 6 same-project pairs overlap heavily (word overlap of 60% or more). Not the main problem yet.
+
 ## Next
 
-- The biggest remaining loss is relevant-but-unused notes (48% relevant, 17% used). Candidate fixes: a higher relevance floor, or fewer notes per injection. Test each on this graded set before shipping.
+- The biggest remaining loss is relevant-but-unused notes (48% relevant, 17% used), and the relevance judge cannot tell them apart. The next lever is the question itself: ask whether the note adds something the request does not already say, and test that against these grades before shipping.
 - Replaced decisions still reach agents. Write-time conflict and near-duplicate checks (roadmap v0.2, write quality) target this.
