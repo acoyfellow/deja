@@ -5,7 +5,8 @@ import { createClefJudge, wranglerCredentials } from "../../../pi-fresh-session-
 import { RELEVANCE_QUESTION, relevanceState } from "../../../pi-fresh-session-handoff/src/hooks/deja-session-primer.ts";
 
 const DATA = join(homedir(), ".deja/experiments/21");
-const OUT = join(DATA, "clef-scores.jsonl");
+const QUESTION = process.env.QUESTION ?? "";
+const OUT = join(DATA, process.env.OUT_NAME ?? "clef-scores.jsonl");
 const DB = join(homedir(), ".deja/deja.db");
 const PARALLEL = Number(process.env.PARALLEL ?? 8);
 
@@ -36,7 +37,7 @@ async function worker() {
     let probability: number | null = null;
     if (text) {
       try {
-        probability = await judge(relevanceState(prompt, { id: note.id, score: 0, text, formatted: text }), RELEVANCE_QUESTION);
+        probability = await judge(relevanceState(prompt, { id: note.id, score: 0, text, formatted: text }), QUESTION || RELEVANCE_QUESTION);
       } catch {
         probability = null;
       }

@@ -68,11 +68,13 @@ Tested on the graded notes, no new model spend beyond Clef calls (`floor.ts`).
 
 Decision: keep 0.7. Clef's relevance score does not predict use, so tuning the floor is the wrong lever.
 
+**A sharper question.** The same notes were re-scored with "Does this memory note tell the agent something specific and useful for this request that the request itself does not already say?". It separated used from unused notes worse than the current question (AUC 0.54 against 0.60, where 0.5 is chance), and kept more notes. Not shipped.
+
 **Notes per injection.** Notes in position 3 or later were used 6 times in 80, and only 1 of 33 saved injections depended on them. Cutting the maximum from 3 to 2 would drop about 15% of injected notes for that one save. Not shipped; it is a small token saving against a real loss.
 
 **Near-duplicates.** Among 355 live notes, 6 same-project pairs overlap heavily (word overlap of 60% or more). Not the main problem yet.
 
 ## Next
 
-- The biggest remaining loss is relevant-but-unused notes (48% relevant, 17% used), and the relevance judge cannot tell them apart. The next lever is the question itself: ask whether the note adds something the request does not already say, and test that against these grades before shipping.
+- The biggest remaining loss is relevant-but-unused notes (48% relevant, 17% used). Clef, asked about one note and the request alone, sees too little to tell them apart (best AUC 0.60). A better selector needs more context than the request, for example the session's earlier turns or the files in view, or a stronger judge on the few candidates. Test against these grades before shipping.
 - Replaced decisions still reach agents. Write-time conflict and near-duplicate checks (roadmap v0.2, write quality) target this.
